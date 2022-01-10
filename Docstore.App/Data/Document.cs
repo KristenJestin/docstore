@@ -8,6 +8,7 @@
 
         #region relations
         public ICollection<DocumentFile> Files { get; set; } = new List<DocumentFile>();
+        public ICollection<DocumentTag> Tags { get; set; } = new List<DocumentTag>();
         #endregion
     }
 }

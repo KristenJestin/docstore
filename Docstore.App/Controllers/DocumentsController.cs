@@ -52,11 +52,12 @@ namespace Docstore.App.Controllers
             // model validation
             try
             {
-                if (ModelState.IsValid)
+                if (ModelState.IsValid && form != null)
                 {
                     // transform to database entity
                     var document = _mapper.Map<Document>(form);
-                    document.Files = await UploadFormFilesAsync(form!);
+                    document.Files = await form.UploadAndGetFilesAsync(_hostingEnvironment);
+                    document.Tags = await form.CreateNewTagsAndGetListAsync(_db);
 
                     // save in database
                     await _db.AddAsync(document);
@@ -66,7 +67,7 @@ namespace Docstore.App.Controllers
                     return RedirectToAction(nameof(Index));
                 }
             }
-            catch //(Exception ex)
+            catch// (Exception ex)
             {
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
@@ -84,6 +85,7 @@ namespace Docstore.App.Controllers
         {
             var document = await _db.Documents
                 .Include(x => x.Files)
+                .Include(x => x.Tags)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (document == null)
@@ -112,21 +114,6 @@ namespace Docstore.App.Controllers
             // response
             var fileBytes = await System.IO.File.ReadAllBytesAsync(file.GetFilePath(_hostingEnvironment));
             return File(fileBytes, file.MimeType!, file.GetFileName());
-        }
-        #endregion
-
-        #region privates
-        private async Task<ICollection<DocumentFile>> UploadFormFilesAsync(DocumentCreateForm form)
-        {
-            var files = new List<DocumentFile>();
-
-            foreach (var file in form!.Files)
-            {
-                var uploaded = await file.UploadAndTransformToDocumentFileAsync(_hostingEnvironment);
-                files.Add(uploaded);
-            }
-
-            return files;
         }
         #endregion
     }

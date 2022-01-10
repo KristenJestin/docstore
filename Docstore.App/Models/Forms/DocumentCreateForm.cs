@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Newtonsoft.Json;
+using System.ComponentModel.DataAnnotations;
 
 namespace Docstore.App.Models.Forms
 {
@@ -9,6 +10,14 @@ namespace Docstore.App.Models.Forms
         [DataType(DataType.MultilineText)]
         public string? Description { get; set; }
 
-        public IFormFileCollection Files { get; set; }
+        public IFormFileCollection Files { get; set; } = new FormFileCollection();
+
+        public IEnumerable<string> Tags { get; set; } = new List<string>();
+
+
+        #region methods
+        public string GetTagsJavascriptData()
+            => JsonConvert.SerializeObject(Tags, Formatting.None);
+        #endregion
     }
 }

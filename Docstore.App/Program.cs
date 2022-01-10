@@ -1,6 +1,7 @@
 using Docstore.App.Common;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var assembly = typeof(Program).Assembly;
@@ -17,6 +18,8 @@ builder.Services.AddAutoMapper(assembly);
 #if DEBUG
 mvcBuilder.AddRazorRuntimeCompilation();
 #endif
+
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var app = builder.Build();
 

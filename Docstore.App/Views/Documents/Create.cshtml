@@ -35,8 +35,24 @@
         </div>
 
         <div>
-            <label for="tags">Tags</label>
-            <TagInput v-model="form.tags" />
+            <label>Tags</label>
+            <div class="tag-input" x-data='tagsInput(@Html.Raw(Model!.Form.GetTagsJavascriptData()))'>
+                <input x-model="newTag" type="text"
+                       @@keydown.enter.prevent="addTag(newTag)"
+                       @@keydown.tab.prevent="addTag(newTag)"
+                       @@keydown.escape.prevent="clearNewTag()"
+                       @@keydown.backspace="removeLastTag()"
+                       :style="`padding-left: calc(${inputPaddingLeft}px + var(--form-element-spacing-horizontal) * ${tags.length ? 1.5 : 1})`" />
+                <ul class="tags" x-ref="tagsList">
+                    <template x-for="(tag, index) in tags">
+                        <li class="tag">
+                            <span x-text="tag"></span>
+                            <input type="hidden" x-model="tag" asp-for="Form.Tags" />
+                            <a class="delete" @@click="removeTag(index)">x</a>
+                        </li>
+                    </template>
+                </ul>
+            </div>
         </div>
 
         <button type="submit">Submit</button>

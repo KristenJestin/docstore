@@ -7,15 +7,11 @@ namespace Docstore.App.Common
 {
     public class AppDbContext : DbContext
     {
-        public DbSet<Document> Documents
-            => Set<Document>();
-        public DbSet<DocumentFile> DocumentFiles
-            => Set<DocumentFile>();
+        public DbSet<Document> Documents => Set<Document>();
+        public DbSet<DocumentFile> DocumentFiles => Set<DocumentFile>();
+        public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
 
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-        {
-            ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
-        }
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options){ }
 
 
         #region overrides

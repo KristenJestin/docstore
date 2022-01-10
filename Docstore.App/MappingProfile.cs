@@ -9,7 +9,8 @@ namespace Docstore.App
         public MappingProfile()
         {
             CreateMap<DocumentCreateForm, Document>()
-                .ForMember(x => x.Files, act => act.Ignore());
+                .ForMember(x => x.Files, act => act.Ignore())
+                .ForMember(x => x.Tags, act => act.Ignore());
         }
     }
 }
