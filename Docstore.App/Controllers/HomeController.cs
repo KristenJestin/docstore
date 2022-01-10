@@ -1,4 +1,5 @@
-﻿using Docstore.App.Models;
+﻿using Docstore.App.Common;
+using Docstore.App.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 
@@ -14,7 +15,7 @@ namespace Docstore.App.Controllers
         }
 
         public IActionResult Index()
-            => RedirectToAction(nameof(DocumentsController.Index), nameof(DocumentsController));
+            => RedirectToAction(nameof(DocumentsController.Index), Helpers.ControllerName<DocumentsController>());
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()

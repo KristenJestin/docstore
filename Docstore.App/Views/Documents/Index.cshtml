@@ -1,0 +1,38 @@
+﻿@using Humanizer
+@model DocumentsIndexViewModel
+
+<div>
+    <hgroup>
+        <h2>Documents</h2>
+        <h3>Show your imported documentsd</h3>
+    </hgroup>
+    <div>
+        <a asp-action="Create" role="button">Import new document</a>
+    </div>
+</div>
+
+<article>
+    <figure>
+        <table role="grid">
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Last Update</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model!.Documents)
+                {
+                    <tr>
+                        <td>@item.Name</td>
+                        <td>@item.UpdatedAt.Humanize()</td>
+                        <td>
+                            <a asp-action="Show" asp-route-id="@item.Id">Show</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </figure>
+</article>

@@ -1,0 +1,44 @@
+﻿@model DocumentCreateViewModel
+
+<div>
+    <hgroup>
+        <h2>Add new document</h2>
+        <h3>Import your new document with files</h3>
+    </hgroup>
+</div>
+
+
+<article>
+    <form method="post" enctype="multipart/form-data">
+        <div asp-validation-summary="ModelOnly"></div>
+        <div>
+            <label asp-for="Form.Files">Files</label>
+            <input asp-for="Form.Files" multiple="true" />
+            <small>
+                <span asp-validation-for="Form.Files"></span>
+            </small>
+        </div>
+
+        <div>
+            <label asp-for="Form.Name">Name</label>
+            <input asp-for="Form.Name" />
+            <small>
+                <span asp-validation-for="Form.Name"></span>
+            </small>
+        </div>
+        <div>
+            <label asp-for="Form.Description">Description</label>
+            <input asp-for="Form.Description" />
+            <small>
+                <span asp-validation-for="Form.Description"></span>
+            </small>
+        </div>
+
+        <div>
+            <label for="tags">Tags</label>
+            <TagInput v-model="form.tags" />
+        </div>
+
+        <button type="submit">Submit</button>
+    </form>
+</article>

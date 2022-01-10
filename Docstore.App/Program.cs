@@ -1,12 +1,22 @@
 using Docstore.App.Common;
+using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+var assembly = typeof(Program).Assembly;
 
 // Add services to the container.
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddControllersWithViews();
+var mvcBuilder = builder.Services
+    .AddControllersWithViews()
+    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssembly(assembly));
+
+builder.Services.AddAutoMapper(assembly);
+
+#if DEBUG
+mvcBuilder.AddRazorRuntimeCompilation();
+#endif
 
 var app = builder.Build();
 
