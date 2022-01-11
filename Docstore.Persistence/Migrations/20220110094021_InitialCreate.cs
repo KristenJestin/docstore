@@ -3,7 +3,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Docstore.App.Migrations
+namespace Docstore.Persistence.Migrations
 {
     public partial class InitialCreate : Migration
     {

@@ -1,4 +1,4 @@
-﻿namespace Docstore.App.Data
+﻿namespace Docstore.Domain.Entities
 {
     public class Document : DatedBaseEntity
     {

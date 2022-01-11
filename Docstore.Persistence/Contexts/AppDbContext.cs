@@ -1,9 +1,8 @@
-﻿using Docstore.App.Data;
-using Docstore.App.Models;
+﻿using Docstore.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
-namespace Docstore.App.Common
+namespace Docstore.Persistence.Contexts
 {
     public class AppDbContext : DbContext
     {

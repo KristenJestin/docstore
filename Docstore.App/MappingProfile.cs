@@ -1,5 +1,5 @@
 ﻿using AutoMapper;
-using Docstore.App.Data;
+using Docstore.Domain.Entities;
 using Docstore.App.Models.Forms;
 
 namespace Docstore.App

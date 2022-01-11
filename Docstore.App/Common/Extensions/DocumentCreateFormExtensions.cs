@@ -1,6 +1,7 @@
-﻿using Docstore.App.Data;
+﻿using Docstore.Domain.Entities;
 using Docstore.App.Models.Forms;
 using Microsoft.EntityFrameworkCore;
+using Docstore.Persistence.Contexts;
 
 namespace Docstore.App.Common.Extensions
 {

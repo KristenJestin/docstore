@@ -1,4 +1,4 @@
-﻿using Docstore.App.Data;
+﻿using Docstore.Domain.Entities;
 
 namespace Docstore.App.Common.Extensions
 {

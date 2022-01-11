@@ -1,11 +1,12 @@
 ﻿using AutoMapper;
 using Docstore.App.Common;
 using Docstore.App.Common.Extensions;
-using Docstore.App.Data;
+using Docstore.Domain.Entities;
 using Docstore.App.Models;
 using Docstore.App.Models.Forms;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Docstore.Persistence.Contexts;
 
 namespace Docstore.App.Controllers
 {

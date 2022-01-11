@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace Docstore.App.Migrations
+namespace Docstore.Persistence.Migrations
 {
     public partial class DocumentFile_Add_MimeType : Migration
     {

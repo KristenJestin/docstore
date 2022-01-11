@@ -1,4 +1,4 @@
-﻿namespace Docstore.App.Data
+﻿namespace Docstore.Domain.Entities
 {
     public abstract class BaseEntity
     {
