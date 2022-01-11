@@ -14,6 +14,8 @@ namespace Docstore.App.Models.Forms
 
         public IEnumerable<string> Tags { get; set; } = new List<string>();
 
+        public int? FolderId { get; set; }
+
 
         #region methods
         public string GetTagsJavascriptData()

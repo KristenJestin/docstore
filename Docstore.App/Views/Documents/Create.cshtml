@@ -11,6 +11,9 @@
 <article>
     <form method="post" enctype="multipart/form-data">
         <div asp-validation-summary="ModelOnly"></div>
+
+        <input type="hidden" asp-for="Form.FolderId" value="@Model!.FolderId" />
+
         <div>
             <label asp-for="Form.Files">Files</label>
             <input asp-for="Form.Files" multiple="true" />
@@ -48,7 +51,7 @@
                         <li class="tag">
                             <span x-text="tag"></span>
                             <input type="hidden" x-model="tag" asp-for="Form.Tags" />
-                            <a class="delete" @@click="removeTag(index)">x</a>
+                            <span class="delete" @@click="removeTag(index)"></span>
                         </li>
                     </template>
                 </ul>

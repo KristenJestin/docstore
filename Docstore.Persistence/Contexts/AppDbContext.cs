@@ -9,8 +9,9 @@ namespace Docstore.Persistence.Contexts
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<DocumentFile> DocumentFiles => Set<DocumentFile>();
         public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
+        public DbSet<Folder> Folders => Set<Folder>();
 
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options){ }
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
 
         #region overrides
@@ -42,6 +43,10 @@ namespace Docstore.Persistence.Contexts
             modelBuilder.Entity<DocumentFile>()
                 .HasOne(e => e.Document)
                 .WithMany(c => c.Files);
+
+            modelBuilder.Entity<Document>()
+                .HasOne(e => e.Folder)
+                .WithMany(c => c.Documents);
         }
         #endregion
     }

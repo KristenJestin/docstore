@@ -11,6 +11,8 @@ namespace Docstore.App
             CreateMap<DocumentCreateForm, Document>()
                 .ForMember(x => x.Files, act => act.Ignore())
                 .ForMember(x => x.Tags, act => act.Ignore());
+
+            CreateMap<FolderCreateForm, Folder>();
         }
     }
 }

@@ -25,25 +25,30 @@ namespace Docstore.App.Controllers
 
 
         #region actions
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(int? folderId = null)
         {
             // get data
-            var documents = await _db.Documents
-                .OrderByDescending(d => d.CreatedAt)
-                .ToListAsync();
+            IQueryable<Document> query = _db.Documents
+                .OrderByDescending(d => d.CreatedAt);
+
+            if (folderId != null && folderId > 0)
+                query = query.Where(d => d.FolderId == folderId);
+
+            var documents = await query.ToListAsync();
 
             // response
             var viewModel = new DocumentsIndexViewModel
             {
-                Documents = documents
+                Documents = documents,
+                FolderId = folderId
             };
             return View(viewModel);
         }
 
-        public IActionResult Create()
+        public IActionResult Create(int? folderId = null)
         {
             // response
-            var viewModel = new DocumentCreateViewModel();
+            var viewModel = new DocumentCreateViewModel(folderId);
             return View(viewModel);
         }
 
@@ -76,7 +81,7 @@ namespace Docstore.App.Controllers
             // response
             var viewModel = new DocumentCreateViewModel
             {
-                Form = form ?? DocumentCreateViewModel.DefaultFormValues
+                Form = form ?? DocumentCreateViewModel.GetDefaultFormValues()
             };
             return View(viewModel);
         }

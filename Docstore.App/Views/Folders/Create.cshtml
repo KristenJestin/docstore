@@ -1,0 +1,39 @@
+﻿@model FolderCreateViewModel
+
+<div>
+    <hgroup>
+        <h2>Add new folder</h2>
+        <h3>Import your new folder with files</h3>
+    </hgroup>
+</div>
+
+
+<article>
+    <form method="post" enctype="multipart/form-data">
+        <div asp-validation-summary="ModelOnly"></div>
+
+        <div>
+            <label asp-for="Form.Name">Name</label>
+            <input asp-for="Form.Name" />
+            <small>
+                <span asp-validation-for="Form.Name"></span>
+            </small>
+        </div>
+        <div>
+            <label asp-for="Form.Description">Description</label>
+            <input asp-for="Form.Description" />
+            <small>
+                <span asp-validation-for="Form.Description"></span>
+            </small>
+        </div>
+        <div>
+            <label asp-for="Form.Color">Color</label>
+            <input type="color" asp-for="Form.Color" />
+            <small>
+                <span asp-validation-for="Form.Color"></span>
+            </small>
+        </div>
+
+        <button type="submit">Submit</button>
+    </form>
+</article>

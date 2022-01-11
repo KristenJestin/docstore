@@ -1,13 +1,13 @@
 ﻿@using Humanizer
-@model DocumentsIndexViewModel
+@model FoldersIndexViewModel
 
 <div>
     <hgroup>
-        <h2>Documents</h2>
-        <h3>Show your imported documents</h3>
+        <h2>Folders</h2>
+        <h3>Show your folders</h3>
     </hgroup>
     <div>
-        <a asp-action="Create" role="button" asp-route-folderId="@Model!.FolderId">Import new document</a>
+        <a asp-action="Create" role="button">Create new folder</a>
     </div>
 </div>
 
@@ -16,20 +16,25 @@
         <table role="grid">
             <thead>
                 <tr>
+                    <th scope="col"></th>
                     <th scope="col">Name</th>
                     <th scope="col">Last Update</th>
                     <th scope="col">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                @if (Model!.Documents.Any())
+                @if (Model!.Folders.Any())
                 {
-                    @foreach (var item in Model!.Documents)
+                    @foreach (var item in Model!.Folders)
                     {
                         <tr>
+                            <td>
+                                <span class="dot" style="background-color: @item.Color"></span>
+                            </td>
                             <td>@item.Name</td>
                             <td>@item.UpdatedAt.Humanize()</td>
                             <td>
+                                <a asp-action="Index" asp-controller="Documents" asp-route-folderId="@item.Id">Documents</a>
                                 <a asp-action="Show" asp-route-id="@item.Id">Show</a>
                             </td>
                         </tr>
@@ -39,7 +44,7 @@
                 {
                     <tr>
                         <td colspan="10" style="text-align: center">
-                            <i style="text-align: center">No documents</i>
+                            <i>No folders</i>
                         </td>
                     </tr>
                 }
