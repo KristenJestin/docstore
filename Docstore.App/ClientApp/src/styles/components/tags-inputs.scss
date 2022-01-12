@@ -1,0 +1,54 @@
+.tag-input {
+    position: relative;
+    margin-bottom: var(--spacing);
+    input {
+        width: 100%;
+        padding: var(--spacing);
+        margin: 0 !important;
+    }
+    .tags {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: calc(var(--spacing) * 0.5);
+        margin: 0;
+        padding: 0;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: var(--spacing);
+        max-width: 75%;
+        overflow-x: auto;
+        .tag {
+            position: relative;
+            list-style: none;
+            background-color: var(--primary);
+            padding: calc(var(--spacing) * 0.25) calc(var(--spacing) * 0.5);
+            padding-right: calc(var(--spacing) * 1.5);
+            border-radius: var(--border-radius);
+            color: var(--primary-inverse);
+            white-space: nowrap;
+            transition: 0.1s ease background;
+            margin: 0;
+            .delete {
+                $delete-size: 0.5rem;
+                position: absolute;
+                width: $delete-size;
+                height: $delete-size;
+                top: 50%;
+                transform: translateY(-50%);
+                right: calc(var(--spacing) * 0.5);
+                cursor: pointer;
+                background-image: var(--icon-close);
+                background-position: center;
+                background-size: auto 1rem;
+                background-repeat: no-repeat;
+                opacity: 0.5;
+                transition: opacity var(--transition);
+                &:hover {
+                    opacity: 1;
+                }
+            }
+        }
+    }
+}

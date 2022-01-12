@@ -1,0 +1,22 @@
+$primary-100: #ecdefe;
+$primary-200: #d7befe;
+$primary-300: #c09dfc;
+$primary-400: #ab84f9;
+$primary-500: #8b5cf6;
+$primary-600: #6a43d3;
+$primary-700: #4e2eb1;
+$primary-800: #351d8e;
+$primary-900: #231176;
+
+@import 'node_modules/@picocss/pico/scss/pico';
+
+@import './components/tags-inputs.scss';
+
+.dot {
+    $size: 20px;
+    height: $size;
+    width: $size;
+    background-color: #bbb;
+    border-radius: 50%;
+    display: inline-block;
+}

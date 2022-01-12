@@ -31,7 +31,7 @@
         </div>
         <div>
             <label asp-for="Form.Description">Description</label>
-            <input asp-for="Form.Description" />
+            <textarea asp-for="Form.Description"></textarea>
             <small>
                 <span asp-validation-for="Form.Description"></span>
             </small>
@@ -39,7 +39,7 @@
 
         <div>
             <label>Tags</label>
-            <div class="tag-input" x-data='tagsInput(@Html.Raw(Model!.Form.GetTagsJavascriptData()))'>
+            <div class="tag-input" x-data="TagsInput(@Html.Raw(Model!.Form.GetTagsJavascriptData()))">
                 <input x-model="newTag" type="text"
                        @@keydown.enter.prevent="addTag(newTag)"
                        @@keydown.tab.prevent="addTag(newTag)"
