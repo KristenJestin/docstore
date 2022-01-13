@@ -1,14 +1,16 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body class="antialiased font-sans">
+<body class="antialiased font-sans bg-gray-200 dark:bg-gray-800">
     <main>
-        @RenderBody()
+        <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            @RenderBody()
+        </div>
     </main>
 
     <environment names="Development">

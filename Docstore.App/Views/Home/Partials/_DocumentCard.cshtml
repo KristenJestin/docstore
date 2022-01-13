@@ -1,0 +1,23 @@
+﻿@using Humanizer
+@using Docstore.Domain.Entities
+@model Document
+
+<div class="text-gray-700 dark:text-gray-300 flex flex-col sm:flex-row items-center p-3 bg-white dark:bg-gray-900 rounded-md shadow-md">
+    <div class="text-white w-12 flex-none bg-contain relative bg-no-repeat bg-center block">
+        <div class="absolute m-auto top-0 left-0 right-0 bottom-0 flex items-center justify-center">
+            <i class="fas fa-file text-primary-400 text-xl"></i>
+        </div>
+    </div>
+    <div class="sm:ml-3 mt-3 sm:mt-0 text-center sm:text-left">
+        <div class="text-gray-700 dark:text-gray-300 whitespace-nowrap font-medium">@Model!.Name</div>
+        <div class="text-gray-600 whitespace-nowrap text-xs">@Model!.UpdatedAt.Humanize()</div>
+    </div>
+    <div class="sm:ml-auto mt-3 sm:mt-0 flex">
+        <div class="relative group">
+            <div class="absolute inset-0 rounded-full bg-primary-400 blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <a class="relative w-8 h-8 flex-none flex items-center justify-center bg-gray-200 dark:bg-gray-800 group-hover:bg-primary-400 group-hover:text-white dark:group-hover:text-gray-800 rounded-full transition-colors duration-500" asp-action="Show" asp-route-id="@Model!.Id">
+                <i class="fas fa-angle-right"></i>
+            </a>
+        </div>
+    </div>
+</div>

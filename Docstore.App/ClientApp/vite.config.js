@@ -13,4 +13,7 @@ export default defineConfig({
             input: '/src/main.ts',
         },
     },
+    server: {
+        origin: 'http://localhost:3000',
+    },
 })

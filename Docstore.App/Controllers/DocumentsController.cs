@@ -7,6 +7,7 @@ using Docstore.App.Models.Forms;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Docstore.Persistence.Contexts;
+using Docstore.Application.Interfaces;
 
 namespace Docstore.App.Controllers
 {
@@ -118,7 +119,7 @@ namespace Docstore.App.Controllers
                 return NotFound();
 
             // response
-            var fileBytes = await System.IO.File.ReadAllBytesAsync(file.GetFilePath(_hostingEnvironment));
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(file.GetFilePath(_hostingEnvironment.WebRootPath));
             return File(fileBytes, file.MimeType!, file.GetFileName());
         }
         #endregion

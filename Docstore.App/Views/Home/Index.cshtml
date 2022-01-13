@@ -1,8 +1,22 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model HomeIndexViewModel
+
+@{
+    ViewData["Title"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="mb-12">
+    <h3 class="text-2xl font-black font-header text-gray-800 dark:text-gray-100">Last Documents</h3>
+    <div class="grid grid-flow-col auto-cols-fr gap-8 mt-3">
+        @foreach (var item in Model!.LastDocuments)
+        {
+            <partial name="Partials/_DocumentCard" model="item" />
+        }
+    </div>
+</div>
+
+<div class="mb-5">
+    <h3 class="text-2xl font-black font-header text-gray-800 dark:text-gray-100">All documents</h3>
+    <div class="mt-3">
+        <partial name="Partials/_DocumentsTable" model="Model!.Documents" />
+    </div>
 </div>

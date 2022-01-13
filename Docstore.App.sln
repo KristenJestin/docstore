@@ -5,9 +5,11 @@ VisualStudioVersion = 17.0.31919.166
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docstore.App", "Docstore.App\Docstore.App.csproj", "{4457423D-106C-407C-84BC-C193A2B6D0D6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docstore.Domain", "Docstore.Domain\Docstore.Domain.csproj", "{D1161577-0256-4277-8BFB-6D48BCA71390}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docstore.Domain", "Docstore.Domain\Docstore.Domain.csproj", "{D1161577-0256-4277-8BFB-6D48BCA71390}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docstore.Persistence", "Docstore.Persistence\Docstore.Persistence.csproj", "{53205DC1-6EDA-41BC-AC30-DC46C1D130A2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docstore.Persistence", "Docstore.Persistence\Docstore.Persistence.csproj", "{53205DC1-6EDA-41BC-AC30-DC46C1D130A2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docstore.Application", "Docstore.Application\Docstore.Application.csproj", "{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,6 +29,10 @@ Global
 		{53205DC1-6EDA-41BC-AC30-DC46C1D130A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{53205DC1-6EDA-41BC-AC30-DC46C1D130A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{53205DC1-6EDA-41BC-AC30-DC46C1D130A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

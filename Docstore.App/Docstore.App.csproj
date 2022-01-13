@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Docstore.Application\Docstore.Application.csproj" />
     <ProjectReference Include="..\Docstore.Domain\Docstore.Domain.csproj" />
     <ProjectReference Include="..\Docstore.Persistence\Docstore.Persistence.csproj" />
   </ItemGroup>

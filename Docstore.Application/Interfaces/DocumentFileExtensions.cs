@@ -1,12 +1,12 @@
 ﻿using Docstore.Domain.Entities;
 
-namespace Docstore.App.Common.Extensions
+namespace Docstore.Application.Interfaces
 {
     public static class DocumentFileExtensions
     {
-        public static string GetFilePath(this DocumentFile file, IWebHostEnvironment environment)
+        public static string GetFilePath(this DocumentFile file, string basePath)
         {
-            var paths = new List<string> { environment.WebRootPath };
+            var paths = new List<string> { basePath };
             paths.AddRange(DocumentFile.StorePath);
             var uploads = Path.Combine(paths.ToArray());
 

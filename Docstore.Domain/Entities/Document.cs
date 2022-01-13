@@ -1,4 +1,6 @@
-﻿namespace Docstore.Domain.Entities
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Docstore.Domain.Entities
 {
     public class Document : DatedBaseEntity
     {
@@ -6,6 +8,11 @@
         public string? Description { get; set; }
         public int? FolderId { get; set; }
 
+
+        #region extras
+        [NotMapped] public int FilesCount { get; set; }
+        [NotMapped] public long Size { get; set; }
+        #endregion
 
         #region relations
         public Folder? Folder { get; set; }

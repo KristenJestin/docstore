@@ -1,13 +1,13 @@
-using Docstore.Persistence.Contexts;
+using Docstore.Persistence;
 using FluentValidation.AspNetCore;
-using Microsoft.EntityFrameworkCore;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var assembly = typeof(Program).Assembly;
 
 // Add services to the container.
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddPersistenceInfrastructure(builder.Configuration);
+
 
 var mvcBuilder = builder.Services
     .AddControllersWithViews()
