@@ -14,13 +14,16 @@ namespace Docstore.App.Controllers
             _logger = logger;
         }
 
+
+        #region actions
         public IActionResult Index()
-            => RedirectToAction(nameof(DocumentsController.Index), Helpers.ControllerName<DocumentsController>());
+            => View();
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-        }
+        } 
+        #endregion
     }
 }
