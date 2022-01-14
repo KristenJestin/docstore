@@ -27,10 +27,13 @@ namespace Docstore.App.Controllers
             var lastDocuments = await _db.Documents
                 .OrderByDescending(d => d.UpdatedAt)
                 .Include(d => d.Folder)
-                .Take(3).ToListAsync();
+                .Include(d => d.Tags)
+                .Take(3)
+                .ToListAsync();
             var documents = await _db.Documents
                 .Where(d => d.FolderId == null)
                 .OrderBy(d => d.Name)
+                .Include(d => d.Tags)
                 .Take(8)
                 .Select(d => d.WithFilesCount(d.Files.Count).WithSize(d.Files.Sum(f => f.Size)))
                 .ToListAsync();

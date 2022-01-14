@@ -13,6 +13,9 @@
                                 Name
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tags
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Size
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -48,13 +51,28 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
-                                        @item.Size.Bytes()
+                                        @if (item.Tags!.Any())
+                                        {
+                                            <div class="space-x-1">
+                                                @foreach (var tag in item.Tags)
+                                                {
+                                                    <partial name="~/Views/Shared/Partials/_Tag.cshtml" model="@tag" />
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <i class="italic text-xs text-gray-500">no tags</i>
+                                        }
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
+                                        @item.Size.Bytes() (@("file".ToQuantity(@item.FilesCount)))
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
                                         @item.UpdatedAt.Humanize()
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <a href="#" class="text-primary-600 hover:text-primary-900">Edit</a>
+                                        <a class="text-primary-600 hover:text-primary-900" asp-action="Show" asp-controller="Documents" asp-route-id="@item.Id">Show</a>
                                     </td>
                                 </tr>
                             }

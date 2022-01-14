@@ -8,6 +8,9 @@ namespace Docstore.Domain.Entities
         public string? Description { get; set; }
         public int? FolderId { get; set; }
 
+        public DateTime? ReceivedAt { get; set; }
+        public DateTime? EndsAt { get; set; }
+
 
         #region extras
         [NotMapped] public int FilesCount { get; set; }
