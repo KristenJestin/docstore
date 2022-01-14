@@ -10,6 +10,9 @@ module.exports = {
                 sans: ['Poppins', ...defaultTheme.fontFamily.sans],
                 header: ['Montserrat', ...defaultTheme.fontFamily.sans],
             },
+            maxWidth: {
+                '9/12': '75%',
+            },
         },
         colors: {
             transparent: 'transparent',
@@ -22,5 +25,5 @@ module.exports = {
             primary: yellow,
         },
     },
-    plugins: [],
+    plugins: [require('@tailwindcss/forms')],
 }

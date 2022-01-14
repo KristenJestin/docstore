@@ -1,4 +1,5 @@
-﻿@model DocumentCreateViewModel
+﻿@using Docstore.App.Common.Extensions
+@model DocumentCreateViewModel
 
 <div>
     <hgroup>
@@ -8,56 +9,77 @@
 </div>
 
 
-<article>
-    <form method="post" enctype="multipart/form-data">
-        <div asp-validation-summary="ModelOnly"></div>
+<form method="post" enctype="multipart/form-data">
+    <div class="shadow sm:rounded-lg sm:overflow-hidden">
+        <div class="px-4 py-5 bg-white dark:bg-gray-900 space-y-6 sm:p-6">
+            <div asp-validation-summary="ModelOnly"></div>
 
-        <input type="hidden" asp-for="Form.FolderId" value="@Model!.FolderId" />
+            <input type="hidden" asp-for="Form.FolderId" value="@Model!.FolderId" />
 
-        <div>
-            <label asp-for="Form.Files">Files</label>
-            <input asp-for="Form.Files" multiple="true" />
-            <small>
-                <span asp-validation-for="Form.Files"></span>
-            </small>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Files">Files</label>
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                    <div class="space-y-1 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="flex text-sm text-gray-600  dark:text-gray-500">
+                            <label asp-for="Form.Files" class="relative cursor-pointer bg-transparent rounded-md font-medium text-primary-600 hover:text-primary-500 active:text-primary-400">
+                                <span>Upload files</span>
+                                <input asp-for="Form.Files" multiple="true" class="sr-only" />
+                            </label>
+                            <p class="pl-1">or drag and drop</p>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            PNG, JPG, GIF up to 10MB
+                        </p>
+                    </div>
+                </div>
+                <p asp-display-validation-for="Form.Files" class="mt-2 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Files"></span></p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Name">Name</label>
+                <input asp-for="Form.Name" type="text" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md" asp-valid-class="border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500 dark:focus:border-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="border-red-500 text-red-900 placeholder-red-700 focus:ring-red-500 focus:border-red-500 dark:bg-red-100 dark:border-red-400" />
+                <p asp-display-validation-for="Form.Name" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Name"></span></p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Description">Description</label>
+                <textarea asp-for="Form.Description" type="text" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md" asp-valid-class="border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500 dark:focus:border-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="border-red-500 text-red-900 placeholder-red-700 focus:ring-red-500 focus:border-red-500 dark:bg-red-100 dark:border-red-400"></textarea>
+                <p asp-display-validation-for="Form.Description" class="mt-2 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Description"></span></p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Tags">Tags</label>
+                <div x-data="TagsInput(@Html.Raw(Model!.Form.GetTagsJavascriptData()))" class="relative mt-1">
+                    <input x-model="newTag" type="text"
+                           class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500 dark:focus:border-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100"
+                           x-on:keydown.enter.prevent="addTag(newTag)"
+                           x-on:keydown.tab.prevent="addTag(newTag)"
+                           x-on:keydown.escape.prevent="clearNewTag()"
+                           x-on:keydown.backspace="removeLastTag()"
+                           :style="`padding-left: calc(${inputPaddingLeft}px + 0.5rem * ${!tags.length ? 1.5 : 1})`" />
+                    <ul x-ref="tagsList" class="flex items-center absolute top-0 bottom-0 max-w-9/12 overflow-x-auto space-x-2">
+                        <template x-for="(tag, index) in tags">
+                            <li class="relative bg-primary-400 rounded no-wrap text-md text-black font-medium px-2 pr-6">
+                                <span x-text="tag"></span>
+                                <input type="hidden" x-model="tag" asp-for="Form.Tags" />
+                                <span x-on:click="removeTag(index)" class="absolute align-middle opacity-50 hover:opacity-75 top-1/2 -translate-y-1/2 right-2 cursor-pointer flex items-center">
+                                    <i class="fas fa-times text-xs"></i>
+                                </span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+                <p asp-display-validation-for="Form.Tags" class="mt-2 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Tags"></span></p>
+            </div>
+
         </div>
-
-        <div>
-            <label asp-for="Form.Name">Name</label>
-            <input asp-for="Form.Name" />
-            <small>
-                <span asp-validation-for="Form.Name"></span>
-            </small>
-        </div>
-        <div>
-            <label asp-for="Form.Description">Description</label>
-            <textarea asp-for="Form.Description"></textarea>
-            <small>
-                <span asp-validation-for="Form.Description"></span>
-            </small>
-        </div>
-
-        <div>
-            <label>Tags</label>
-            <div class="tag-input" x-data="TagsInput(@Html.Raw(Model!.Form.GetTagsJavascriptData()))">
-                <input x-model="newTag" type="text"
-                       @@keydown.enter.prevent="addTag(newTag)"
-                       @@keydown.tab.prevent="addTag(newTag)"
-                       @@keydown.escape.prevent="clearNewTag()"
-                       @@keydown.backspace="removeLastTag()"
-                       :style="`padding-left: calc(${inputPaddingLeft}px + var(--form-element-spacing-horizontal) * ${tags.length ? 1.5 : 1})`" />
-                <ul class="tags" x-ref="tagsList">
-                    <template x-for="(tag, index) in tags">
-                        <li class="tag">
-                            <span x-text="tag"></span>
-                            <input type="hidden" x-model="tag" asp-for="Form.Tags" />
-                            <span class="delete" @@click="removeTag(index)"></span>
-                        </li>
-                    </template>
-                </ul>
+        <div class="px-4 py-3 bg-gray-50 dark:bg-black sm:px-6">
+            <div class="flex">
+                <a asp-action="Index" class="py-2 px-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-100 text-sm font-semibold rounded-md transition duration-500">Cancel</a>
+                <button type="submit" class="ml-auto py-2 px-3 bg-primary-500 text-primary-900 hover:text-white text-sm font-semibold rounded-md shadow-lg shadow-primary-500/10 hover:shadow-primary-500/50 active:shadow-primary-500/75 focus:outline-none transition duration-500">Submit</button>
             </div>
         </div>
-
-        <button type="submit">Submit</button>
-    </form>
-</article>
+    </div>
+</form>

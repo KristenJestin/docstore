@@ -35,7 +35,8 @@
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center">
                                             <div class="flex-shrink-0 h-10 w-10">
-                                                <i class="fas fa-file text-primary-400 text-xl"></i>
+                                                @*<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-primary-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clip-rule="evenodd" /><path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H2h2a2 2 0 002-2v-2z" /></svg>*@
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-primary-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
                                             </div>
                                             <div class="ml-4">
                                                 <div class="text-sm font-medium text-gray-900 dark:text-gray-300 truncate">
@@ -72,7 +73,7 @@
                                         @item.UpdatedAt.Humanize()
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <a class="text-primary-600 hover:text-primary-900" asp-action="Show" asp-controller="Documents" asp-route-id="@item.Id">Show</a>
+                                        <a asp-action="Show" asp-controller="Documents" asp-route-id="@item.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">Show</a>
                                     </td>
                                 </tr>
                             }
