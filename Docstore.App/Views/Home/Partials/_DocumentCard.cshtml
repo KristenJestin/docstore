@@ -18,7 +18,7 @@
     <div class="sm:ml-auto mt-3 sm:mt-0 flex">
         <div class="relative group">
             <div class="absolute inset-0 rounded-full bg-primary-400 blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <a asp-action="Show" asp-controller="Documents" asp-route-id="@Model!.Id" class="relative w-8 h-8 flex-none flex items-center justify-center bg-gray-200 dark:bg-gray-800 group-hover:bg-primary-400 group-hover:text-white dark:group-hover:text-gray-800 rounded-full transition-colors duration-500">
+            <a up-target="[layout-main]" asp-action="Show" asp-controller="Documents" asp-route-id="@Model!.Id" class="relative w-8 h-8 flex-none flex items-center justify-center bg-gray-200 dark:bg-gray-800 group-hover:bg-primary-400 group-hover:text-white dark:group-hover:text-gray-800 rounded-full transition-colors duration-500">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
             </a>
         </div>

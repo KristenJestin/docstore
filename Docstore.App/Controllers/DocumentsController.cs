@@ -1,16 +1,14 @@
 ﻿using AutoMapper;
-using Docstore.App.Common;
 using Docstore.App.Common.Extensions;
-using Docstore.Domain.Entities;
 using Docstore.App.Models;
 using Docstore.App.Models.Forms;
+using Docstore.Application.Common;
+using Docstore.Application.Interfaces;
+using Docstore.Application.Models;
+using Docstore.Domain.Entities;
+using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Docstore.Persistence.Contexts;
-using Docstore.Application.Interfaces;
-using Docstore.Application;
-using Docstore.Application.Models;
-using Docstore.Application.Common;
 using Microsoft.Extensions.Options;
 
 namespace Docstore.App.Controllers
@@ -82,7 +80,7 @@ namespace Docstore.App.Controllers
             }
             catch// (Exception ex)
             {
-                ModelState.AddModelError("", "An unexpected error occurred.");
+                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
             // response

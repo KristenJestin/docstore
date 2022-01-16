@@ -792,6 +792,11 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
+unpoly@^2.5.0:
+  version "2.5.0"
+  resolved "https://registry.yarnpkg.com/unpoly/-/unpoly-2.5.0.tgz#63629a687fe7b87848e618035d9f4d256a924b1a"
+  integrity sha512-VpA2O0nDE6CaAsXciF798qeYShhx76IbocTXiA1g0kVT9zjO4rxnJOZZzypoLHeK2m9HdB/SSPsPwt0+86fAUA==
+
 util-deprecate@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"

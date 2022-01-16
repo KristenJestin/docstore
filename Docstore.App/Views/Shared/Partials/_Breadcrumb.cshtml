@@ -17,7 +17,7 @@
 
                     @if (item.IsLink())
                     {
-                        <a asp-action="@item.Action" asp-controller="@item.Controller" asp-all-route-data="@item.Routes" class="@(index != 0 ? "ml-1 md:ml-2" : "") inline-flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                        <a up-target="[layout-main]" up-preload asp-action="@item.Action" asp-controller="@item.Controller" asp-all-route-data="@item.Routes" class="@(index != 0 ? "ml-1 md:ml-2" : "") inline-flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
                             @{
                                 RenderIcon(item);
                             }
