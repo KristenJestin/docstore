@@ -2,6 +2,7 @@
 using Docstore.App.Models.Forms;
 using Microsoft.EntityFrameworkCore;
 using Docstore.Persistence.Contexts;
+using Docstore.Application;
 
 namespace Docstore.App.Common.Extensions
 {
@@ -64,11 +65,11 @@ namespace Docstore.App.Common.Extensions
             var uploads = Path.Combine(paths.ToArray());
             var filePath = Path.Combine(uploads, storedFileName);
 
+            // move and encrypt file
             Directory.CreateDirectory(uploads);
-            using (var stream = new FileStream(filePath, FileMode.Create))
-                await file.CopyToAsync(stream);
-
-            // TODO: encrypt file
+            await Encryption.EncryptAsync(file.OpenReadStream(), filePath);
+            //using (var stream = new FileStream(filePath, FileMode.Create))
+            //    await file.CopyToAsync(stream);
 
             // transform to entity
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file.FileName);
