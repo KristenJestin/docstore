@@ -4,6 +4,11 @@ namespace Docstore.Domain.Entities
 {
     public class Document : DatedBaseEntity
     {
+        #region validations
+        public static readonly string[] AllowedContentTypes = new[] { "image/jpeg", "image/jpg", "image/png", "application/pdf" };
+        public const long MaxLength = 52428800;
+        #endregion
+
         public string? Name { get; set; }
         public string? Description { get; set; }
         public int? FolderId { get; set; }

@@ -16,6 +16,9 @@ namespace Docstore.App.Models.Forms
 
         public int? FolderId { get; set; }
 
+        public DateTime? ReceivedAt { get; set; }
+        public DateTime? EndsAt { get; set; }
+
 
         #region methods
         public string GetTagsJavascriptData()
