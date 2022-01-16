@@ -1,3 +1,4 @@
+using Docstore.Application.Models;
 using Docstore.Persistence;
 using FluentValidation.AspNetCore;
 using System.Text;
@@ -8,12 +9,13 @@ var assembly = typeof(Program).Assembly;
 // Add services to the container.
 builder.Services.AddPersistenceInfrastructure(builder.Configuration);
 
-
 var mvcBuilder = builder.Services
     .AddControllersWithViews()
     .AddFluentValidation(fv => fv.RegisterValidatorsFromAssembly(assembly));
 
 builder.Services.AddAutoMapper(assembly);
+
+builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
 
 #if DEBUG
 mvcBuilder.AddRazorRuntimeCompilation();

@@ -1,21 +1,21 @@
-﻿using Docstore.Domain.Entities;
-using Docstore.App.Models.Forms;
-using Microsoft.EntityFrameworkCore;
+﻿using Docstore.App.Models.Forms;
+using Docstore.Application.Common;
+using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
-using Docstore.Application;
+using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.App.Common.Extensions
 {
     public static class DocumentCreateFormExtensions
     {
 
-        public static async Task<ICollection<DocumentFile>> UploadAndGetFilesAsync(this DocumentCreateForm form, IWebHostEnvironment hostingEnvironment)
+        public static async Task<ICollection<DocumentFile>> UploadAndEncryptAndGetFilesAsync(this DocumentCreateForm form, IWebHostEnvironment hostingEnvironment, string encryptionKey)
         {
             var files = new List<DocumentFile>();
 
             foreach (var file in form!.Files)
             {
-                var uploaded = await file.UploadAndTransformToDocumentFileAsync(hostingEnvironment);
+                var uploaded = await file.UploadAndEncryptAndTransformToDocumentFileAsync(hostingEnvironment, encryptionKey);
                 files.Add(uploaded);
             }
 
@@ -55,7 +55,7 @@ namespace Docstore.App.Common.Extensions
                 Slug = Helpers.Slugify(tag.Trim()),
             };
 
-        public static async Task<DocumentFile> UploadAndTransformToDocumentFileAsync(this IFormFile file, IWebHostEnvironment environment)
+        public static async Task<DocumentFile> UploadAndEncryptAndTransformToDocumentFileAsync(this IFormFile file, IWebHostEnvironment environment, string encryptionKey)
         {
             // move to directory
             var paths = new List<string> { environment.WebRootPath };
@@ -67,7 +67,7 @@ namespace Docstore.App.Common.Extensions
 
             // move and encrypt file
             Directory.CreateDirectory(uploads);
-            await Encryption.EncryptAsync(file.OpenReadStream(), filePath);
+            await Encryption.EncryptAsync(file.OpenReadStream(), filePath, encryptionKey);
             //using (var stream = new FileStream(filePath, FileMode.Create))
             //    await file.CopyToAsync(stream);
 

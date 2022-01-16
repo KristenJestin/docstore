@@ -5,18 +5,16 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Docstore.Application
+namespace Docstore.Application.Common
 {
     public static class Encryption
     {
-        private const string KEY_STRING = "WoawInsanePasswd"; // TODO: set in the encrypted configuration file
-
         private const long MAX_BUFFER_SIZE = 1048576; // 1mb
         private const int IV_LENGTH = 16;
 
-        public static async Task EncryptAsync(string source, string destination)
+        public static async Task EncryptAsync(string source, string destination, string keyString)
         {
-            var key = Encoding.UTF8.GetBytes(KEY_STRING);
+            var key = Encoding.UTF8.GetBytes(keyString);
 
             using var fsEncrypt = new FileStream(destination, FileMode.CreateNew);
             using var alg = CreateAlgorithm(key);
@@ -34,9 +32,9 @@ namespace Docstore.Application
                 await csEncrypt.WriteAsync(buffer.AsMemory(0, read));
         }
 
-        public static async Task EncryptAsync(Stream source, string destination)
+        public static async Task EncryptAsync(Stream source, string destination, string keyString)
         {
-            var key = Encoding.UTF8.GetBytes(KEY_STRING);
+            var key = Encoding.UTF8.GetBytes(keyString);
 
             using var fsEncrypt = new FileStream(destination, FileMode.CreateNew);
             using var alg = CreateAlgorithm(key);
@@ -54,9 +52,9 @@ namespace Docstore.Application
                 await csEncrypt.WriteAsync(buffer.AsMemory(0, read));
         }
 
-        public static async Task DecryptAsync(string source, string destination)
+        public static async Task DecryptAsync(string source, string destination, string keyString)
         {
-            var key = Encoding.UTF8.GetBytes(KEY_STRING);
+            var key = Encoding.UTF8.GetBytes(keyString);
             var iv = new byte[IV_LENGTH];
 
             using var fsDecrypt = new FileStream(source, FileMode.Open);
@@ -76,10 +74,10 @@ namespace Docstore.Application
 
 
 
-        public static async Task<byte[]> DecryptWithMemoryAsync(string source)
+        public static async Task<byte[]> DecryptWithMemoryAsync(string source, string keyString)
         {
 
-            var key = Encoding.UTF8.GetBytes(KEY_STRING);
+            var key = Encoding.UTF8.GetBytes(keyString);
             var iv = new byte[IV_LENGTH];
 
             using var fsDecrypt = new FileStream(source, FileMode.Open);

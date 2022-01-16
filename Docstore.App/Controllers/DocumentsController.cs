@@ -9,6 +9,9 @@ using Microsoft.EntityFrameworkCore;
 using Docstore.Persistence.Contexts;
 using Docstore.Application.Interfaces;
 using Docstore.Application;
+using Docstore.Application.Models;
+using Docstore.Application.Common;
+using Microsoft.Extensions.Options;
 
 namespace Docstore.App.Controllers
 {
@@ -17,12 +20,14 @@ namespace Docstore.App.Controllers
         private readonly IMapper _mapper;
         private readonly AppDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
+        private readonly AppSettings _appSettings;
 
-        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
+        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings)
         {
             _db = db;
             _mapper = mapper;
             _hostingEnvironment = hostingEnvironment;
+            _appSettings = appSettings.Value;
         }
 
 
@@ -64,7 +69,7 @@ namespace Docstore.App.Controllers
                 {
                     // transform to database entity
                     var document = _mapper.Map<Document>(form);
-                    document.Files = await form.UploadAndGetFilesAsync(_hostingEnvironment);
+                    document.Files = await form.UploadAndEncryptAndGetFilesAsync(_hostingEnvironment, _appSettings.AppKey!);
                     document.Tags = await form.CreateNewTagsAndGetListAsync(_db);
 
                     // save in database
@@ -121,7 +126,7 @@ namespace Docstore.App.Controllers
 
             // response
             var filePath = file.GetFilePath(_hostingEnvironment.WebRootPath);
-            return File(await Encryption.DecryptWithMemoryAsync(filePath), file.MimeType!, file.GetFileName(), true);
+            return File(await Encryption.DecryptWithMemoryAsync(filePath, _appSettings.AppKey!), file.MimeType!, file.GetFileName(), true);
         }
         #endregion
     }
