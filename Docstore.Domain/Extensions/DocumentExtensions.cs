@@ -1,6 +1,6 @@
 ﻿using Docstore.Domain.Entities;
 
-namespace Docstore.Application.Interfaces
+namespace Docstore.Domain.Extensions
 {
     public static class DocumentExtensions
     {

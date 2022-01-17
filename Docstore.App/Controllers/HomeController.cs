@@ -1,6 +1,5 @@
-﻿using Docstore.App.Common.Extensions;
-using Docstore.App.Models;
-using Docstore.Application.Interfaces;
+﻿using Docstore.App.Models;
+using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -35,11 +34,14 @@ namespace Docstore.App.Controllers
                 .OrderBy(d => d.Name)
                 .Include(d => d.Tags)
                 .Take(8)
-                .Select(d => d.WithFilesCount(d.Files.Count).WithSize(d.Files.Sum(f => f.Size)))
+                // TODO: save in database size and count when inserting and updating files
+                .Select(d => d.WithFilesCount(d.Files.Count).WithSize(d.Files.Sum(file => file.Size)))
                 .ToListAsync();
             var folders = await _db.Folders
                 .OrderBy(d => d.Name)
                 .Take(8)
+                // TODO: save in database size and count when inserting and updating files
+                .Select(f => f.WithDocumentsCount(f.Documents.Count).WithSize(f.Documents.Sum(docu => docu.Files.Sum(file => file.Size))))
                 .ToListAsync();
 
             // response
