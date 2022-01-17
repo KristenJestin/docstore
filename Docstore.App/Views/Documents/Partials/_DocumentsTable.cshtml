@@ -1,8 +1,9 @@
-﻿@using Humanizer
+﻿@using Docstore.Application.Models
+@using Humanizer
 @using Docstore.Domain.Entities
-@model IEnumerable<Document>
+@model PagedResult<Document>
 
-<div class="flex flex-col">
+<div class="flex flex-col" layout-documents-table>
     <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
         <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
             <div class="shadow overflow-hidden border-b border-gray-200 dark:border-gray-800 sm:rounded-lg">
@@ -27,9 +28,9 @@
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                        @if (Model != null && Model.Any())
+                        @if (Model != null && Model.Results.Any())
                         {
-                            @foreach (var item in Model)
+                            @foreach (var item in Model.Results)
                             {
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap">
@@ -89,6 +90,8 @@
                         }
                     </tbody>
                 </table>
+
+                <partial name="~/Views/Shared/Partials/_Pagination.cshtml" model="@Model?.Pagination" />
             </div>
         </div>
     </div>

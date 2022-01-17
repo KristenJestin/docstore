@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.Persistence.Repositories
 {
-    public class GenericRepositoryAsync<T> : IGenericRepositoryAsync<T> where T : class
+    public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
         private readonly AppDbContext _db;
 
-        public GenericRepositoryAsync(AppDbContext dbContext)
+        public GenericRepository(AppDbContext dbContext)
             => _db = dbContext;
 
         public virtual async Task<T?> FindByIdAsync(int id)

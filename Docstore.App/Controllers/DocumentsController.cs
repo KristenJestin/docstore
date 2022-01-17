@@ -3,6 +3,7 @@ using Docstore.App.Common.Extensions;
 using Docstore.App.Models;
 using Docstore.App.Models.Forms;
 using Docstore.Application.Common;
+using Docstore.Application.Interfaces;
 using Docstore.Application.Models;
 using Docstore.Domain.Entities;
 using Docstore.Domain.Extensions;
@@ -15,44 +16,40 @@ namespace Docstore.App.Controllers
 {
     public class DocumentsController : Controller
     {
+        private const int PAGE_SIZE = 6;
+
         private readonly IMapper _mapper;
         private readonly AppDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly AppSettings _appSettings;
+        private readonly IDocumentRepository _documentRepository;
 
-        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings)
+        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository)
         {
             _db = db;
             _mapper = mapper;
             _hostingEnvironment = hostingEnvironment;
             _appSettings = appSettings.Value;
+            _documentRepository = documentRepository;
         }
 
 
         #region actions
-        public async Task<IActionResult> Index(int? folderId = null, int? tagId = null)
+        public async Task<IActionResult> Index(int? page = 1, int? folderId = null, int? tagId = null)
         {
             // get data
-            IQueryable<Document> query = _db.Documents
-                .OrderBy(d => d.Name)
-                .Include(d => d.Tags);
+            var documents = await _documentRepository.GetPagedReponseAsync(page ?? 1, PAGE_SIZE, tag: tagId, folder: folderId);
 
-            if (tagId != null && tagId > 0)
-                query = query.Where(d => d.Tags.Any(x => x.Id == tagId));
-
-            if (folderId != null && folderId > 0)
-                query = query.Where(d => d.FolderId == folderId);
-
-            var documents = await query
-                // TODO: save in database size and count when inserting and updating files
-                .Select(d => d.WithFilesCount(d.Files.Count).WithSize(d.Files.Sum(file => file.Size)))
-                .ToListAsync();
+            Folder? folder = null;
+            if (folderId != null)
+                folder = await _db.Folders.FindAsync(folderId.Value);
 
             // response
             var viewModel = new DocumentsIndexViewModel
             {
                 Documents = documents,
-                FolderId = folderId
+                FolderId = folderId,
+                Folder = folder
             };
             return View(viewModel);
         }

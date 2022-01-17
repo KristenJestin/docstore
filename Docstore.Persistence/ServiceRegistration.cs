@@ -15,8 +15,8 @@ namespace Docstore.Persistence
             services.AddDbContext<AppDbContext>(options => options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
             #region repositories
-            services.AddTransient(typeof(IGenericRepositoryAsync<>), typeof(GenericRepositoryAsync<>));
-            services.AddTransient<IDocumentRepositoryAsync, DocumentRepositoryAsync>();
+            services.AddTransient(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+            services.AddTransient<IDocumentRepository, DocumentRepository>();
             #endregion
         }
     }
