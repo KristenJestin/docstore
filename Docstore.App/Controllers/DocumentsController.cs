@@ -97,6 +97,7 @@ namespace Docstore.App.Controllers
             var document = await _db.Documents
                 .Include(x => x.Files)
                 .Include(x => x.Tags)
+                .Include(x => x.Folder)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (document == null)

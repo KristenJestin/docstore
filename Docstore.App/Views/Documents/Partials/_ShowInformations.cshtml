@@ -1,0 +1,131 @@
+﻿@using Humanizer
+@using Docstore.Domain.Entities
+@model Document
+
+@if (Model == null) return;
+
+<div class="divide-y divide-solid divide-black">
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Name
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @Model.Name
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Description
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @if (Model.Description != null)
+            {
+                <span>@Model.Description</span>
+            }
+            else
+            {
+
+                <i class="italic text-xs text-gray-500">no description</i>
+            }
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Folder
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @if (Model.Folder != null)
+            {
+                <a asp-action="Index" asp-controller="Documents" asp-route-folderId="@Model.Folder.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">@Model.Folder.Name</a>
+            }
+            else
+            {
+                <i class="italic text-xs text-gray-500">no folder</i>
+            }
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Tags
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @if (Model.Tags != null && Model.Tags.Any())
+            {
+                <div class="space-x-1">
+                    @foreach (var tag in Model.Tags)
+                    {
+                        <partial name="~/Views/Shared/Partials/_Tag.cshtml" model="@tag" />
+                    }
+                </div>
+            }
+            else
+            {
+
+                <i class="italic text-xs text-gray-500">no tags</i>
+            }
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Total Size
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @Model.Files.Sum(f => f.Size).Bytes()
+            <span class="italic text-xs">(@("file".ToQuantity(@Model.Files.Count)))</span>
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Received Date
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @if (Model.ReceivedAt != null)
+            {
+                <span>@Model.ReceivedAt.Humanize()</span>
+            }
+            else
+            {
+                <i class="italic text-xs text-gray-500">no date</i>
+            }
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Ends Date
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @if (Model.EndsAt != null)
+            {
+                <span>@Model.EndsAt.Humanize()</span>
+            }
+            else
+            {
+                <i class="italic text-xs text-gray-500">no date</i>
+            }
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Creation Date
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            <span>@Model.CreatedAt.Humanize()</span>
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Update Date
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            <span>@Model.UpdatedAt.Humanize()</span>
+        </div>
+    </div>
+</div>
