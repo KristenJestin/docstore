@@ -42,7 +42,7 @@
                                                 @if (!string.IsNullOrWhiteSpace(item.Description))
                                                 {
                                                     <div class="text-sm text-gray-500 dark:text-gray-600 truncate">
-                                                        @item.Description
+                                                        @item.Description!.Truncate(20)
                                                     </div>
                                                 }
                                             </div>

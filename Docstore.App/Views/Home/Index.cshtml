@@ -18,7 +18,7 @@
     <div class="grid grid-flow-col auto-cols-fr gap-8 mt-3">
         @foreach (var item in Model!.LastDocuments)
         {
-            <partial name="Partials/_DocumentCard" model="item" />
+            <partial name="~/Views/Documents/Partials/_DocumentCard.cshtml" model="item" />
         }
     </div>
 </div>
@@ -26,7 +26,7 @@
 <div class="mb-5">
     <h3 class="text-2xl font-black font-header text-gray-800 dark:text-gray-100">All Documents</h3>
     <div class="mt-3">
-        <partial name="Partials/_DocumentsTable" model="Model!.Documents" />
+        <partial name="~/Views/Documents/Partials/_DocumentsTable.cshtml" model="Model!.Documents" />
     </div>
 </div>
 

@@ -30,16 +30,23 @@ namespace Docstore.App.Controllers
 
 
         #region actions
-        public async Task<IActionResult> Index(int? folderId = null)
+        public async Task<IActionResult> Index(int? folderId = null, int? tagId = null)
         {
             // get data
             IQueryable<Document> query = _db.Documents
-                .OrderByDescending(d => d.CreatedAt);
+                .OrderBy(d => d.Name)
+                .Include(d => d.Tags);
+
+            if (tagId != null && tagId > 0)
+                query = query.Where(d => d.Tags.Any(x => x.Id == tagId));
 
             if (folderId != null && folderId > 0)
                 query = query.Where(d => d.FolderId == folderId);
 
-            var documents = await query.ToListAsync();
+            var documents = await query
+                // TODO: save in database size and count when inserting and updating files
+                .Select(d => d.WithFilesCount(d.Files.Count).WithSize(d.Files.Sum(file => file.Size)))
+                .ToListAsync();
 
             // response
             var viewModel = new DocumentsIndexViewModel
@@ -80,7 +87,7 @@ namespace Docstore.App.Controllers
             }
             catch// (Exception ex)
             {
-                 ModelState.AddModelError("", "An unexpected error occurred.");
+                ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
             // response

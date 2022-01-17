@@ -1,49 +1,29 @@
 ﻿@using Humanizer
+@using Docstore.Application.Models
+@using Docstore.App.Common.Extensions
 @model DocumentsIndexViewModel
 
-<div>
-    <hgroup>
-        <h2>Documents</h2>
-        <h3>Show your imported documents</h3>
-    </hgroup>
-    <div>
-        <a asp-action="Create" asp-route-folderId="@Model!.FolderId">Import new document</a>
-    </div>
+@{
+    ViewData["Title"] = "Documents";
+
+    var breadcrumbs = new List<BreadcrumbItem>
+    {
+        Constants.BreadcrumbHome,
+        Constants.BreadcrumbDocumentsHome,
+    };
+}
+
+<div class="mb-20 flex justify-center items-center flex-col">
+    <partial name="~/Views/Shared/Partials/_AppHeader.cshtml" />
+    <a up-target="[layout-main]" up-preload asp-action="Create" asp-controller="Documents" class="py-2 px-3 bg-primary-500 text-primary-900 hover:text-white text-sm font-semibold rounded-md shadow-lg shadow-primary-500/10 hover:shadow-primary-500/50 active:shadow-primary-500/75 focus:outline-none transition duration-500  text-center inline-flex items-center">
+        Import new Document
+        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 -mr-1 h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z" clip-rule="evenodd" /></svg>
+    </a>
 </div>
 
-<article>
-    <figure>
-        <table role="grid">
-            <thead>
-                <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Last Update</th>
-                    <th scope="col">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model!.Documents.Any())
-                {
-                    @foreach (var item in Model!.Documents)
-                    {
-                        <tr>
-                            <td>@item.Name</td>
-                            <td>@item.UpdatedAt.Humanize()</td>
-                            <td>
-                                <a asp-action="Show" asp-route-id="@item.Id">Show</a>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="10" style="text-align: center">
-                            <i style="text-align: center">No documents</i>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </figure>
-</article>
+
+<div class="mb-4 inline-flex">
+    <partial name="~/Views/Shared/Partials/_Breadcrumb.cshtml" model="breadcrumbs" />
+</div>
+
+<partial name="Partials/_DocumentsTable" model="Model!.Documents" />
