@@ -23,14 +23,16 @@ namespace Docstore.App.Controllers
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly AppSettings _appSettings;
         private readonly IDocumentRepository _documentRepository;
+        private readonly IFolderRepository _folderRepository;
 
-        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository)
+        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository)
         {
             _db = db;
             _mapper = mapper;
             _hostingEnvironment = hostingEnvironment;
             _appSettings = appSettings.Value;
             _documentRepository = documentRepository;
+            _folderRepository = folderRepository;
         }
 
 
@@ -54,10 +56,16 @@ namespace Docstore.App.Controllers
             return View(viewModel);
         }
 
-        public IActionResult Create(int? folderId = null)
+        public async Task<IActionResult> Create(int? folderId = null)
         {
+            // data
+            Folder? folder = null;
+
+            if (folderId != null)
+                folder = await _folderRepository.FindByIdAsync(folderId.Value);
+
             // response
-            var viewModel = new DocumentCreateViewModel(folderId);
+            var viewModel = new DocumentCreateViewModel(folderId, folder);
             return View(viewModel);
         }
 

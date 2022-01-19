@@ -25,8 +25,6 @@
         <div class="px-4 py-5 bg-white dark:bg-gray-900 space-y-6 sm:p-6">
             <div asp-validation-summary="ModelOnly"></div>
 
-            <input type="hidden" asp-for="Form.FolderId" value="@Model!.FolderId" />
-
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Files">Files</label>
                 <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
@@ -52,6 +50,45 @@
                 <input autofocus asp-for="Form.Name" type="text" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
                 <p asp-display-validation-for="Form.Name" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Name"></span></p>
             </div>
+
+            <div x-data="SearchElementInput(@(Model!.Folder?.Id.ToString() ?? "null"), '@Model!.Folder?.Name')" class="relative">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.FolderId">Folder <small class="text-xs italic">(optional)</small></label>
+                <input x-model="selectedId" type="hidden" asp-for="Form.FolderId" />
+
+                <input
+                    x-model="search" 
+                    x-on:keydown.down.prevent="changeSelection(1)"
+                    x-on:keydown.up.prevent="changeSelection(-1)"
+                    x-on:keydown.enter.prevent="selectFolder(selectionIndex)"
+                    x-on:input="onTyping" 
+                    x-on:input.debounce.350="onSearch" 
+                    x-on:click.away="cancel" 
+                    x-on:keydown.escape="cancel"
+                    type="text" 
+                    asp-validation-for="Form.FolderId"
+                    class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
+                <p asp-display-validation-for="Form.FolderId" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.FolderId"></span></p>
+                <div x-show="open" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" x-transition:enter="transition ease-in duration-100" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+                    <div class="absolute z-40 left-0 mt-2 w-full">
+                        <div class="py-1 text-sm bg-white rounded shadow-lg border border-gray-30 dark:border-gray-800 dark:bg-black">
+                            <template x-for="(item, index) in data" :key="item.id">
+                                <a x-on:click.prevent="selectFolder(index)" class="block py-1 px-5 cursor-pointer text-white hover:bg-primary-500 focus:bg-primary-500" x-bind:class="{'bg-primary-500':index === selectionIndex}"><span class="font-semibold" x-text="item.name"></span></a>
+                            </template>
+
+                            <template x-if="loading">
+                                <div class="block py-1 px-5 ">
+                                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                            </template>
+                            <template x-if="!loading && (!data || !data.length)"><i class="block py-1 px-5 italic text-gray-300 dark:text-gray-500">no folder</i></template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Description">Description <small class="text-xs italic">(optional)</small></label>
                 <textarea asp-for="Form.Description" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100"></textarea>

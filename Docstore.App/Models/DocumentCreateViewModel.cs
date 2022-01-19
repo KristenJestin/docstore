@@ -1,4 +1,5 @@
 ﻿using Docstore.App.Models.Forms;
+using Docstore.Domain.Entities;
 
 namespace Docstore.App.Models
 {
@@ -7,12 +8,15 @@ namespace Docstore.App.Models
         public DocumentCreateForm Form { get; set; }
 
         public int? FolderId { get; set; }
+        public Folder? Folder { get; set; }
 
 
-        public DocumentCreateViewModel(int? folderId = null)
+        public DocumentCreateViewModel(int? folderId = null, Folder? folder = null)
         {
             Form = GetDefaultFormValues(folderId);
+
             FolderId = folderId;
+            Folder = folder;
         }
 
 

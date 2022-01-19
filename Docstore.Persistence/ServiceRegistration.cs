@@ -17,6 +17,7 @@ namespace Docstore.Persistence
             #region repositories
             services.AddTransient(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             services.AddTransient<IDocumentRepository, DocumentRepository>();
+            services.AddTransient<IFolderRepository, FolderRepository>();
             #endregion
         }
     }

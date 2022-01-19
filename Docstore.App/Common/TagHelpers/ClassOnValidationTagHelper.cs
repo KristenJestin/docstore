@@ -11,6 +11,7 @@ namespace Docstore.App.TagHelpers
     public class ClassOnValidationTagHelper : TagHelper
     {
         public ModelExpression? AspFor { get; set; }
+        public ModelExpression? AspValidationFor { get; set; }
         public string? AspErrorsClass { get; set; }
         public string? AspValidClass { get; set; }
 
@@ -19,10 +20,10 @@ namespace Docstore.App.TagHelpers
 
         public override void Process(TagHelperContext context, TagHelperOutput output)
         {
-            if (AspFor == null || ViewContext == null)
+            if ((AspValidationFor == null && AspFor == null) || ViewContext == null)
                 return;
 
-            var name = AspFor.Name;
+            var name = (AspValidationFor ?? AspFor).Name;
 
             if (ViewContext.ViewData.ModelState.HasError(name) && AspErrorsClass != null)
                 foreach (var item in AspErrorsClass.Split(" "))

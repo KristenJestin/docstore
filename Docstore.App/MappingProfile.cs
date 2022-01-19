@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
-using Docstore.Domain.Entities;
 using Docstore.App.Models.Forms;
+using Docstore.Application.Models.DTO;
+using Docstore.Domain.Entities;
 
 namespace Docstore.App
 {
@@ -13,6 +14,8 @@ namespace Docstore.App
                 .ForMember(x => x.Tags, act => act.Ignore());
 
             CreateMap<FolderCreateForm, Folder>();
+
+            CreateMap<Folder, SearchFolderDto>();
         }
     }
 }
