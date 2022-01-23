@@ -18,10 +18,22 @@ namespace Docstore.App.TagHelpers
             if (AspDisplayValidationFor == null || ViewContext == null)
                 return;
 
+            var prefix = ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix;
             var name = AspDisplayValidationFor.Name;
 
-            if (!ViewContext.ViewData.ModelState.HasError(name))
+            if (!ViewContext.ViewData.ModelState.HasError(GetPropertyName(name, prefix)))
                 output.Content.Clear();
         }
+
+
+        #region privates
+        private string GetPropertyName(string name, string prefix)
+        {
+            if(!string.IsNullOrWhiteSpace(prefix))
+                prefix = $"{prefix}."; 
+
+            return prefix + name;
+        }
+        #endregion
     }
 }

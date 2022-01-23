@@ -76,6 +76,41 @@ namespace Docstore.App.Controllers
             };
             return View(viewModel);
         }
+
+        public IActionResult CreateModal()
+            => PartialView();
+
+        [HttpPost]
+        public async Task<IActionResult> CreateModal(FolderCreateForm? form, string? redirection)
+        {
+            // model validation
+            try
+            {
+                if (ModelState.IsValid && form != null)
+                {
+                    // transform to database entity
+                    var folder = _mapper.Map<Folder>(form);
+
+                    // save in database
+                    await _db.AddAsync(folder);
+                    await _db.SaveChangesAsync();
+
+                    // response
+                    if (redirection == null)
+                        return Ok();
+
+                    return Redirect(redirection);
+                }
+            }
+            catch// (Exception ex)
+            {
+                ModelState.AddModelError("", "An unexpected error occurred.");
+            }
+
+            // response
+            Response.StatusCode = 422;
+            return PartialView(form);
+        }
         #endregion
     }
 }

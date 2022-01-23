@@ -6,6 +6,7 @@ namespace Docstore.App.Models
     public class DocumentCreateViewModel
     {
         public DocumentCreateForm Form { get; set; }
+        public FolderCreateForm FormFolder { get; set; }
 
         public int? FolderId { get; set; }
         public Folder? Folder { get; set; }
@@ -14,6 +15,7 @@ namespace Docstore.App.Models
         public DocumentCreateViewModel(int? folderId = null, Folder? folder = null)
         {
             Form = GetDefaultFormValues(folderId);
+            FormFolder = GetDefaultFolderFormValues();
 
             FolderId = folderId;
             Folder = folder;
@@ -22,6 +24,7 @@ namespace Docstore.App.Models
 
         #region statics
         public static DocumentCreateForm GetDefaultFormValues(int? folderId = null) => new() { FolderId = folderId };
+        public static FolderCreateForm GetDefaultFolderFormValues() => new();
         #endregion
     }
 }

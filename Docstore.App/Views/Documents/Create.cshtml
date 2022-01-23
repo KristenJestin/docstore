@@ -9,7 +9,11 @@
         Constants.BreadcrumbDocumentsHome,
         new BreadcrumbItem("Create", icon:@"<path fill-rule=""evenodd"" d=""M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z"" clip-rule=""evenodd"" />"),
     };
+
+    ViewData["FolderCreateRedirection"] = Context.Request.Path;
 }
+
+<partial name="~/Views/Folders/Partials/_CreateModal.cshtml" model="Model!.FormFolder" />
 
 <div class="mb-10 flex justify-center items-center flex-col">
     <partial name="~/Views/Shared/Partials/_AppHeader.cshtml" />
@@ -21,7 +25,7 @@
 </div>
 
 <div class="shadow sm:rounded-lg sm:overflow-hidden">
-    <form method="post" enctype="multipart/form-data" up-target="[layout-main]" up-fail-target="[layout-main]">
+    <form method="post" enctype="multipart/form-data" up-target="[layout-form]" layout-form>
         <div class="px-4 py-5 bg-white dark:bg-gray-900 space-y-6 sm:p-6">
             <div asp-validation-summary="ModelOnly"></div>
 
@@ -55,18 +59,25 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.FolderId">Folder <small class="text-xs italic">(optional)</small></label>
                 <input x-model="selectedId" type="hidden" asp-for="Form.FolderId" />
 
-                <input
-                    x-model="search" 
-                    x-on:keydown.down.prevent="changeSelection(1)"
-                    x-on:keydown.up.prevent="changeSelection(-1)"
-                    x-on:keydown.enter.prevent="selectFolder(selectionIndex)"
-                    x-on:input="onTyping" 
-                    x-on:input.debounce.350="onSearch" 
-                    x-on:click.away="cancel" 
-                    x-on:keydown.escape="cancel"
-                    type="text" 
-                    asp-validation-for="Form.FolderId"
-                    class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
+                <div class="flex items-center mt-1">
+                    <input x-model="search"
+                           x-on:keydown.down.prevent="changeSelection(1)"
+                           x-on:keydown.up.prevent="changeSelection(-1)"
+                           x-on:keydown.enter.prevent="selectFolder(selectionIndex)"
+                           x-on:input="onTyping"
+                           x-on:input.debounce.350="onSearch"
+                           x-on:click.away="cancel"
+                           x-on:keydown.escape="cancel"
+                           type="text" placeholder="Type the name of a existing folder ..."
+                           asp-validation-for="Form.FolderId"
+                           class="block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
+
+                    <button x-on:click="$dispatch('modal-ex')" type="button" class="ml-4 p-1 bg-primary-500 text-primary-900 hover:text-white text-sm font-semibold rounded-full shadow-lg shadow-primary-500/10 hover:shadow-primary-500/50 active:shadow-primary-500/75 focus:outline-none transition duration-500">
+                        <div class="flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        </div>
+                    </button>
+                </div>
                 <p asp-display-validation-for="Form.FolderId" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.FolderId"></span></p>
                 <div x-show="open" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" x-transition:enter="transition ease-in duration-100" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
                     <div class="absolute z-40 left-0 mt-2 w-full">
@@ -123,7 +134,6 @@
             <div x-data="DatePickerRange" class="grid grid-cols-6 gap-6">
                 <div class="col-span-6 sm:col-span-3">
                     <label asp-for="Form.ReceivedAt" class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500">Reception date <small class="text-xs italic">(optional)</small></label>
-                    @*x-data="DatePicker({ maxDate: 'today' })" *@
                     <div class="relative">
                         <input x-ref="picker1" asp-for="Form.ReceivedAt" type="text" class="pl-12 mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
                         <div class="absolute top-0 bottom-0 left-0 inline-flex items-center px-3 pointer-events-none">
@@ -135,7 +145,6 @@
 
                 <div class="col-span-6 sm:col-span-3">
                     <label asp-for="Form.EndsAt" class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500">Ends date <small class="text-xs italic">(optional)</small></label>
-                    @*x-data="DatePicker({ minDate: 'today' })"*@
                     <div class="relative">
                         <input x-ref="picker2" datepicker datepicker-autohide asp-for="Form.EndsAt" type="text" class="pl-12 mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
                         <div class="absolute top-0 bottom-0 left-0 inline-flex items-center px-3 pointer-events-none">

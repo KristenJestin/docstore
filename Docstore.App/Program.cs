@@ -1,6 +1,7 @@
 using Docstore.Application.Models;
 using Docstore.Persistence;
 using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Mvc.Razor;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,7 +12,8 @@ builder.Services.AddPersistenceInfrastructure(builder.Configuration);
 
 var mvcBuilder = builder.Services
     .AddControllersWithViews()
-    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssembly(assembly));
+    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssembly(assembly))
+    .AddRazorOptions(o => o.ViewLocationFormats.Add($"/Views/{{1}}/Partials/_{{0}}{RazorViewEngine.ViewExtension}"));
 
 builder.Services.AddAutoMapper(assembly);
 
