@@ -1,6 +1,7 @@
 ﻿using Docstore.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Docstore.Persistence.Contexts
 {
@@ -39,6 +40,8 @@ namespace Docstore.Persistence.Contexts
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
             // configures one-to-many relationship
             modelBuilder.Entity<DocumentFile>()
                 .HasOne(e => e.Document)

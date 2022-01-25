@@ -13,7 +13,9 @@ namespace Docstore.Domain.Entities
         public string? Description { get; set; }
         public int? FolderId { get; set; }
 
+        [Column(TypeName = "date")]
         public DateTime? ReceivedAt { get; set; }
+        [Column(TypeName = "date")]
         public DateTime? EndsAt { get; set; }
 
 

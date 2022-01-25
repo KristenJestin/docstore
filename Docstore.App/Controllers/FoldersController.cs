@@ -8,13 +8,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.App.Controllers
 {
-    public class FoldersssController : Controller
+    public class FoldersController : Controller
     {
         private readonly IMapper _mapper;
         private readonly AppDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
 
-        public FoldersssController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
+        public FoldersController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
         {
             _db = db;
             _mapper = mapper;
