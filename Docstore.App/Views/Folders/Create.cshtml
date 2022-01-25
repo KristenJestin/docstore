@@ -1,39 +1,28 @@
 ﻿@model FolderCreateViewModel
 
-<div>
-    <hgroup>
-        <h2>Add new folder</h2>
-        <h3>Import your new folder with files</h3>
-    </hgroup>
-</div>
+<form method="post" up-submit up-active>
 
+    <input type="hidden" name="redirection" value="@ViewData["FolderCreatedElement"]" />
 
-<article>
-    <form method="post" enctype="multipart/form-data">
-        <div asp-validation-summary="ModelOnly"></div>
+    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 dark:bg-gray-900">
+        <div class="flex items-start">
 
-        <div>
-            <label asp-for="Form.Name">Name</label>
-            <input asp-for="Form.Name" />
-            <small>
-                <span asp-validation-for="Form.Name"></span>
-            </small>
+            <div class="space-y-6 w-full">
+                <div asp-validation-summary="ModelOnly"></div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Name">Name</label>
+                    <input asp-for="Form.Name" type="text" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
+                    <p asp-display-validation-for="Form.Name" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Name"></span></p>
+                </div>
+            </div>
+
         </div>
-        <div>
-            <label asp-for="Form.Description">Description</label>
-            <input asp-for="Form.Description" />
-            <small>
-                <span asp-validation-for="Form.Description"></span>
-            </small>
-        </div>
-        <div>
-            <label asp-for="Form.Color">Color</label>
-            <input type="color" asp-for="Form.Color" />
-            <small>
-                <span asp-validation-for="Form.Color"></span>
-            </small>
-        </div>
-
-        <button type="submit">Submit</button>
-    </form>
-</article>
+    </div>
+    <div class="bg-gray-50 dark:bg-black px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+        <button type="submit" class="ml-auto py-2 px-3 bg-primary-500 text-primary-900 hover:text-white text-sm font-semibold rounded-md shadow-lg shadow-primary-500/10 hover:shadow-primary-500/50 active:shadow-primary-500/75 focus:outline-none transition duration-500">Submit</button>
+        <button type="button" class="py-2 px-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-100 text-sm font-semibold rounded-md transition duration-500" x-on:click="open = false">
+            Cancel
+        </button>
+    </div>
+</form>

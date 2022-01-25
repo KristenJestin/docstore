@@ -8,7 +8,6 @@ namespace Docstore.App.Models
         public DocumentCreateForm Form { get; set; }
         public FolderCreateForm FormFolder { get; set; }
 
-        public int? FolderId { get; set; }
         public Folder? Folder { get; set; }
 
 
@@ -17,7 +16,6 @@ namespace Docstore.App.Models
             Form = GetDefaultFormValues(folderId);
             FormFolder = GetDefaultFolderFormValues();
 
-            FolderId = folderId;
             Folder = folder;
         }
 

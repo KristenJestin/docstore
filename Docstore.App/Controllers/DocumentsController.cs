@@ -95,8 +95,13 @@ namespace Docstore.App.Controllers
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
+            // pick folder if it selected
+            Folder? folder = null;
+            if (form?.FolderId != null)
+                folder = await _folderRepository.FindByIdAsync(form.FolderId.Value);
+
             // response
-            var viewModel = new DocumentCreateViewModel
+            var viewModel = new DocumentCreateViewModel(folder?.Id, folder)
             {
                 Form = form ?? DocumentCreateViewModel.GetDefaultFormValues()
             };

@@ -4,7 +4,7 @@
     ViewData.TemplateInfo.HtmlFieldPrefix = "Form";
 }
 
-<div x-data="{ open: false }" x-on:keydown.window.escape="open = false" x-show="open" class="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" x-ref="dialog" aria-modal="true">
+<div x-data="Modal" x-on:keydown.window.escape="open = false" x-show="open" class="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" x-ref="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0" x-on:modal-ex.window="open = !open">
 
         <div x-show="open" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" x-description="Background overlay, show/hide based on modal state." class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" x-on:click="open = false" aria-hidden="true">
@@ -13,10 +13,8 @@
         <!-- This element is to trick the browser into centering the modal contents. -->
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">​</span>
 
-        <form x-show="open" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-description="Modal panel, show/hide based on modal state." class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
-              method="post" asp-action="CreateModal" asp-controller="Folders" enctype="multipart/form-data" up-target="[layout-form]" up-fail-target="[layout-form-modal]" layout-form-modal up-active>
-
-            <input type="hidden" name="redirection" value="@ViewData["FolderCreatedElement"]" />
+        <form x-show="open" x-data="FormFolderCreate('@ViewData.TemplateInfo.HtmlFieldPrefix')" x-ref="form" x-on:submit.prevent="submit" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-description="Modal panel, show/hide based on modal state." class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+              method="post" enctype="multipart/form-data" up-target="[layout-form]" up-fail-target="[layout-form-modal]" layout-form-modal up-active>
 
             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 dark:bg-gray-900">
                 <div class="flex items-start">
@@ -27,7 +25,12 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Name">Name</label>
                             <input asp-for="Name" type="text" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
-                            <p asp-display-validation-for="Name" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Name"></span></p>
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-500 hidden"><span class="font-medium">Oops!</span> <span class="field-validation" asp-validation-for="Name"></span></p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Description">Description <small class="text-xs italic">(optional)</small></label>
+                            <textarea asp-for="Description" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100"></textarea>
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-500 hidden"><span class="font-medium">Oops!</span> <span class="field-validation" asp-validation-for="Description"></span></p>
                         </div>
                     </div>
 

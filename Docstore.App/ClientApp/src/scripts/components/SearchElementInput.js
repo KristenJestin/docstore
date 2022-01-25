@@ -1,3 +1,6 @@
+// functions & data
+const endpoint = '/api/Folders'
+
 const debounce = (func, timeout = 300) => {
     let timer
     return (...args) => {
@@ -8,31 +11,28 @@ const debounce = (func, timeout = 300) => {
     }
 }
 
-const getData = (search, success, error, always) => {
-    const params = new URLSearchParams({ term: search })
+const getData = async (search, success, error, always) => {
+    const params = new URLSearchParams({ search })
+    const response = await fetch(`${endpoint}?${params}`, {
+        method: 'GET',
+    })
 
-    const xhr = new XMLHttpRequest()
-    xhr.open('GET', `/Data/SearchFolder?${params}`)
-    xhr.responseType = 'json'
-
-    xhr.onload = function () {
-        const data = xhr.response
+    try {
+        const data = await response.json()
         console.table(data)
 
         success && success(data)
         always && always()
-    }
-
-    xhr.onerror = function () {
+    } catch (error) {
         error && error()
         always && always()
+        // TODO: display a message
     }
-
-    xhr.send()
 }
 
 const mod = (n, m) => ((n % m) + m) % m
 
+// main
 const SearchElementInput = (id, name) => ({
     search: '',
     data: [],
@@ -48,10 +48,10 @@ const SearchElementInput = (id, name) => ({
         this.open = true
         this.data = []
     },
-    onSearch() {
+    async onSearch() {
         if (this.search === '') return
 
-        getData(
+        await getData(
             this.search,
             (data) => {
                 this.data = data
@@ -62,12 +62,19 @@ const SearchElementInput = (id, name) => ({
     },
     selectFolder(index) {
         const item = this.data[index]
+        this.setFolder(item)
 
+        this.close()
+    },
+    changeFolder(item) {
+        this.setFolder(item)
+
+        this.close()
+    },
+    setFolder(item) {
         this.selectedItem = item
         this.selectedId = item.id
         this.search = item.name
-
-        this.close()
     },
     changeSelection(direction) {
         this.selectionIndex = mod(this.selectionIndex + direction, this.data.length)
@@ -87,11 +94,11 @@ const SearchElementInput = (id, name) => ({
         this.open = false
     },
     init() {
-        console.log(name)
         this.selectedId = id
         this.search = name
         this.selectedItem = { id, name }
     },
 })
 
+// export
 export default SearchElementInput

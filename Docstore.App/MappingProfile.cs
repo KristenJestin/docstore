@@ -15,7 +15,7 @@ namespace Docstore.App
 
             CreateMap<FolderCreateForm, Folder>();
 
-            CreateMap<Folder, SearchFolderDto>();
+            CreateMap<Folder, GetFolderDto>();
         }
     }
 }

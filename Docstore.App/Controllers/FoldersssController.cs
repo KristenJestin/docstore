@@ -8,13 +8,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.App.Controllers
 {
-    public class FoldersController : Controller
+    public class FoldersssController : Controller
     {
         private readonly IMapper _mapper;
         private readonly AppDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
 
-        public FoldersController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
+        public FoldersssController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
         {
             _db = db;
             _mapper = mapper;
@@ -61,7 +61,7 @@ namespace Docstore.App.Controllers
                     await _db.SaveChangesAsync();
 
                     // response
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction(nameof(Show), new { folder.Id });
                 }
             }
             catch// (Exception ex)
@@ -77,39 +77,17 @@ namespace Docstore.App.Controllers
             return View(viewModel);
         }
 
-        public IActionResult CreateModal()
-            => PartialView();
-
-        [HttpPost]
-        public async Task<IActionResult> CreateModal(FolderCreateForm? form, string? redirection)
+        public async Task<IActionResult> Show(int id)
         {
-            // model validation
-            try
-            {
-                if (ModelState.IsValid && form != null)
-                {
-                    // transform to database entity
-                    var folder = _mapper.Map<Folder>(form);
+            var folder = await _db.Folders
+                .FirstOrDefaultAsync(x => x.Id == id);
 
-                    // save in database
-                    await _db.AddAsync(folder);
-                    await _db.SaveChangesAsync();
-
-                    // response
-                    if (redirection == null)
-                        return Ok();
-
-                    return Redirect(redirection);
-                }
-            }
-            catch// (Exception ex)
-            {
-                ModelState.AddModelError("", "An unexpected error occurred.");
-            }
+            if (folder == null)
+                return NotFound();
 
             // response
-            Response.StatusCode = 422;
-            return PartialView(form);
+            var viewModel = new FolderShowViewModel(folder);
+            return View(viewModel);
         }
         #endregion
     }

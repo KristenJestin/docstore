@@ -1,6 +1,6 @@
 ﻿namespace Docstore.Application.Models.DTO
 {
-    public class SearchFolderDto
+    public class GetFolderDto
     {
         public int Id { get; set; }
         public string? Name { get; set; }

@@ -1,6 +1,9 @@
 ﻿using AutoMapper;
+using Docstore.App.Models.Forms;
 using Docstore.Application.Interfaces;
 using Docstore.Application.Models.DTO;
+using Docstore.Domain.Entities;
+using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Docstore.App.Controllers
@@ -9,20 +12,22 @@ namespace Docstore.App.Controllers
     {
         private readonly IFolderRepository _folderRepository;
         private readonly IMapper _mapper;
+        private readonly AppDbContext _db;
 
-        public DataController(IFolderRepository folderRepository, IMapper mapper)
+        public DataController(IMapper mapper, IFolderRepository folderRepository, AppDbContext db)
         {
             _folderRepository = folderRepository;
             _mapper = mapper;
+            _db = db;
         }
 
-        public async Task<IActionResult> SearchFolder(string? term = null)
+        public async Task<IActionResult> FolderSearch(string? term = null)
         {
             if (string.IsNullOrWhiteSpace(term))
                 return Json(Enumerable.Empty<string>());
 
             var folders = await _folderRepository.SearchAsync(term);
-            var dto = _mapper.Map<IEnumerable<SearchFolderDto>>(folders);
+            var dto = _mapper.Map<IEnumerable<GetFolderDto>>(folders);
 
             return Json(dto);
         }
