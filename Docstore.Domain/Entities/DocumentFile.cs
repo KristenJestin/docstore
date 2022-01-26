@@ -9,7 +9,7 @@
         public string? Extension { get; set; }
         public long Size { get; set; }
         public string? StoredName { get; set; }
-        public int DocumentId { get; set; }
+        public int? DocumentId { get; set; }
         public string? MimeType { get; set; }
 
 

@@ -1,3 +1,6 @@
+// imports
+import axios from 'axios'
+
 // functions & data
 const endpoint = '/api/Folders'
 
@@ -18,18 +21,22 @@ const FormFolderCreate = (prefix = '') => ({
         const json = formToJson(form, prefix)
 
         try {
-            const response = await fetch(endpoint, {
+            const { data } = await axios({
+                url: endpoint,
                 method: form.getAttribute('method') || 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: json,
+                data: json,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
             })
-            const { status } = response
-            const data = await response.json()
-            if (status >= 200 && status < 300) {
-                this.$dispatch('folder-change', { id: data.id, name: data.name })
-                this.$dispatch('modal-ex')
-            } else {
-                // TODO: use 422 in backend
+
+            // done
+            this.$dispatch('folder-change', { id: data.id, name: data.name })
+            this.$dispatch('modal-ex')
+        } catch (error) {
+            if (error.response) {
+                const { data, status } = error.response
+
                 if (status === 400) {
                     if (data.errors) {
                         for (const [key, error] of Object.entries(data.errors)) {
@@ -45,12 +52,10 @@ const FormFolderCreate = (prefix = '') => ({
                         return
                     }
                 }
-                // FIXME: use proper toaster error message
-                alert('Something goes wrong with the folder creation')
             }
-        } catch (error) {
+
             // FIXME: use proper toaster error message
-            console.error(error)
+            alert(error)
         }
     },
 

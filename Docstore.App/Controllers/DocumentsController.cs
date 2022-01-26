@@ -5,12 +5,15 @@ using Docstore.App.Models.Forms;
 using Docstore.Application.Common;
 using Docstore.Application.Interfaces;
 using Docstore.Application.Models;
+using Docstore.Application.Models.DTO;
 using Docstore.Domain.Entities;
 using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
+using Docstore.Persistence.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Collections.Generic;
 
 namespace Docstore.App.Controllers
 {
@@ -24,8 +27,9 @@ namespace Docstore.App.Controllers
         private readonly AppSettings _appSettings;
         private readonly IDocumentRepository _documentRepository;
         private readonly IFolderRepository _folderRepository;
+        private readonly IDocumentFileRepository _documentFileRepository;
 
-        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository)
+        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository, IDocumentFileRepository documentFileRepository)
         {
             _db = db;
             _mapper = mapper;
@@ -33,6 +37,7 @@ namespace Docstore.App.Controllers
             _appSettings = appSettings.Value;
             _documentRepository = documentRepository;
             _folderRepository = folderRepository;
+            _documentFileRepository = documentFileRepository;
         }
 
 
@@ -79,7 +84,6 @@ namespace Docstore.App.Controllers
                 {
                     // transform to database entity
                     var document = _mapper.Map<Document>(form);
-                    document.Files = await form.UploadAndEncryptAndGetFilesAsync(_hostingEnvironment, _appSettings.AppKey!);
                     document.Tags = await form.CreateNewTagsAndGetListAsync(_db);
 
                     // save in database
@@ -100,8 +104,15 @@ namespace Docstore.App.Controllers
             if (form?.FolderId != null)
                 folder = await _folderRepository.FindByIdAsync(form.FolderId.Value);
 
+            IEnumerable<GetDocumentFileDto> files = new List<GetDocumentFileDto>();
+            if (form?.Files != null && form.Files.Any())
+            {
+                var documentFiles = await _documentFileRepository.FindByIdsAsync(form.Files.ToArray());
+                files = _mapper.Map<IEnumerable<GetDocumentFileDto>>(documentFiles);
+            }
+
             // response
-            var viewModel = new DocumentCreateViewModel(folder?.Id, folder)
+            var viewModel = new DocumentCreateViewModel(folder?.Id, folder, files)
             {
                 Form = form ?? DocumentCreateViewModel.GetDefaultFormValues()
             };

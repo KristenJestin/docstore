@@ -1,10 +1,11 @@
 ﻿using Docstore.Application.Interfaces;
+using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.Persistence.Repositories
 {
-    public class GenericRepository<T> : IGenericRepository<T> where T : class
+    public class GenericRepository<T> : IGenericRepository<T> where T : BaseEntity
     {
         private readonly AppDbContext _db;
 
@@ -13,6 +14,13 @@ namespace Docstore.Persistence.Repositories
 
         public virtual async Task<T?> FindByIdAsync(int id)
             => await _db.Set<T>().FindAsync(id);
+        public virtual async Task<IReadOnlyList<T>> FindByIdsAsync(params int[] ids)
+        {
+            if (ids == null || !ids.Any())
+                return Array.Empty<T>();
+
+            return await _db.Set<T>().Where(x => ids.Contains(x.Id)).ToListAsync();
+        }
 
         public async Task<T> AddAsync(T entity, bool save = false)
         {

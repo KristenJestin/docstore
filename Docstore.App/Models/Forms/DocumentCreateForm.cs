@@ -9,8 +9,7 @@ namespace Docstore.App.Models.Forms
 
         [DataType(DataType.MultilineText)]
         public string? Description { get; set; }
-
-        public IFormFileCollection Files { get; set; } = new FormFileCollection();
+        public IEnumerable<int> Files { get; set; } = new List<int>();
 
         public IEnumerable<string> Tags { get; set; } = new List<string>();
 

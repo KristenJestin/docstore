@@ -67,7 +67,7 @@ namespace Docstore.App.Controllers.Api
                     await _context.SaveChangesAsync();
 
                     // response
-                    return CreatedAtAction("Get", new { id = folder.Id }, folder);  
+                    return CreatedAtAction(nameof(Get), new { id = folder.Id }, folder);  
                 }
             }
             catch// (Exception ex)

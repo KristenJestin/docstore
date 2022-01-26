@@ -8,20 +8,6 @@ namespace Docstore.App.Common.Extensions
 {
     public static class DocumentCreateFormExtensions
     {
-
-        public static async Task<ICollection<DocumentFile>> UploadAndEncryptAndGetFilesAsync(this DocumentCreateForm form, IWebHostEnvironment hostingEnvironment, string encryptionKey)
-        {
-            var files = new List<DocumentFile>();
-
-            foreach (var file in form!.Files)
-            {
-                var uploaded = await file.UploadAndEncryptAndTransformToDocumentFileAsync(hostingEnvironment, encryptionKey);
-                files.Add(uploaded);
-            }
-
-            return files;
-        }
-
         public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentCreateForm form, AppDbContext context)
         {
             if (!form.Tags.Any())

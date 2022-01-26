@@ -25,20 +25,24 @@
 </div>
 
 <div class="shadow sm:rounded-lg sm:overflow-hidden">
-    <form method="post" enctype="multipart/form-data" up-target="[layout-form]" layout-form>
+    <form method="post" enctype="multipart/form-data" up-target="[layout-form]" layout-form up-scroll="false">
         <div class="px-4 py-5 bg-white dark:bg-gray-900 space-y-6 sm:p-6">
             <div asp-validation-summary="ModelOnly"></div>
 
-            <div>
+            <div x-data='FileUploadInput(@Html.Raw(Model!.FilesToJson()))'>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Files">Files</label>
-                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md relative transition ease-in-out duration-300" x-bind:class="{'ring-4 ring-inset ring-primary-300':hover}">
+
+                    <input type="file" multiple="multiple" class="absolute inset-0 z-50 w-full h-full p-0 m-0 outline-none opacity-0 cursor-pointer"
+                           x-on:change="await onFilesChange($event.target.files)"
+                           x-on:dragover="hover = true"
+                           x-on:dragleave="hover = false"
+                           x-on:drop="hover = false" />
+
                     <div class="space-y-1 text-center">
                         <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
                         <div class="flex text-sm text-gray-600  dark:text-gray-500">
-                            <label asp-for="Form.Files" class="relative cursor-pointer bg-transparent rounded-md font-medium text-primary-600 hover:text-primary-500 active:text-primary-400">
-                                <span>Upload files</span>
-                                <input asp-for="Form.Files" multiple="true" class="sr-only" />
-                            </label>
+                            <span class="relative cursor-pointer bg-transparent rounded-md font-medium text-primary-600 hover:text-primary-500 active:text-primary-400">Upload files</span>
                             <p class="pl-1">or drag and drop</p>
                         </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -47,6 +51,21 @@
                     </div>
                 </div>
                 <p asp-display-validation-for="Form.Files" class="mt-2 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Files"></span></p>
+
+                <div class="space-y-5">
+                    <template x-for="file in files">
+                        <div>
+                            <input x-model="file.id" asp-for="Form.Files" type="hidden" />
+                            <div class="flex justify-between mb-1">
+                                <span class="text-base font-medium text-blue-700 dark:text-white" x-text="file.fileName || file.name"></span>
+                                <span class="text-sm font-medium text-blue-700 dark:text-white"><span x-text="file.progress"></span>%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                                <div class="bg-primary-400 h-1.5 rounded-full" :style="{width: `${file.progress}%`}"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
             </div>
 
             <div>
@@ -115,7 +134,7 @@
                            x-on:keydown.tab.prevent="addTag(newTag)"
                            x-on:keydown.escape.prevent="clearNewTag()"
                            x-on:keydown.backspace="removeLastTag()"
-                           :style="`padding-left: calc(${inputPaddingLeft}px + 0.5rem * ${!tags.length ? 1.5 : 1})`" />
+                           :style="{'padding-left': `calc(${inputPaddingLeft}px + 0.5rem * ${!tags.length ? 1.5 : 1})`}" />
                     <ul x-ref="tagsList" class="flex items-center absolute top-0 bottom-0 max-w-9/12 overflow-x-auto space-x-2">
                         <template x-for="(tag, index) in tags">
                             <li class="relative bg-primary-400 rounded no-wrap text-md text-black font-medium px-2 pr-6">

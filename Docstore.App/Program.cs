@@ -12,7 +12,7 @@ builder.Services.AddPersistenceInfrastructure(builder.Configuration);
 
 var mvcBuilder = builder.Services
     .AddControllersWithViews()
-    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssembly(assembly))
+    .AddFluentValidation(fv => { fv.RegisterValidatorsFromAssembly(assembly); fv.DisableDataAnnotationsValidation = true; })
     .AddRazorOptions(o => o.ViewLocationFormats.Add($"/Views/{{1}}/Partials/_{{0}}{RazorViewEngine.ViewExtension}"));
 
 builder.Services.AddAutoMapper(assembly);

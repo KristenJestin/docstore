@@ -1,3 +1,6 @@
+// imports
+import axios from 'axios'
+
 // functions & data
 const endpoint = '/api/Folders'
 
@@ -12,13 +15,8 @@ const debounce = (func, timeout = 300) => {
 }
 
 const getData = async (search, success, error, always) => {
-    const params = new URLSearchParams({ search })
-    const response = await fetch(`${endpoint}?${params}`, {
-        method: 'GET',
-    })
-
     try {
-        const data = await response.json()
+        const { data } = await axios.get(endpoint, { params: { search } })
         console.table(data)
 
         success && success(data)
