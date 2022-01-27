@@ -11,6 +11,7 @@
         public string? StoredName { get; set; }
         public int? DocumentId { get; set; }
         public string? MimeType { get; set; }
+        public int? Order { get; set; }
 
 
         #region relations

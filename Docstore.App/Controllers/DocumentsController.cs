@@ -3,6 +3,7 @@ using Docstore.App.Common.Extensions;
 using Docstore.App.Models;
 using Docstore.App.Models.Forms;
 using Docstore.Application.Common;
+using Docstore.Application.Extensions;
 using Docstore.Application.Interfaces;
 using Docstore.Application.Models;
 using Docstore.Application.Models.DTO;
@@ -82,9 +83,15 @@ namespace Docstore.App.Controllers
             {
                 if (ModelState.IsValid && form != null)
                 {
+                    var documentFiles = await _documentFileRepository.FindByIdsAsync(form.Files.ToArray());
+
                     // transform to database entity
                     var document = _mapper.Map<Document>(form);
                     document.Tags = await form.CreateNewTagsAndGetListAsync(_db);
+                    document.Files = documentFiles.ToList();
+
+                    foreach (var (item, index) in document.Files.WithIndex())
+                        item.Order = index;
 
                     // save in database
                     await _db.AddAsync(document);

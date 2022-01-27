@@ -52,20 +52,35 @@
                 </div>
                 <p asp-display-validation-for="Form.Files" class="mt-2 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Form.Files"></span></p>
 
-                <div class="space-y-5">
+                <template x-if="files.length > 0">
+                    <div class="grid grid-cols-2 gap-4 mt-4 md:grid-cols-6"
+                         x-on:drop.prevent="drop($event)"
+                         x-on:dragover.prevent="$event.dataTransfer.dropEffect = 'move'">
+                        <template x-for="(file, index) in files">
+                            <partial name="Partials/_DocumentFileCard.cshtml" />
+                        </template>
+                    </div>
+                </template>
+
+
+
+
+
+
+                @*<div class="space-y-5">
                     <template x-for="file in files">
-                        <div>
-                            <input x-model="file.id" asp-for="Form.Files" type="hidden" />
-                            <div class="flex justify-between mb-1">
-                                <span class="text-base font-medium text-blue-700 dark:text-white" x-text="file.fileName || file.name"></span>
-                                <span class="text-sm font-medium text-blue-700 dark:text-white"><span x-text="file.progress"></span>%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
-                                <div class="bg-primary-400 h-1.5 rounded-full" :style="{width: `${file.progress}%`}"></div>
-                            </div>
-                        </div>
+                    <div>
+                    <input x-model="file.id" asp-for="Form.Files" type="hidden" />
+                    <div class="flex justify-between mb-1">
+                    <span class="text-base font-medium text-blue-700 dark:text-white" x-text="file.fileName || file.name"></span>
+                    <span class="text-sm font-medium text-blue-700 dark:text-white"><span x-text="file.progress"></span>%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                    <div class="bg-primary-400 h-1.5 rounded-full" :style="{width: `${file.progress}%`}"></div>
+                    </div>
+                    </div>
                     </template>
-                </div>
+                    </div>*@
             </div>
 
             <div>
