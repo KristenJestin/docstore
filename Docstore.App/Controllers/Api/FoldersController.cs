@@ -4,6 +4,7 @@ using Docstore.Application.Interfaces;
 using Docstore.Application.Models.DTO;
 using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -12,13 +13,14 @@ namespace Docstore.App.Controllers.Api
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class FoldersController : ControllerBase
     {
         private readonly IMapper _mapper;
         private readonly IFolderRepository _folderRepository;
-        private readonly AppDbContext _context;
+        private readonly ApplicationDbContext _context;
 
-        public FoldersController(IMapper mapper, IFolderRepository folderRepository, AppDbContext context)
+        public FoldersController(IMapper mapper, IFolderRepository folderRepository, ApplicationDbContext context)
         {
             _folderRepository = folderRepository;
             _mapper = mapper;

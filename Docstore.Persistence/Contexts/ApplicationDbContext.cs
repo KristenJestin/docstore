@@ -1,18 +1,18 @@
 ﻿using Docstore.Domain.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Docstore.Persistence.Contexts
 {
-    public class AppDbContext : DbContext
+    public class ApplicationDbContext : IdentityDbContext
     {
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<DocumentFile> DocumentFiles => Set<DocumentFile>();
         public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
         public DbSet<Folder> Folders => Set<Folder>();
 
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
 
         #region overrides

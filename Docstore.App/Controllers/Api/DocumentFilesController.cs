@@ -3,6 +3,7 @@ using Docstore.Application.Interfaces;
 using Docstore.Application.Models;
 using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -10,14 +11,15 @@ namespace Docstore.App.Controllers.Api
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class DocumentFilesController : ControllerBase
     {
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly AppSettings _appSettings;
         private readonly IDocumentFileRepository _repository;
-        private readonly AppDbContext _context;
+        private readonly ApplicationDbContext _context;
 
-        public DocumentFilesController(IDocumentFileRepository repository, AppDbContext context, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings)
+        public DocumentFilesController(IDocumentFileRepository repository, ApplicationDbContext context, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings)
         {
             _repository = repository;
             _context = context;

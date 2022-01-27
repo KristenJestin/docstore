@@ -13,7 +13,7 @@ namespace Docstore.Persistence.Repositories
     {
         private readonly DbSet<Document> _documents;
 
-        public DocumentRepository(AppDbContext db) : base(db)
+        public DocumentRepository(ApplicationDbContext db) : base(db)
         {
             _documents = db.Set<Document>();
         }

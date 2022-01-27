@@ -3,18 +3,20 @@ using Docstore.App.Models;
 using Docstore.App.Models.Forms;
 using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.App.Controllers
 {
+    [Authorize]
     public class FoldersController : Controller
     {
         private readonly IMapper _mapper;
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
 
-        public FoldersController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
+        public FoldersController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
         {
             _db = db;
             _mapper = mapper;

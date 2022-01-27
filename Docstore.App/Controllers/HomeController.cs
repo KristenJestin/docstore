@@ -2,21 +2,23 @@
 using Docstore.Application.Interfaces;
 using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
 namespace Docstore.App.Controllers
 {
+    [Authorize]
     public class HomeController : Controller
     {
         private const int PAGE_SIZE = 15;
 
         private readonly ILogger<HomeController> _logger;
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
         private readonly IDocumentRepository _documentRepository;
 
-        public HomeController(ILogger<HomeController> logger, AppDbContext db, IDocumentRepository documentRepository)
+        public HomeController(ILogger<HomeController> logger, ApplicationDbContext db, IDocumentRepository documentRepository)
         {
             _logger = logger;
             _db = db;

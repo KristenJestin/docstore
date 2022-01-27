@@ -9,7 +9,7 @@ namespace Docstore.Persistence.Repositories
     {
         private readonly DbSet<Folder> _folders;
 
-        public FolderRepository(AppDbContext db) : base(db)
+        public FolderRepository(ApplicationDbContext db) : base(db)
         {
             _folders = db.Set<Folder>();
         }

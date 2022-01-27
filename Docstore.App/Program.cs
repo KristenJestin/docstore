@@ -1,4 +1,5 @@
 using Docstore.Application.Models;
+using Docstore.Identity;
 using Docstore.Persistence;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Mvc.Razor;
@@ -9,6 +10,9 @@ var assembly = typeof(Program).Assembly;
 
 // Add services to the container.
 builder.Services.AddPersistenceInfrastructure(builder.Configuration);
+builder.Services.AddIdentityInfrastructure(builder.Configuration);
+
+builder.Services.AddControllersWithViews();
 
 var mvcBuilder = builder.Services
     .AddControllersWithViews()
@@ -40,6 +44,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(

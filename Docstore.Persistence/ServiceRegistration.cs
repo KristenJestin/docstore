@@ -12,7 +12,8 @@ namespace Docstore.Persistence
         public static void AddPersistenceInfrastructure(this IServiceCollection services, IConfiguration configuration)
         {
             // database
-            services.AddDbContext<AppDbContext>(options => options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+            services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+            services.AddDatabaseDeveloperPageExceptionFilter();
 
             #region repositories
             services.AddTransient(typeof(IGenericRepository<>), typeof(GenericRepository<>));

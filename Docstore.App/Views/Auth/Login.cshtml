@@ -1,0 +1,46 @@
+﻿@model LoginForm
+
+@{
+    Layout = "_BlankLayout";
+}
+
+<div class="min-w-screen min-h-screen flex items-center justify-center px-5 py-5">
+    <div class="text-gray-500 rounded-3xl w-full overflow-hidden" style="max-width:500px">
+        <div class="w-full py-10 px-5 md:px-10">
+            <div class="shadow sm:rounded-lg sm:overflow-hidden">
+
+                <form method="post" up-submit>
+                    <div class="px-4 py-5 bg-white dark:bg-gray-900 space-y-4 sm:p-6">
+
+
+                        <div class="text-center mb-10">
+                            <h1 class="font-bold text-3xl text-gray-900 dark:text-gray-200 uppercase">Login</h1>
+                        </div>
+
+                        <div asp-validation-summary="ModelOnly" class="text-red-500 text-xs"></div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="UserName">Username</label>
+                            <input asp-for="UserName" type="text" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
+                            <p asp-display-validation-for="UserName" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="UserName"></span></p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Password">Password</label>
+                            <input asp-for="Password" type="password" class="mt-1 block w-full shadow-sm sm:text-sm rounded-md border-none focus:ring-2" asp-valid-class="focus:ring-primary-500 bg-gray-50 dark:bg-gray-800 text-black dark:text-gray-100" asp-errors-class="text-red-900 placeholder-red-700 focus:ring-red-500 dark:bg-red-100" />
+                            <p asp-display-validation-for="Password" class="mt-1 text-sm text-red-600 dark:text-red-500"><span class="font-medium">Oops!</span> <span asp-validation-for="Password"></span></p>
+                        </div>
+                        <div class="flex items-center">
+                            <input asp-for="RememberMe" type="checkbox" class="h-4 w-4 text-primary-500 focus:ring-primary-400 border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-black" />
+                            <label class="ml-2 block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="RememberMe">Remember me</label>
+                        </div>
+
+                        <div class="flex mt-5">
+                            <button type="submit" class="mx-auto py-2 px-3 bg-primary-500 text-primary-900 hover:text-white text-sm font-semibold rounded-md shadow-lg shadow-primary-500/10 hover:shadow-primary-500/50 active:shadow-primary-500/75 focus:outline-none transition duration-500 uppercase">Login</button>
+                        </div>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>

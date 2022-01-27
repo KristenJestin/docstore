@@ -9,13 +9,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docstore.Domain", "Docstore
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docstore.Persistence", "Docstore.Persistence\Docstore.Persistence.csproj", "{53205DC1-6EDA-41BC-AC30-DC46C1D130A2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docstore.Application", "Docstore.Application\Docstore.Application.csproj", "{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docstore.Application", "Docstore.Application\Docstore.Application.csproj", "{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{8D38A273-BD67-4693-AC14-F81E9BBB719B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastructure", "{168DFC32-4B26-480A-8981-67B34787051C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Web", "Web", "{9A7F3E6D-6294-4599-BEAC-3B00B17A45F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docstore.Identity", "Docstore.Identity\Docstore.Identity.csproj", "{F791D305-1CA3-4E8D-BB7E-2E996CBD534C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +41,10 @@ Global
 		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F791D305-1CA3-4E8D-BB7E-2E996CBD534C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F791D305-1CA3-4E8D-BB7E-2E996CBD534C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F791D305-1CA3-4E8D-BB7E-2E996CBD534C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F791D305-1CA3-4E8D-BB7E-2E996CBD534C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -48,6 +54,7 @@ Global
 		{D1161577-0256-4277-8BFB-6D48BCA71390} = {8D38A273-BD67-4693-AC14-F81E9BBB719B}
 		{53205DC1-6EDA-41BC-AC30-DC46C1D130A2} = {168DFC32-4B26-480A-8981-67B34787051C}
 		{3BA6DE80-8D6D-422A-B3C9-101AD54D1515} = {8D38A273-BD67-4693-AC14-F81E9BBB719B}
+		{F791D305-1CA3-4E8D-BB7E-2E996CBD534C} = {168DFC32-4B26-480A-8981-67B34787051C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F7461CC7-156C-41A1-BD4F-F95A73972735}

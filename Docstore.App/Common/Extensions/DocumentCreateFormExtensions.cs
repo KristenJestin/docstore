@@ -8,7 +8,7 @@ namespace Docstore.App.Common.Extensions
 {
     public static class DocumentCreateFormExtensions
     {
-        public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentCreateForm form, AppDbContext context)
+        public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentCreateForm form, ApplicationDbContext context)
         {
             if (!form.Tags.Any())
                 return new List<DocumentTag>();

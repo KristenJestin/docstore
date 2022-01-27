@@ -7,9 +7,9 @@ namespace Docstore.Persistence.Repositories
 {
     public class GenericRepository<T> : IGenericRepository<T> where T : BaseEntity
     {
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
 
-        public GenericRepository(AppDbContext dbContext)
+        public GenericRepository(ApplicationDbContext dbContext)
             => _db = dbContext;
 
         public virtual async Task<T?> FindByIdAsync(int id)

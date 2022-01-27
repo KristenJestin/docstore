@@ -1,20 +1,20 @@
 ﻿using AutoMapper;
-using Docstore.App.Models.Forms;
 using Docstore.Application.Interfaces;
 using Docstore.Application.Models.DTO;
-using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Docstore.App.Controllers
 {
+    [Authorize]
     public class DataController : Controller
     {
         private readonly IFolderRepository _folderRepository;
         private readonly IMapper _mapper;
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
 
-        public DataController(IMapper mapper, IFolderRepository folderRepository, AppDbContext db)
+        public DataController(IMapper mapper, IFolderRepository folderRepository, ApplicationDbContext db)
         {
             _folderRepository = folderRepository;
             _mapper = mapper;

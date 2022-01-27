@@ -1,24 +1,13 @@
-﻿<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"]</title>
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-</head>
-@*bg-gray-200 dark:bg-gray-800*@
-<body class="antialiased font-sans" layout-root>
-    <main>
-        <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" layout-main>
-            @RenderBody()
-        </div>
-    </main>
+﻿@{
+    Layout = "_BlankLayout";
+}
 
-    <environment names="Development">
-        <script type="module" src="http://localhost:3000/@@vite/client"></script>
-        <script type="module" src="http://localhost:3000/src/main.js" defer></script>
-    </environment>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+<main>
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" layout-main>
+        @RenderBody()
+    </div>
+</main>
+
+@section Scripts{
     @await RenderSectionAsync("Scripts", required: false)
-</body>
-</html>
+}

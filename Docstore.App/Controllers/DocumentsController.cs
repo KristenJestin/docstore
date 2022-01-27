@@ -10,27 +10,27 @@ using Docstore.Application.Models.DTO;
 using Docstore.Domain.Entities;
 using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
-using Docstore.Persistence.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Collections.Generic;
 
 namespace Docstore.App.Controllers
 {
+    [Authorize]
     public class DocumentsController : Controller
     {
         private const int PAGE_SIZE = 6;
 
         private readonly IMapper _mapper;
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly AppSettings _appSettings;
         private readonly IDocumentRepository _documentRepository;
         private readonly IFolderRepository _folderRepository;
         private readonly IDocumentFileRepository _documentFileRepository;
 
-        public DocumentsController(AppDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository, IDocumentFileRepository documentFileRepository)
+        public DocumentsController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository, IDocumentFileRepository documentFileRepository)
         {
             _db = db;
             _mapper = mapper;
