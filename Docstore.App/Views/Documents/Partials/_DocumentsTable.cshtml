@@ -52,12 +52,17 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
                                         @if (item.Tags != null)
                                         {
+                                            var displayed = 2;
                                             @if (item.Tags.Any())
                                             {
                                                 <div class="space-x-1">
-                                                    @foreach (var tag in item.Tags)
+                                                    @foreach (var tag in item.Tags.Take(displayed))
                                                     {
                                                         <partial name="~/Views/Shared/Partials/_Tag.cshtml" model="@tag" />
+                                                    }
+                                                    @if(item.Tags.Count() > displayed)
+                                                    {
+                                                        <partial name="~/Views/Shared/Partials/_SimpleTag.cshtml" model="@(item.Tags.Skip(displayed).Count() + "+")" />
                                                     }
                                                 </div>
                                             }
