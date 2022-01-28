@@ -1,4 +1,5 @@
-﻿using Docstore.Persistence.Contexts;
+﻿using Docstore.Domain.Entities;
+using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +11,7 @@ namespace Docstore.Identity
         public static void AddIdentityInfrastructure(this IServiceCollection services, IConfiguration configuration)
         {
             // default settings
-            services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            services.AddDefaultIdentity<ApplicationIdentityUser>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
             // configuration

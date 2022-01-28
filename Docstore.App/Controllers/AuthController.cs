@@ -1,4 +1,7 @@
-﻿using Docstore.App.Models.Forms;
+﻿using Docstore.App.Common;
+using Docstore.App.Common.Extendeds;
+using Docstore.App.Models.Forms;
+using Docstore.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -6,15 +9,15 @@ using Microsoft.AspNetCore.Mvc;
 namespace Docstore.App.Controllers
 {
     [AllowAnonymous]
-    public class AuthController : Controller
+    public class AuthController : ExtendedController
     {
         // Pick from https://docs.microsoft.com/en-US/aspnet/core/security/authentication/identity?view=aspnetcore-6.0&tabs=visual-studio#scaffold-register-login-logout-and-registerconfirmation
 
         private readonly ILogger<AuthController> _logger;
-        private readonly UserManager<IdentityUser> _userManager;
-        private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly UserManager<ApplicationIdentityUser> _userManager;
+        private readonly SignInManager<ApplicationIdentityUser> _signInManager;
 
-        public AuthController(ILogger<AuthController> logger, UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager)
+        public AuthController(ILogger<AuthController> logger, UserManager<ApplicationIdentityUser> userManager, SignInManager<ApplicationIdentityUser> signInManager)
         {
             _userManager = userManager;
             _logger = logger;
@@ -33,7 +36,7 @@ namespace Docstore.App.Controllers
             {
                 if (ModelState.IsValid && form != null)
                 {
-                    var user = new IdentityUser { UserName = form.UserName, Email = form.Email };
+                    var user = new ApplicationIdentityUser { UserName = form.UserName, Email = form.Email };
                     var result = await _userManager.CreateAsync(user, form.Password);
 
                     if (result.Succeeded)
@@ -42,7 +45,7 @@ namespace Docstore.App.Controllers
                         await _signInManager.SignInAsync(user, isPersistent: false);
 
                         // response
-                        return RedirectToAction(nameof(HomeController.Index), "Home");
+                        return RedirectToAction(nameof(HomeController.Index), nameof(HomeController));
                     }
 
                     foreach (var error in result.Errors)
@@ -74,7 +77,7 @@ namespace Docstore.App.Controllers
                     if (result.Succeeded)
                     {
                         _logger.LogInformation("User logged in.");
-                        return RedirectToAction(nameof(HomeController.Index), "Home");
+                        return RedirectToAction(nameof(HomeController.Index), nameof(HomeController));
                     }
 
                     if (result.IsLockedOut)

@@ -1,6 +1,8 @@
-﻿namespace Docstore.Domain.Entities
+﻿using Docstore.Domain.Entities.Abstracts;
+
+namespace Docstore.Domain.Entities
 {
-    public class DocumentFile : DatedBaseEntity
+    public class DocumentFile : UserOwnsBaseEntity
     {
         public static readonly string[] StorePath = new[] { "uploads", "document-files" };
 

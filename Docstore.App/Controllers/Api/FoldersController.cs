@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Docstore.App.Common.Extendeds;
 using Docstore.App.Models.Forms;
 using Docstore.Application.Interfaces;
 using Docstore.Application.Models.DTO;
@@ -14,7 +15,7 @@ namespace Docstore.App.Controllers.Api
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class FoldersController : ControllerBase
+    public class FoldersController : ExtendedControllerBase
     {
         private readonly IMapper _mapper;
         private readonly IFolderRepository _folderRepository;
@@ -35,7 +36,7 @@ namespace Docstore.App.Controllers.Api
             if (string.IsNullOrWhiteSpace(search))
                 return new List<GetFolderDto>();
 
-            var folders = await _folderRepository.SearchAsync(search);
+            var folders = await _folderRepository.SearchAsync(UserId, search);
             var dto = _mapper.Map<IEnumerable<GetFolderDto>>(folders);
 
             return dto.ToList();
@@ -44,7 +45,7 @@ namespace Docstore.App.Controllers.Api
         [HttpGet("{id}")]
         public async Task<ActionResult<GetFolderDto>> Get(int id)
         {
-            var folder = await _folderRepository.FindByIdAsync(id);
+            var folder = await _folderRepository.FindByIdAsync(UserId, id);
 
             if(folder == null)
                 return NotFound();
@@ -63,6 +64,7 @@ namespace Docstore.App.Controllers.Api
                 {
                     // transform to database entity
                     var folder = _mapper.Map<Folder>(form);
+                    folder.UserId = UserId;
 
                     // save in database
                     await _folderRepository.AddAsync(folder);

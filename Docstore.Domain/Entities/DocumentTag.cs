@@ -1,6 +1,8 @@
-﻿namespace Docstore.Domain.Entities
+﻿using Docstore.Domain.Entities.Abstracts;
+
+namespace Docstore.Domain.Entities
 {
-    public class DocumentTag : DatedBaseEntity
+    public class DocumentTag : UserOwnsBaseEntity
     {
         public string? Name { get; set; }
         public string? Slug { get; set; }

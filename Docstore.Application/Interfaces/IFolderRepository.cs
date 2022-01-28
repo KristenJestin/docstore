@@ -4,6 +4,6 @@ namespace Docstore.Application.Interfaces
 {
     public interface IFolderRepository : IGenericRepository<Folder>
     {
-        Task<IEnumerable<Folder>> SearchAsync(string term, uint size = 10);
+        Task<IEnumerable<Folder>> SearchAsync(int userId, string term, uint size = 10);
     }
 }

@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using Docstore.Domain.Entities.Abstracts;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Docstore.Domain.Entities
 {
-    public class Folder : DatedBaseEntity
+    public class Folder : UserOwnsBaseEntity
     {
         public string? Name { get; set; }
         public string? Description { get; set; }

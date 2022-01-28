@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using Docstore.Domain.Entities.Abstracts;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Docstore.Domain.Entities
 {
-    public class Document : DatedBaseEntity
+    public class Document : UserOwnsBaseEntity
     {
         #region validations
         public static readonly string[] AllowedContentTypes = new[] { "image/jpeg", "image/jpg", "image/png", "application/pdf" };

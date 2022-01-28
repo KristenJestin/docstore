@@ -1,11 +1,12 @@
 ﻿using Docstore.Domain.Entities;
+using Docstore.Domain.Entities.Abstracts;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Docstore.Persistence.Contexts
 {
-    public class ApplicationDbContext : IdentityDbContext
+    public class ApplicationDbContext : IdentityDbContext<ApplicationIdentityUser, ApplicationRole, int>
     {
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<DocumentFile> DocumentFiles => Set<DocumentFile>();

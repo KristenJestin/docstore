@@ -8,15 +8,15 @@ namespace Docstore.App.Common.Extensions
 {
     public static class DocumentCreateFormExtensions
     {
-        public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentCreateForm form, ApplicationDbContext context)
+        public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentCreateForm form, ApplicationDbContext context, int userId)
         {
             if (!form.Tags.Any())
                 return new List<DocumentTag>();
 
-            var userTags = form.GetTags();
+            var userTags = form.GetTags(userId);
             var userTagSlugs = userTags.Select(t => t.Slug);
 
-            var existingTags = await context.DocumentTags.Where(t => userTagSlugs.Contains(t.Slug)).ToListAsync();
+            var existingTags = await context.DocumentTags.Where(t => t.UserId == userId).Where(t => userTagSlugs.Contains(t.Slug)).ToListAsync();
 
             var tagToCreate = userTags.Except(existingTags);
 
@@ -26,19 +26,20 @@ namespace Docstore.App.Common.Extensions
 
 
         #region privates
-        private static IEnumerable<DocumentTag> GetTags(this DocumentCreateForm form)
+        private static IEnumerable<DocumentTag> GetTags(this DocumentCreateForm form, int userId)
         {
             return form.Tags
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))
                 .Distinct()
-                .Select(TransformToDocumentTag);
+                .Select(tag => TransformToDocumentTag(tag, userId));
         }
 
-        private static DocumentTag TransformToDocumentTag(string tag)
+        private static DocumentTag TransformToDocumentTag(string tag, int userId)
             => new()
             {
                 Name = tag.Trim(),
                 Slug = Helpers.Slugify(tag.Trim()),
+                UserId = userId
             };
 
         public static async Task<DocumentFile> UploadAndEncryptAndTransformToDocumentFileAsync(this IFormFile file, IWebHostEnvironment environment, string encryptionKey)

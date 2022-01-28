@@ -1,4 +1,6 @@
 ﻿using AutoMapper;
+using Docstore.App.Common;
+using Docstore.App.Common.Extendeds;
 using Docstore.App.Common.Extensions;
 using Docstore.App.Models;
 using Docstore.App.Models.Forms;
@@ -11,14 +13,16 @@ using Docstore.Domain.Entities;
 using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 
 namespace Docstore.App.Controllers
 {
     [Authorize]
-    public class DocumentsController : Controller
+    public class DocumentsController : ExtendedController
     {
         private const int PAGE_SIZE = 6;
 
@@ -46,11 +50,11 @@ namespace Docstore.App.Controllers
         public async Task<IActionResult> Index(int? page = 1, int? folderId = null, int? tagId = null)
         {
             // get data
-            var documents = await _documentRepository.GetPagedReponseAsync(page ?? 1, PAGE_SIZE, tag: tagId, folder: folderId);
+            var documents = await _documentRepository.GetPagedReponseAsync(UserId, page ?? 1, PAGE_SIZE, tag: tagId, folder: folderId);
 
             Folder? folder = null;
             if (folderId != null)
-                folder = await _db.Folders.FindAsync(folderId.Value);
+                folder = await _folderRepository.FindByIdAsync(UserId, folderId.Value);
 
             // response
             var viewModel = new DocumentsIndexViewModel
@@ -68,7 +72,7 @@ namespace Docstore.App.Controllers
             Folder? folder = null;
 
             if (folderId != null)
-                folder = await _folderRepository.FindByIdAsync(folderId.Value);
+                folder = await _folderRepository.FindByIdAsync(UserId, folderId.Value);
 
             // response
             var viewModel = new DocumentCreateViewModel(folderId, folder);
@@ -83,12 +87,13 @@ namespace Docstore.App.Controllers
             {
                 if (ModelState.IsValid && form != null)
                 {
-                    var documentFiles = await _documentFileRepository.FindByIdsAsync(form.Files.ToArray());
+                    var documentFiles = await _documentFileRepository.FindByIdsAsync(UserId, form.Files.ToArray());
 
                     // transform to database entity
                     var document = _mapper.Map<Document>(form);
-                    document.Tags = await form.CreateNewTagsAndGetListAsync(_db);
+                    document.Tags = await form.CreateNewTagsAndGetListAsync(_db, UserId);
                     document.Files = documentFiles.ToList();
+                    document.UserId = UserId;
 
                     foreach (var (item, index) in document.Files.WithIndex())
                         item.Order = index;
@@ -109,12 +114,12 @@ namespace Docstore.App.Controllers
             // pick folder if it selected
             Folder? folder = null;
             if (form?.FolderId != null)
-                folder = await _folderRepository.FindByIdAsync(form.FolderId.Value);
+                folder = await _folderRepository.FindByIdAsync(UserId, form.FolderId.Value);
 
             IEnumerable<GetDocumentFileDto> files = new List<GetDocumentFileDto>();
             if (form?.Files != null && form.Files.Any())
             {
-                var documentFiles = await _documentFileRepository.FindByIdsAsync(form.Files.ToArray());
+                var documentFiles = await _documentFileRepository.FindByIdsAsync(UserId, form.Files.ToArray());
                 files = _mapper.Map<IEnumerable<GetDocumentFileDto>>(documentFiles);
             }
 
@@ -129,11 +134,7 @@ namespace Docstore.App.Controllers
 
         public async Task<IActionResult> Show(int id)
         {
-            var document = await _db.Documents
-                .Include(x => x.Files)
-                .Include(x => x.Tags)
-                .Include(x => x.Folder)
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var document = await _documentRepository.FindByIdWithTypeAndTagsAndFileAsync(UserId, id);
 
             if (document == null)
                 return NotFound();
@@ -146,8 +147,7 @@ namespace Docstore.App.Controllers
         [HttpGet("{controller}/" + nameof(Show) + "/{id:int}/{action}/{fileId:int}")]
         public async Task<IActionResult> Download(int id, int fileId)
         {
-            var document = await _db.Documents
-                .FindAsync(id);
+            var document = await _documentRepository.FindByIdAsync(UserId, id);
 
             if (document == null)
                 return NotFound();

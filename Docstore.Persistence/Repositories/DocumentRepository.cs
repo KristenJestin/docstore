@@ -18,9 +18,9 @@ namespace Docstore.Persistence.Repositories
             _documents = db.Set<Document>();
         }
 
-        public async Task<PagedResult<Document>> GetPagedReponseAsync(int pageNumber, int pageSize, string? search = null, int? tag = null, int? folder = null, Expression<Func<Document, bool>>? where = null)
+        public async Task<PagedResult<Document>> GetPagedReponseAsync(int userId, int pageNumber, int pageSize, string? search = null, int? tag = null, int? folder = null, Expression<Func<Document, bool>>? where = null)
         {
-            IQueryable<Document> query = _documents;
+            IQueryable<Document> query = _documents.Where(x => x.UserId == userId);
 
             #region parameters
             if (!string.IsNullOrWhiteSpace(search))
@@ -54,10 +54,12 @@ namespace Docstore.Persistence.Repositories
             return new PagedResult<Document>(await query.ToListAsync(), count, pageNumber, pageSize);
         }
 
-        public async Task<Document?> FindByIdWithTypeAndTagsAndFileAsync(int id)
+        public async Task<Document?> FindByIdWithTypeAndTagsAndFileAsync(int userId, int id)
             => await _documents
-                .Include(d => d.Tags)
-                .Include(d => d.Files)
-                .FirstOrDefaultAsync(d => d.Id == id);
+                .Where(x => x.UserId == userId)
+                .Include(x => x.Files)
+                .Include(x => x.Tags)
+                .Include(x => x.Folder)
+                .FirstOrDefaultAsync(x => x.Id == id);
     }
 }

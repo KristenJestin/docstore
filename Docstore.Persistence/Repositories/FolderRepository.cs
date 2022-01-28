@@ -14,8 +14,9 @@ namespace Docstore.Persistence.Repositories
             _folders = db.Set<Folder>();
         }
 
-        public async Task<IEnumerable<Folder>> SearchAsync(string term, uint size = 10)
+        public async Task<IEnumerable<Folder>> SearchAsync(int userId, string term, uint size = 10)
             => await _folders
+                .Where(f => f.UserId == userId)
                 .Where(f => f.Name != null && f.Name.ToLower().Contains(term.ToLower()))
                 .Take(10)
                 .ToListAsync();

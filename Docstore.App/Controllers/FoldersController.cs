@@ -1,6 +1,9 @@
 ﻿using AutoMapper;
+using Docstore.App.Common;
+using Docstore.App.Common.Extendeds;
 using Docstore.App.Models;
 using Docstore.App.Models.Forms;
+using Docstore.Application.Interfaces;
 using Docstore.Domain.Entities;
 using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Authorization;
@@ -10,17 +13,19 @@ using Microsoft.EntityFrameworkCore;
 namespace Docstore.App.Controllers
 {
     [Authorize]
-    public class FoldersController : Controller
+    public class FoldersController : ExtendedController
     {
         private readonly IMapper _mapper;
         private readonly ApplicationDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
+        private readonly IFolderRepository _folderRepository;
 
-        public FoldersController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment)
+        public FoldersController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IFolderRepository folderRepository)
         {
             _db = db;
             _mapper = mapper;
             _hostingEnvironment = hostingEnvironment;
+            _folderRepository = folderRepository;
         }
 
 
@@ -29,6 +34,7 @@ namespace Docstore.App.Controllers
         {
             // get data
             var folders = await _db.Folders
+                .Where(x => x.UserId == UserId)
                 .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync();
 
@@ -57,6 +63,7 @@ namespace Docstore.App.Controllers
                 {
                     // transform to database entity
                     var folder = _mapper.Map<Folder>(form);
+                    folder.UserId = UserId;
 
                     // save in database
                     await _db.AddAsync(folder);
@@ -81,8 +88,7 @@ namespace Docstore.App.Controllers
 
         public async Task<IActionResult> Show(int id)
         {
-            var folder = await _db.Folders
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var folder = await _folderRepository.FindByIdAsync(UserId, id);
 
             if (folder == null)
                 return NotFound();

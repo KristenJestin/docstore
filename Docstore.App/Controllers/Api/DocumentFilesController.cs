@@ -1,4 +1,5 @@
-﻿using Docstore.App.Common.Extensions;
+﻿using Docstore.App.Common.Extendeds;
+using Docstore.App.Common.Extensions;
 using Docstore.Application.Interfaces;
 using Docstore.Application.Models;
 using Docstore.Domain.Entities;
@@ -12,7 +13,7 @@ namespace Docstore.App.Controllers.Api
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class DocumentFilesController : ControllerBase
+    public class DocumentFilesController : ExtendedControllerBase
     {
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly AppSettings _appSettings;
@@ -33,7 +34,7 @@ namespace Docstore.App.Controllers.Api
         [HttpGet("{id}")]
         public async Task<ActionResult<DocumentFile>> Get(int id)
         {
-            var file = await _repository.FindByIdAsync(id);
+            var file = await _repository.FindByIdAsync(UserId, id);
 
             if (file == null)
                 return NotFound();
@@ -52,6 +53,7 @@ namespace Docstore.App.Controllers.Api
                 if (ModelState.IsValid && file != null)
                 {
                     var documentFile = await file.UploadAndEncryptAndTransformToDocumentFileAsync(_hostingEnvironment, _appSettings.AppKey!);
+                    documentFile.UserId = UserId;
 
                     // save in database
                     await _repository.AddAsync(documentFile);

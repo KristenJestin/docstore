@@ -1,4 +1,4 @@
-﻿namespace Docstore.Domain.Entities
+﻿namespace Docstore.Domain.Entities.Abstracts
 {
     public abstract class DatedBaseEntity : BaseEntity
     {
