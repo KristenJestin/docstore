@@ -1,6 +1,8 @@
 ﻿using Docstore.App.Common;
 using Docstore.App.Common.Extendeds;
+using Docstore.App.Common.Extensions;
 using Docstore.App.Models.Forms;
+using Docstore.Application.Models;
 using Docstore.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -77,7 +79,8 @@ namespace Docstore.App.Controllers
                     if (result.Succeeded)
                     {
                         _logger.LogInformation("User logged in.");
-                        return RedirectToAction(nameof(HomeController.Index), nameof(HomeController));
+                        return RedirectToAction(nameof(HomeController.Index), nameof(HomeController))
+                            .AddToast(TempData, ToastType.Success, $"Welcome here, {form.UserName}");
                     }
 
                     if (result.IsLockedOut)

@@ -103,7 +103,8 @@ namespace Docstore.App.Controllers
                     await _db.SaveChangesAsync();
 
                     // response
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction(nameof(Index))
+                        .AddToast(TempData, ToastType.Success, $"\"{document.Name}\" successfuly created!");
                 }
             }
             catch (Exception ex)

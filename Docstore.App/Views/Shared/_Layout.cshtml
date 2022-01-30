@@ -1,10 +1,17 @@
-﻿@{
+﻿@using Docstore.Application.Models
+@{
     Layout = "_BlankLayout";
 }
 
 <main>
     <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" layout-main>
         @RenderBody()
+
+        @*Fausse div pour générer des toast avec unpoly*@
+        @if (TempData[nameof(Toast)] is string toastsTemp)
+        {
+            <div x-data="{}" x-init='$dispatch("toasts", @Html.Raw(toastsTemp))'></div>
+        }
     </div>
 </main>
 
