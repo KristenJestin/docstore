@@ -78,6 +78,7 @@ namespace Docstore.App.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(DocumentForm? form)
         {
             // model validation
@@ -172,6 +173,7 @@ namespace Docstore.App.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, DocumentForm? form)
         {
             var document = await _documentRepository.FindByIdAsync(UserId, id);
@@ -206,6 +208,24 @@ namespace Docstore.App.Controllers
             }
 
             return await EditDefault(document);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var document = await _documentRepository.FindByIdWithTypeAndTagsAndFileAsync(UserId, id);
+
+            if (document == null)
+                return NotFound();
+
+            // delete
+            foreach (var item in document.Files)
+                await _documentFileRepository.DeleteAsync(item);
+            await _documentRepository.DeleteAsync(document, save: true);
+
+            return RedirectToAction(nameof(Index))
+                .AddToast(TempData, ToastType.Success, $"\"{document.Name}\" has been deleted!");
         }
         #endregion
 

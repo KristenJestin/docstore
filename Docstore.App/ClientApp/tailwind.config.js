@@ -1,5 +1,5 @@
 const defaultTheme = require('tailwindcss/defaultTheme')
-const { white, slate, red, green, yellow, purple } = require('tailwindcss/colors')
+const { white, slate, red, green, yellow, purple, sky } = require('tailwindcss/colors')
 
 module.exports = {
     content: ['../Views/**', './src/**/*.{js,ts,jsx,tsx}'],
@@ -22,6 +22,7 @@ module.exports = {
             black: '#0B101E',
             red,
             green,
+            info: sky,
             primary: yellow,
         },
     },
