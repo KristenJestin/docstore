@@ -5,7 +5,7 @@ const ToastHandler = () => ({
     add(toast) {
         toast.id = Date.now()
         this.toasts.push(toast)
-        this.fire(toast.id)
+        this.$nextTick(() => this.fire(toast.id))
     },
     fire(id) {
         this.visible.push(this.toasts.find((toast) => toast.id == id))
