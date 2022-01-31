@@ -1,4 +1,4 @@
-﻿@model Docstore.Domain.Entities.Document
+﻿@model Docstore.Domain.Entities.Abstracts.BaseEntity
 
 <div x-data="Modal" x-on:keydown.window.escape="open = false" x-show="open" class="fixed z-50 inset-0 overflow-y-auto" aria-labelledby="modal-title" x-ref="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0" x-on:modal-delete-ex.window="open = !open">
@@ -14,7 +14,7 @@
 
             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 dark:bg-gray-900">
                 <div class="flex items-start flex-col">
-                    <h2 class="text-lg font-black font-header text-gray-800 dark:text-gray-100 uppercase tracking-wider">Delete document</h2>
+                    <h2 class="text-lg font-black font-header text-gray-800 dark:text-gray-100 uppercase tracking-wider">Delete @(Model!.GetType().Name)</h2>
                     <p class="text-gray-400 dark:text-gray-500 text-sm">Are you sure you want to delete this item?</p>
                 </div>
             </div>

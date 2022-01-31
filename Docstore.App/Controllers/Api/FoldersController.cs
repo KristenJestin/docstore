@@ -55,7 +55,7 @@ namespace Docstore.App.Controllers.Api
         }
 
         [HttpPost]
-        public async Task<ActionResult<Folder>> Post([FromBody] FolderCreateForm form)
+        public async Task<ActionResult<Folder>> Post([FromBody] FolderForm form)
         {
             // model validation
             try

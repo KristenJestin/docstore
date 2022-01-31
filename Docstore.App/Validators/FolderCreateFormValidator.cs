@@ -3,7 +3,7 @@ using FluentValidation;
 
 namespace Docstore.App.Validators
 {
-    public class FolderCreateFormValidator : AbstractValidator<FolderCreateForm>
+    public class FolderCreateFormValidator : AbstractValidator<FolderForm>
     {
         public FolderCreateFormValidator()
         {

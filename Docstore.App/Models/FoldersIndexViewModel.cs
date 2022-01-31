@@ -1,9 +1,10 @@
-﻿using Docstore.Domain.Entities;
+﻿using Docstore.Application.Models;
+using Docstore.Domain.Entities;
 
 namespace Docstore.App.Models
 {
     public class FoldersIndexViewModel
     {
-        public IEnumerable<Folder> Folders { get; set; } = Enumerable.Empty<Folder>();
+        public PagedResult<Folder> Folders { get; set; } = PagedResult<Folder>.Empty<Folder>();
     }
 }

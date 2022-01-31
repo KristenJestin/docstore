@@ -2,7 +2,7 @@
 
 namespace Docstore.App.Models
 {
-    public class FolderCreateViewModel : FolderFormViewModel
+    public class FolderEditViewModel : FolderFormViewModel
     {
     }
 }

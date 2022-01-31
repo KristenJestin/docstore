@@ -16,7 +16,8 @@ namespace Docstore.App
                 .ForMember(x => x.Files, act => act.Ignore())
                 .ForMember(x => x.Tags, act => act.Ignore());
 
-            CreateMap<FolderCreateForm, Folder>();
+            CreateMap<FolderForm, Folder>()
+                .ReverseMap();
 
             CreateMap<Folder, GetFolderDto>();
 

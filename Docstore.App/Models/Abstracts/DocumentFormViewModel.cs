@@ -9,7 +9,7 @@ namespace Docstore.App.Models.Abstracts
     public abstract class DocumentFormViewModel
     {
         public DocumentForm Form { get; set; }
-        public FolderCreateForm FormFolder { get; set; }
+        public FolderForm FormFolder { get; set; }
 
         public Folder? Folder { get; set; }
         public IEnumerable<GetDocumentFileDto> Files { get; set; }
@@ -32,7 +32,7 @@ namespace Docstore.App.Models.Abstracts
 
         #region statics
         public static DocumentForm GetDefaultFormValues(int? folderId = null) => new() { FolderId = folderId };
-        public static FolderCreateForm GetDefaultFolderFormValues() => new();
+        public static FolderForm GetDefaultFolderFormValues() => new();
         #endregion
     }
 }

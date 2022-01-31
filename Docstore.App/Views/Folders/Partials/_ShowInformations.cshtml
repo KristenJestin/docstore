@@ -1,0 +1,61 @@
+﻿@using Humanizer
+@using Docstore.Domain.Entities
+@model Folder
+
+@if (Model == null) return;
+
+<div class="divide-y divide-solid divide-black">
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Name
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @Model.Name
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Description
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
+            {
+                <span>@Model.Description</span>
+            }
+            else
+            {
+
+                <i class="italic text-xs text-gray-500">no description</i>
+            }
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Total Size
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            @Model.Size.Bytes()
+            <span class="italic text-xs">(@("document".ToQuantity(@Model.DocumentsCount)))</span>
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Creation Date
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            <span>@Model.CreatedAt.Humanize()</span>
+        </div>
+    </div>
+
+    <div class="px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+        <div class="text-sm font-medium text-gray-500">
+            Update Date
+        </div>
+        <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
+            <span>@Model.UpdatedAt.Humanize()</span>
+        </div>
+    </div>
+</div>

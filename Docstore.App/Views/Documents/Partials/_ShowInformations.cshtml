@@ -19,7 +19,7 @@
             Description
         </div>
         <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
-            @if (Model.Description != null)
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
             {
                 <span>@Model.Description</span>
             }

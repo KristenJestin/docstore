@@ -1,15 +1,16 @@
 ﻿@using Docstore.Application.Models
 @using Docstore.App.Common.Extensions
-@model FolderCreateViewModel
+@model FolderEditViewModel
 
 @{
     var breadcrumbs = new List<BreadcrumbItem>
     {
         Constants.BreadcrumbHome,
         Constants.BreadcrumbFoldersHome,
-        new BreadcrumbItem("Create", icon:@"<path d=""M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"" /><path stroke=""#fff"" stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M8 11h4m-2-2v4"" />"),
+        new BreadcrumbItem($"Edit '{Model!.Form.Name}'", icon:@"<path d=""M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"" />"),
     };
 }
+
 <div class="mb-10 flex justify-center items-center flex-col">
     <partial name="~/Views/Shared/Partials/_AppHeader.cshtml" />
 </div>

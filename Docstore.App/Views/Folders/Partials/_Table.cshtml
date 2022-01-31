@@ -1,0 +1,77 @@
+﻿@using Docstore.Application.Models
+@using Humanizer
+@using Docstore.Domain.Entities
+@model PagedResult<Folder>
+
+<div class="flex flex-col" layout-Folders-table>
+    <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+        <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+            <div class="shadow overflow-hidden border-b border-gray-200 dark:border-gray-800 sm:rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                    <thead class="bg-gray-50 dark:bg-black">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Size
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Last updated
+                            </th>
+                            <th scope="col" class="relative px-6 py-3">
+                                <span class="sr-only">Edit</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                        @if (Model != null && Model.Results.Any())
+                        {
+                            @foreach (var item in Model.Results)
+                            {
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-primary-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900 dark:text-gray-300 truncate">
+                                                    @item.Name
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                {
+                                                    <div class="text-sm text-gray-500 dark:text-gray-600 truncate">
+                                                        @item.Description!.Truncate(20)
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
+                                        @item.Size.Bytes()
+                                        <span class="italic text-xs">(@("document".ToQuantity(@item.DocumentsCount)))</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
+                                        @item.UpdatedAt.Humanize()
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <a up-target="[layout-main]" asp-action="Show" asp-controller="Folders" asp-route-id="@item.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">Show</a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="10" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                    no Folders
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <partial name="~/Views/Shared/Partials/_Pagination.cshtml" model="@Model?.Pagination" />
+            </div>
+        </div>
+    </div>
+</div>

@@ -2,12 +2,11 @@
 
 namespace Docstore.App.Models.Forms
 {
-    public class FolderCreateForm
+    public class FolderForm
     {
         public string? Name { get; set; }
 
         [DataType(DataType.MultilineText)]
         public string? Description { get; set; }
-        public string? Color { get; set; }
     }
 }

@@ -1,54 +1,30 @@
 ﻿@using Humanizer
+@using Docstore.Application.Models
+@using Docstore.App.Common.Extensions
 @model FoldersIndexViewModel
 
-<div>
-    <hgroup>
-        <h2>Folders</h2>
-        <h3>Show your folders</h3>
-    </hgroup>
-    <div>
-        <a asp-action="Create" role="button">Create new folder</a>
-    </div>
+@{
+    ViewData["Title"] = "Folders";
+
+    var breadcrumbs = new List<BreadcrumbItem>
+    {
+        Constants.BreadcrumbHome,
+        Constants.BreadcrumbFoldersHome
+    };
+
+}
+
+<div class="mb-20 flex justify-center items-center flex-col">
+    <partial name="~/Views/Shared/Partials/_AppHeader.cshtml" />
+    <a up-target="[layout-main]" up-preload asp-action="Create" asp-controller="Folders" class="py-2 px-3 bg-primary-400 hover:bg-primary-500  text-primary-900 hover:text-white text-sm font-semibold rounded-md shadow-lg shadow-primary-500/10 hover:shadow-primary-500/50 active:shadow-primary-500/75 focus:outline-none transition duration-500 text-center inline-flex items-center">
+        Create new Folder
+        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 -mr-1 h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+    </a>
 </div>
 
-<article>
-    <figure>
-        <table role="grid">
-            <thead>
-                <tr>
-                    <th scope="col"></th>
-                    <th scope="col">Name</th>
-                    <th scope="col">Last Update</th>
-                    <th scope="col">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model!.Folders.Any())
-                {
-                    @foreach (var item in Model!.Folders)
-                    {
-                        <tr>
-                            <td>
-                                <span class="dot" style="background-color: @item.Color"></span>
-                            </td>
-                            <td>@item.Name</td>
-                            <td>@item.UpdatedAt.Humanize()</td>
-                            <td>
-                                <a asp-action="Index" asp-controller="Documents" asp-route-folderId="@item.Id">Documents</a>
-                                <a asp-action="Show" asp-route-id="@item.Id">Show</a>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="10" style="text-align: center">
-                            <i>No folders</i>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </figure>
-</article>
+
+<div class="mb-4 inline-flex">
+    <partial name="~/Views/Shared/Partials/_Breadcrumb.cshtml" model="breadcrumbs" />
+</div>
+
+<partial name="Partials/_Table" model="Model!.Folders" />
