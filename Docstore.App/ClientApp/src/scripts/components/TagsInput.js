@@ -32,7 +32,7 @@ const TagsInput = (initalTags = []) => ({
         this.tagsList = this.$refs.tagsList
         this.tags = initalTags
 
-        this.onTagsChange()
+        this.$nextTick(() => this.onTagsChange())
         this.$watch('tags', () => this.onTagsChange())
     },
 })

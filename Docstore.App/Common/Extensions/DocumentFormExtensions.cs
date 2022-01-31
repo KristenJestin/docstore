@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Docstore.App.Common.Extensions
 {
-    public static class DocumentCreateFormExtensions
+    public static class DocumentFormExtensions
     {
-        public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentCreateForm form, ApplicationDbContext context, int userId)
+        public static async Task<ICollection<DocumentTag>> CreateNewTagsAndGetListAsync(this DocumentForm form, ApplicationDbContext context, int userId)
         {
             if (!form.Tags.Any())
                 return new List<DocumentTag>();
@@ -26,7 +26,7 @@ namespace Docstore.App.Common.Extensions
 
 
         #region privates
-        private static IEnumerable<DocumentTag> GetTags(this DocumentCreateForm form, int userId)
+        private static IEnumerable<DocumentTag> GetTags(this DocumentForm form, int userId)
         {
             return form.Tags
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))

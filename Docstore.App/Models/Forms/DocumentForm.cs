@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Docstore.App.Models.Forms
 {
-    public class DocumentCreateForm
+    public class DocumentForm
     {
         public string? Name { get; set; }
 

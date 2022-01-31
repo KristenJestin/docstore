@@ -1,6 +1,6 @@
 ﻿namespace Docstore.Domain.Entities.Abstracts
 {
-    public abstract class UserOwnsBaseEntity : DatedBaseEntity
+    public abstract class UserOwnsBaseEntity : BaseEntity
     {
         public int UserId { get; set; }
 

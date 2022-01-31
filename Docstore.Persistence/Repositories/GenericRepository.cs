@@ -13,13 +13,13 @@ namespace Docstore.Persistence.Repositories
             => _db = dbContext;
 
         public virtual async Task<T?> FindByIdAsync(int userId, int id)
-            => await _db.Set<T>().Where(x => x.UserId == userId && x.Id == id).FirstOrDefaultAsync();
+            => await _db.Set<T>().Where(x => x.UserId == userId && x.Id == id)/*.AsNoTracking()*/.FirstOrDefaultAsync();
         public virtual async Task<IReadOnlyList<T>> FindByIdsAsync(int userId, params int[] ids)
         {
             if (ids == null || !ids.Any())
                 return Array.Empty<T>();
 
-            return await _db.Set<T>().Where(x => x.UserId == userId).Where(x => ids.Contains(x.Id)).ToListAsync();
+            return await _db.Set<T>().Where(x => x.UserId == userId).Where(x => ids.Contains(x.Id))/*.AsNoTracking()*/.ToListAsync();
         }
 
         public async Task<T> AddAsync(T entity, bool save = false)
@@ -49,6 +49,6 @@ namespace Docstore.Persistence.Repositories
         }
 
         public virtual async Task<IReadOnlyList<T>> GetAllAsync(int user)
-            => await _db.Set<T>().Where(x => x.UserId == user).ToListAsync();
+            => await _db.Set<T>().Where(x => x.UserId == user).AsNoTracking().ToListAsync();
     }
 }

@@ -1,8 +1,8 @@
 ﻿using AutoMapper;
-using Docstore.App.Common;
 using Docstore.App.Common.Extendeds;
 using Docstore.App.Common.Extensions;
 using Docstore.App.Models;
+using Docstore.App.Models.Abstracts;
 using Docstore.App.Models.Forms;
 using Docstore.Application.Common;
 using Docstore.Application.Extensions;
@@ -13,11 +13,9 @@ using Docstore.Domain.Entities;
 using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Security.Claims;
 
 namespace Docstore.App.Controllers
 {
@@ -80,7 +78,7 @@ namespace Docstore.App.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create(DocumentCreateForm? form)
+        public async Task<IActionResult> Create(DocumentForm? form)
         {
             // model validation
             try
@@ -99,8 +97,7 @@ namespace Docstore.App.Controllers
                         item.Order = index;
 
                     // save in database
-                    await _db.AddAsync(document);
-                    await _db.SaveChangesAsync();
+                    await _documentRepository.AddAsync(document, save: true);
 
                     // response
                     return RedirectToAction(nameof(Index))
@@ -127,7 +124,7 @@ namespace Docstore.App.Controllers
             // response
             var viewModel = new DocumentCreateViewModel(folder?.Id, folder, files)
             {
-                Form = form ?? DocumentCreateViewModel.GetDefaultFormValues()
+                Form = form ?? DocumentFormViewModel.GetDefaultFormValues()
             };
             return View(viewModel);
         }
@@ -148,20 +145,84 @@ namespace Docstore.App.Controllers
         [HttpGet("{controller}/" + nameof(Show) + "/{id:int}/{action}/{fileId:int}")]
         public async Task<IActionResult> Download(int id, int fileId)
         {
-            var document = await _documentRepository.FindByIdAsync(UserId, id);
+            var userDocument = await _documentRepository.FindByIdAsync(UserId, id);
 
-            if (document == null)
+            if (userDocument == null)
                 return NotFound();
 
-            var file = await _db.DocumentFiles
-                .FindAsync(fileId);
+            var file = await _documentFileRepository.FindByIdAsync(UserId, fileId);
 
-            if (file == null || document.Id != file.DocumentId)
+            if (file == null || userDocument.Id != file.DocumentId)
                 return NotFound();
 
             // response
             var filePath = file.GetFilePath(_hostingEnvironment.WebRootPath);
             return File(await Encryption.DecryptWithMemoryAsync(filePath, _appSettings.AppKey!), file.MimeType!, file.GetFileName(), true);
+        }
+
+        public async Task<IActionResult> Edit(int id)
+        {
+            // check if exist
+            var document = await _documentRepository.FindByIdAsync(UserId, id);
+            if (document == null)
+                return RedirectToAction(nameof(Index))
+                    .AddToast(TempData, ToastType.Error, "This document does not exist.");
+
+            return await EditDefault(document);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Edit(int id, DocumentForm? form)
+        {
+            var document = await _documentRepository.FindByIdAsync(UserId, id);
+
+            if (document == null)
+                return NotFound();
+
+            // model validation
+            try
+            {
+                if (ModelState.IsValid && form != null)
+                {
+                    var documentFiles = await _documentFileRepository.FindByIdsAsync(UserId, form.Files.ToArray());
+
+                    // copie new data in entity
+                    _mapper.Map(form, document);
+
+                    document.Tags = await form.CreateNewTagsAndGetListAsync(_db, UserId);
+                    document.Files = documentFiles.ToList();
+
+                    // save in database
+                    await _documentRepository.UpdateAsync(document, save: true);
+
+                    // response
+                    return RedirectToAction(nameof(Index))
+                        .AddToast(TempData, ToastType.Success, $"\"{document.Name}\" successfuly updated!");
+                }
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", "An unexpected error occurred.");
+            }
+
+            return await EditDefault(document);
+        }
+        #endregion
+
+        #region privates
+        private async Task<IActionResult> EditDefault(Document document)
+        {
+            // data
+            var form = _mapper.Map<DocumentForm>(document);
+            form.Tags = document.Tags.Select(x => x.Name!);
+            var files = _mapper.Map<IEnumerable<GetDocumentFileDto>>(document.Files);
+
+            // response
+            var viewModel = new DocumentEditViewModel(document.FolderId, document.Folder, files)
+            {
+                Form = form
+            };
+            return View(viewModel);
         }
         #endregion
     }

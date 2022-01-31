@@ -18,6 +18,15 @@ namespace Docstore.Persistence.Repositories
             _documents = db.Set<Document>();
         }
 
+        public override async Task<Document?> FindByIdAsync(int userId, int id)
+            => await _documents
+                .Where(x => x.UserId == userId && x.Id == id)
+                .Include(x => x.Folder)
+                .Include(x => x.Tags)
+                .Include(x => x.Files)
+                //.AsNoTracking()
+                .FirstOrDefaultAsync();
+
         public async Task<PagedResult<Document>> GetPagedReponseAsync(int userId, int pageNumber, int pageSize, string? search = null, int? tag = null, int? folder = null, Expression<Func<Document, bool>>? where = null)
         {
             IQueryable<Document> query = _documents.Where(x => x.UserId == userId);
@@ -60,6 +69,7 @@ namespace Docstore.Persistence.Repositories
                 .Include(x => x.Files)
                 .Include(x => x.Tags)
                 .Include(x => x.Folder)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
     }
 }
