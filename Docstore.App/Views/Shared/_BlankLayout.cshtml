@@ -4,18 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <environment names="Production">
+        <link asp-entry="src/main.js" />
+    </environment>
 </head>
 @*bg-gray-200 dark:bg-gray-800*@
 <body class="antialiased font-sans" layout-root>
     @RenderBody()
 
     <partial name="Partials/_Toast" />
+
     <environment names="Development">
         <script type="module" src="http://localhost:3000/@@vite/client"></script>
         <script type="module" src="http://localhost:3000/src/main.js" defer></script>
     </environment>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+    <environment names="Production">
+        <script asp-entry="src/main.js"></script>
+    </environment>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

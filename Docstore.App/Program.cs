@@ -39,6 +39,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UsePersistenceInfrastructure();
+
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 

@@ -37,7 +37,7 @@
         </div>
         <div class="mt-1 text-sm text-gray-100 sm:mt-0 sm:col-span-2">
             @Model.Size.Bytes()
-            <span class="italic text-xs">(@("document".ToQuantity(@Model.DocumentsCount)))</span>
+            <span class="italic text-xs">(<a asp-action="Index" asp-controller="Documents" asp-route-folderId="@Model.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">@("document".ToQuantity(@Model.DocumentsCount))</a>)</span>
         </div>
     </div>
 

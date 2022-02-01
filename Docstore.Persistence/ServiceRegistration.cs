@@ -1,9 +1,11 @@
 ﻿using Docstore.Application.Interfaces;
 using Docstore.Persistence.Contexts;
 using Docstore.Persistence.Repositories;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Docstore.Persistence
 {
@@ -21,6 +23,16 @@ namespace Docstore.Persistence
             services.AddTransient<IFolderRepository, FolderRepository>();
             services.AddTransient<IDocumentFileRepository, DocumentFileRepository>();
             #endregion
+        }
+        public static void UsePersistenceInfrastructure(this WebApplication app)
+        {
+            // migration
+            if (!app.Environment.IsProduction())
+                return;
+
+            using var serviceScope = app.Services.GetService<IServiceScopeFactory>()!.CreateScope();
+            var context = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            context.Database.Migrate();
         }
     }
 }

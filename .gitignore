@@ -364,3 +364,5 @@ FodyWeavers.xsd
 
 # custom
 Docstore.App/wwwroot/uploads/**
+Docstore.App/wwwroot/assets/**
+.env

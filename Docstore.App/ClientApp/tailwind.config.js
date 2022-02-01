@@ -1,8 +1,8 @@
 const defaultTheme = require('tailwindcss/defaultTheme')
-const { white, slate, red, green, yellow, purple, sky } = require('tailwindcss/colors')
+const { white, slate, red, green, yellow, sky } = require('tailwindcss/colors')
 
 module.exports = {
-    content: ['../Views/**', './src/**/*.{js,ts,jsx,tsx}'],
+    content: ['./Views/**/*.cshtml', './src/**/*.{js,ts,jsx,tsx}'],
     darkMode: 'class', // or 'media' or 'class'
     theme: {
         extend: {

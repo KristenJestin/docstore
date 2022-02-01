@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Docstore.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20220128104748_InitialCreate")]
+    [Migration("20220201144129_InitialCreate")]
     partial class InitialCreate
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -149,9 +149,14 @@ namespace Docstore.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FolderId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Documents");
                 });
@@ -194,9 +199,14 @@ namespace Docstore.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("DocumentFiles");
                 });
@@ -221,7 +231,12 @@ namespace Docstore.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("DocumentTags");
                 });
@@ -249,7 +264,12 @@ namespace Docstore.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Folders");
                 });
@@ -382,7 +402,15 @@ namespace Docstore.Persistence.Migrations
                         .WithMany("Documents")
                         .HasForeignKey("FolderId");
 
+                    b.HasOne("Docstore.Domain.Entities.ApplicationIdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Folder");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Docstore.Domain.Entities.DocumentFile", b =>
@@ -391,7 +419,37 @@ namespace Docstore.Persistence.Migrations
                         .WithMany("Files")
                         .HasForeignKey("DocumentId");
 
+                    b.HasOne("Docstore.Domain.Entities.ApplicationIdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Document");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Docstore.Domain.Entities.DocumentTag", b =>
+                {
+                    b.HasOne("Docstore.Domain.Entities.ApplicationIdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Docstore.Domain.Entities.Folder", b =>
+                {
+                    b.HasOne("Docstore.Domain.Entities.ApplicationIdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DocumentDocumentTag", b =>

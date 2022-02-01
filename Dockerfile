@@ -16,7 +16,15 @@ RUN dotnet build "Docstore.App.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "Docstore.App.csproj" -c Release -o /app/publish
 
+FROM node AS asset
+WORKDIR /node
+COPY ./Docstore.App/ClientApp /node
+COPY ./Docstore.App/Views /node/Views
+RUN yarn install
+RUN yarn run build
+
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY --from=asset /node/dist ./wwwroot
 ENTRYPOINT ["dotnet", "Docstore.App.dll"]

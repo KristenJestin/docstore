@@ -1,0 +1,37 @@
+version: '3'
+
+services:
+    app:
+        # Build dockerfile
+        build: .
+        # Restart container in case of crashes etc
+        restart: always
+        ports:
+            - '80:80'
+        volumes:
+            - document_files:/app/wwwroot/uploads
+        networks:
+            - database    
+    database:
+        image: postgres:12
+        env_file:
+            - .env
+        environment:
+            POSTGRES_USER: ${DB_USER:-postgres}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+            PGDATA: /data/postgres
+        volumes:
+            - database:/data/postgres
+        ports:
+            - '${DB_PORT:-5432}:5432'
+        networks:
+            - database
+        restart: unless-stopped
+
+networks:
+    database:
+        driver: bridge
+
+volumes:
+    database:
+    document_files: 
