@@ -1,3 +1,4 @@
+using AspNetCoreRateLimit;
 using Docstore.Application.Models;
 using Docstore.Identity;
 using Docstore.Persistence;
@@ -26,6 +27,13 @@ builder.Host.UseSerilog();
 builder.Services.AddPersistenceInfrastructure(builder.Configuration);
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
+// rate limit
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
+// controller
 builder.Services.AddControllersWithViews();
 
 var mvcBuilder = builder.Services
@@ -54,7 +62,9 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UsePersistenceInfrastructure();
+
 app.UseSerilogRequestLogging();
+app.UseIpRateLimiting();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

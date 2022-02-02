@@ -15,17 +15,19 @@ namespace Docstore.App.Controllers.Api
     [Authorize]
     public class DocumentFilesController : ExtendedControllerBase
     {
+        private readonly ILogger<DocumentFilesController> _logger;   
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly AppSettings _appSettings;
         private readonly IDocumentFileRepository _repository;
         private readonly ApplicationDbContext _context;
 
-        public DocumentFilesController(IDocumentFileRepository repository, ApplicationDbContext context, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings)
+        public DocumentFilesController(IDocumentFileRepository repository, ApplicationDbContext context, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, ILogger<DocumentFilesController> logger)
         {
             _repository = repository;
             _context = context;
             _hostingEnvironment = hostingEnvironment;
             _appSettings = appSettings.Value;
+            _logger = logger;
         }
 
 
@@ -63,8 +65,9 @@ namespace Docstore.App.Controllers.Api
                     return CreatedAtAction(nameof(Get), new { id = documentFile.Id }, documentFile);
                 }
             }
-            catch //(Exception ex)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(UploadFile)}:{nameof(DocumentFilesController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 

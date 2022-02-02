@@ -1,14 +1,11 @@
-﻿using Docstore.App.Common;
-using Docstore.App.Common.Extendeds;
+﻿using Docstore.App.Common.Extendeds;
 using Docstore.App.Models;
 using Docstore.Application.Interfaces;
-using Docstore.Application.Models;
 using Docstore.Domain.Extensions;
 using Docstore.Persistence.Contexts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using System.Diagnostics;
 
 namespace Docstore.App.Controllers
@@ -34,6 +31,7 @@ namespace Docstore.App.Controllers
         public async Task<IActionResult> Index(int? page = 1)
         {
             // get data
+            // TODO: use a repository
             var lastDocuments = await _db.Documents
                 .Where(d => d.UserId == UserId)
                 .OrderByDescending(d => d.UpdatedAt)
@@ -62,9 +60,7 @@ namespace Docstore.App.Controllers
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
-        {
-            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-        }
+            => View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         #endregion
     }
 }

@@ -24,6 +24,7 @@ namespace Docstore.App.Controllers
     {
         private const int PAGE_SIZE = 6;
 
+        private readonly ILogger<DocumentsController> _logger;
         private readonly IMapper _mapper;
         private readonly ApplicationDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
@@ -32,8 +33,9 @@ namespace Docstore.App.Controllers
         private readonly IFolderRepository _folderRepository;
         private readonly IDocumentFileRepository _documentFileRepository;
 
-        public DocumentsController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository, IDocumentFileRepository documentFileRepository)
+        public DocumentsController(ILogger<DocumentsController> logger, ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IOptions<AppSettings> appSettings, IDocumentRepository documentRepository, IFolderRepository folderRepository, IDocumentFileRepository documentFileRepository)
         {
+            _logger = logger;
             _db = db;
             _mapper = mapper;
             _hostingEnvironment = hostingEnvironment;
@@ -107,6 +109,7 @@ namespace Docstore.App.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Create)}:{nameof(DocumentsController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
@@ -169,7 +172,7 @@ namespace Docstore.App.Controllers
                 return RedirectToAction(nameof(Index))
                     .AddToast(TempData, ToastType.Error, "This document does not exist.");
 
-            return await EditDefault(document);
+            return EditDefault(document);
         }
 
         [HttpPost]
@@ -204,10 +207,11 @@ namespace Docstore.App.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Create)}:{nameof(DocumentsController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
-            return await EditDefault(document);
+            return EditDefault(document);
         }
 
         [HttpPost]
@@ -230,7 +234,7 @@ namespace Docstore.App.Controllers
         #endregion
 
         #region privates
-        private async Task<IActionResult> EditDefault(Document document)
+        private IActionResult EditDefault(Document document)
         {
             // data
             var form = _mapper.Map<DocumentForm>(document);

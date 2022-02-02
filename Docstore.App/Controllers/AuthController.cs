@@ -56,8 +56,9 @@ namespace Docstore.App.Controllers
                 }
 
             }
-            catch// (Exception ex)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Register)}:{nameof(AuthController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
@@ -95,8 +96,9 @@ namespace Docstore.App.Controllers
                 }
 
             }
-            catch// (Exception ex)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Login)}:{nameof(AuthController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 

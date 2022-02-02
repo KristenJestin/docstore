@@ -18,17 +18,19 @@ namespace Docstore.App.Controllers
     {
         private const int PAGE_SIZE = 6;
 
+        private readonly ILogger<FoldersController> _logger;
         private readonly IMapper _mapper;
         private readonly ApplicationDbContext _db;
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly IFolderRepository _folderRepository;
 
-        public FoldersController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IFolderRepository folderRepository)
+        public FoldersController(ApplicationDbContext db, IMapper mapper, IWebHostEnvironment hostingEnvironment, IFolderRepository folderRepository, ILogger<FoldersController> logger)
         {
             _db = db;
             _mapper = mapper;
             _hostingEnvironment = hostingEnvironment;
             _folderRepository = folderRepository;
+            _logger = logger;
         }
 
 
@@ -75,8 +77,9 @@ namespace Docstore.App.Controllers
                         .AddToast(TempData, ToastType.Success, $"\"{folder.Name}\" successfuly created!");
                 }
             }
-            catch// (Exception ex)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Create)}:{nameof(FoldersController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
@@ -138,6 +141,7 @@ namespace Docstore.App.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Edit)}:{nameof(FoldersController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 

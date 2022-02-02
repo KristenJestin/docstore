@@ -24,7 +24,7 @@ namespace Docstore.App.TagHelpers
                 return;
 
             var prefix = ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix;
-            var name = (AspValidationFor ?? AspFor).Name;
+            var name = (AspValidationFor ?? AspFor)!.Name;
 
             if (ViewContext.ViewData.ModelState.HasError(GetPropertyName(name, prefix)) && AspErrorsClass != null)
                 foreach (var item in AspErrorsClass.Split(" "))

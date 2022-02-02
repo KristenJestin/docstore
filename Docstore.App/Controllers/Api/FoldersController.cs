@@ -17,15 +17,17 @@ namespace Docstore.App.Controllers.Api
     [Authorize]
     public class FoldersController : ExtendedControllerBase
     {
+        private readonly ILogger<FoldersController> _logger;
         private readonly IMapper _mapper;
         private readonly IFolderRepository _folderRepository;
         private readonly ApplicationDbContext _context;
 
-        public FoldersController(IMapper mapper, IFolderRepository folderRepository, ApplicationDbContext context)
+        public FoldersController(IMapper mapper, IFolderRepository folderRepository, ApplicationDbContext context, ILogger<FoldersController> logger)
         {
             _folderRepository = folderRepository;
             _mapper = mapper;
             _context = context;
+            _logger = logger;
         }
 
 
@@ -74,8 +76,9 @@ namespace Docstore.App.Controllers.Api
                     return CreatedAtAction(nameof(Get), new { id = folder.Id }, folder);  
                 }
             }
-            catch// (Exception ex)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, $"{nameof(Post)}:{nameof(FoldersController)}");
                 ModelState.AddModelError("", "An unexpected error occurred.");
             }
 
