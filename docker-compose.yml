@@ -10,6 +10,7 @@ services:
             - '80:80'
         volumes:
             - document_files:/app/wwwroot/uploads
+            - logs:/app/logs
         networks:
             - database    
     database:
@@ -35,3 +36,4 @@ networks:
 volumes:
     database:
     document_files: 
+    logs: 

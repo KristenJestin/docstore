@@ -10,6 +10,10 @@ namespace Docstore.App.Validators
             RuleFor(x => x.Name)
                 .NotEmpty()
                 .MaximumLength(255);
+
+            RuleFor(x => x.Description)
+                .NotEmpty()
+                .MaximumLength(255);
         }
     }
 }

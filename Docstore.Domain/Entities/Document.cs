@@ -7,7 +7,7 @@ namespace Docstore.Domain.Entities
     {
         #region validations
         public static readonly string[] AllowedContentTypes = new[] { "image/jpeg", "image/jpg", "image/png", "application/pdf" };
-        public const long MaxLength = 52428800;
+        public const long MaxLength = 15728640;
         #endregion
 
         public string? Name { get; set; }

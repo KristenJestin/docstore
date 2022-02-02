@@ -3,10 +3,24 @@ using Docstore.Identity;
 using Docstore.Persistence;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Mvc.Razor;
+using Serilog;
+using Serilog.Events;
 using System.Text;
 
+// logger
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+// builder
 var builder = WebApplication.CreateBuilder(args);
 var assembly = typeof(Program).Assembly;
+
+// log
+builder.Host.UseSerilog();
 
 // Add services to the container.
 builder.Services.AddPersistenceInfrastructure(builder.Configuration);
@@ -40,6 +54,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UsePersistenceInfrastructure();
+app.UseSerilogRequestLogging();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

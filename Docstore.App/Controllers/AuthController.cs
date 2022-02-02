@@ -31,6 +31,7 @@ namespace Docstore.App.Controllers
             => View();
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register(RegisterForm form)
         {
             // model validation
@@ -68,6 +69,7 @@ namespace Docstore.App.Controllers
             => View();
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginForm form)
         {
             // model validation

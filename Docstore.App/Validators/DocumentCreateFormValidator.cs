@@ -11,6 +11,10 @@ namespace Docstore.App.Validators
                 .NotEmpty()
                 .MaximumLength(255);
 
+            RuleFor(x => x.Description)
+                .NotEmpty()
+                .MaximumLength(255);
+
             RuleFor(x => x.Files)
                 .Must(x => x == null || x.Any()).WithMessage("You must pick at least one file!")
                 .Must(x => x == null || x.Count() <= 20).WithMessage("You can't uploads more than 20 files!");
