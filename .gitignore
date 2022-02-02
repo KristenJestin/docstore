@@ -366,4 +366,5 @@ FodyWeavers.xsd
 Docstore.App/wwwroot/uploads/**
 Docstore.App/wwwroot/assets/**
 Docstore.App/logs/**
+Docstore.App/uploads/**
 .env

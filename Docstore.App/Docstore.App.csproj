@@ -29,6 +29,10 @@
 		<!-- Don't publish the SPA source files, but do show them in the project files list -->
 		<Content Remove="wwwroot/uploads/**" />
 		<None Remove="wwwroot/uploads/**" />
+		<Content Remove="uploads/**" />
+		<None Remove="uploads/**" />
+		<Content Remove="logs/**" />
+		<None Remove="logs/**" />
 	</ItemGroup>
 
 	<ItemGroup>

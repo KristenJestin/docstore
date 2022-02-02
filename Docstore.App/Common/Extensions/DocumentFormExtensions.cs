@@ -45,7 +45,7 @@ namespace Docstore.App.Common.Extensions
         public static async Task<DocumentFile> UploadAndEncryptAndTransformToDocumentFileAsync(this IFormFile file, IWebHostEnvironment environment, string encryptionKey)
         {
             // move to directory
-            var paths = new List<string> { environment.WebRootPath };
+            var paths = new List<string> { environment.ContentRootPath };
             paths.AddRange(DocumentFile.StorePath);
             var storedFileName = Helpers.GetUniqueFileName();
 

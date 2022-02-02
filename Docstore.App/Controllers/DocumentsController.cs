@@ -149,18 +149,13 @@ namespace Docstore.App.Controllers
         [HttpGet("{controller}/" + nameof(Show) + "/{id:int}/{action}/{fileId:int}")]
         public async Task<IActionResult> Download(int id, int fileId)
         {
-            var userDocument = await _documentRepository.FindByIdAsync(UserId, id);
-
-            if (userDocument == null)
-                return NotFound();
-
             var file = await _documentFileRepository.FindByIdAsync(UserId, fileId);
 
-            if (file == null || userDocument.Id != file.DocumentId)
+            if (file == null || file.DocumentId != id)
                 return NotFound();
 
             // response
-            var filePath = file.GetFilePath(_hostingEnvironment.WebRootPath);
+            var filePath = file.GetFilePath(_hostingEnvironment.ContentRootPath);
             return File(await Encryption.DecryptWithMemoryAsync(filePath, _appSettings.AppKey!), file.MimeType!, file.GetFileName(), true);
         }
 
