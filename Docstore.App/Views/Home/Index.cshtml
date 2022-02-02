@@ -14,7 +14,7 @@
 
 <div class="mb-12">
     <h3 class="text-2xl font-black font-header text-gray-800 dark:text-gray-100">Last Documents</h3>
-    <div class="grid grid-flow-col auto-cols-fr gap-8 mt-3">
+    <div class="grid md:grid-flow-col auto-cols-fr md:gap-8 gap-2 mt-3">
         @foreach (var item in Model!.LastDocuments)
         {
             <partial name="~/Views/Documents/Partials/_Card.cshtml" model="item" />

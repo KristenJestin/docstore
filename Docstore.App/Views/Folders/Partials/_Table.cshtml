@@ -13,7 +13,7 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Name
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                                 Size
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -46,11 +46,11 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300 hidden sm:table-cell">
                                         @item.Size.Bytes()
                                         <span class="italic text-xs">(@("document".ToQuantity(@item.DocumentsCount)))</span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300 text-sm sm:text-base">
                                         @item.UpdatedAt.Humanize()
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
