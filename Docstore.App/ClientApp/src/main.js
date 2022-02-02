@@ -5,3 +5,7 @@ import './scripts/alpine'
 
 up.fragment.config.mainTargets.push('[layout-root]')
 up.fragment.config.mainTargets.push('[layout-main]')
+
+if (typeof window !== 'undefined') {
+    import('./pwa')
+}
