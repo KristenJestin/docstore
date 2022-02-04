@@ -23,9 +23,10 @@ namespace Docstore.Persistence
         public async Task<PagedResult<ElementItem>> GetDocumentsWithoutParentAndFolders(int userId, int pageNumber, int pageSize)
         {
             var queryDocuments = _db.Documents
-                .Where(x => x.UserId == userId)
+                .Where(d => d.UserId == userId)
+                .Where(d => d.FolderId == null)
                 // TODO: save in database size and count when inserting and updating files
-               .Select(d => new { d.Id, d.Name, d.Description, Size = d.Files.Sum(file => file.Size), ChildrensCount = d.Files.Count, LastUpdate = d.UpdatedAt, Type = ElementItemType.Document });
+                .Select(d => new { d.Id, d.Name, d.Description, Size = d.Files.Sum(file => file.Size), ChildrensCount = d.Files.Count, LastUpdate = d.UpdatedAt, Type = ElementItemType.Document });
             var queryFolders = _db.Folders
                .Where(f => f.UserId == userId)
                // TODO: save in database size and count when inserting and updating files
@@ -42,7 +43,7 @@ namespace Docstore.Persistence
                 .OrderBy(x => x.Type)
                 .ThenBy(x => x.Name)
                 .ThenByDescending(x => x.LastUpdate)
-                .Select(x => new ElementItem { Id = x.Id, Name = x.Name, Description = x.Description, Size = x. Size, ChildrensCount = x.ChildrensCount, LastUpdate = x.LastUpdate, Type = x.Type })
+                .Select(x => new ElementItem { Id = x.Id, Name = x.Name, Description = x.Description, Size = x.Size, ChildrensCount = x.ChildrensCount, LastUpdate = x.LastUpdate, Type = x.Type })
                 .ToListAsync();
 
             // list documents
