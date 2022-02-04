@@ -71,5 +71,14 @@ namespace Docstore.Persistence.Repositories
                 .Include(x => x.Folder)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
+
+        public async Task<IReadOnlyList<Document>> GetLastAsync(int userId, uint size = 3)
+            => await _documents
+                .Where(d => d.UserId == userId)
+                .OrderByDescending(d => d.UpdatedAt)
+                .Include(d => d.Folder)
+                .Include(d => d.Tags)
+                .Take((int)size)
+                .ToListAsync();
     }
 }

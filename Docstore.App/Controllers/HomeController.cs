@@ -18,12 +18,14 @@ namespace Docstore.App.Controllers
         private readonly ILogger<HomeController> _logger;
         private readonly ApplicationDbContext _db;
         private readonly IDocumentRepository _documentRepository;
+        private readonly IGlobalRepository _globalRepository;
 
-        public HomeController(ILogger<HomeController> logger, ApplicationDbContext db, IDocumentRepository documentRepository)
+        public HomeController(ILogger<HomeController> logger, ApplicationDbContext db, IDocumentRepository documentRepository, IGlobalRepository globalRepository)
         {
             _logger = logger;
             _db = db;
             _documentRepository = documentRepository;
+            _globalRepository = globalRepository;
         }
 
 
@@ -32,28 +34,14 @@ namespace Docstore.App.Controllers
         {
             // get data
             // TODO: use a repository
-            var lastDocuments = await _db.Documents
-                .Where(d => d.UserId == UserId)
-                .OrderByDescending(d => d.UpdatedAt)
-                .Include(d => d.Folder)
-                .Include(d => d.Tags)
-                .Take(3)
-                .ToListAsync();
-            var documents = await _documentRepository.GetPagedReponseAsync(UserId, page ?? 1, PAGE_SIZE, where: d => d.FolderId == null);
-            var folders = await _db.Folders
-                .Where(d => d.UserId == UserId)
-                .OrderBy(d => d.Name)
-                .Take(PAGE_SIZE)
-                // TODO: save in database size and count when inserting and updating files
-                .Select(f => f.WithDocumentsCount(f.Documents.Count).WithSize(f.Documents.Sum(docu => docu.Files.Sum(file => file.Size))))
-                .ToListAsync();
+            var lastDocuments = await _documentRepository.GetLastAsync(UserId, 3);
+            var elements = await _globalRepository.GetDocumentsWithoutParentAndFolders(UserId, page ?? 1, PAGE_SIZE);
 
             // response
             var viewModel = new HomeIndexViewModel
             {
                 LastDocuments = lastDocuments,
-                Documents = documents,
-                Folders = folders
+                Elements = elements
             };
             return View(viewModel);
         }

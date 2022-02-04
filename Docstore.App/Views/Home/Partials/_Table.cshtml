@@ -1,8 +1,9 @@
-﻿@using Humanizer
+﻿@using Docstore.Application.Models
+@using Humanizer
 @using Docstore.Domain.Entities
-@model IEnumerable<Folder>
+@model PagedResult<ElementItem>
 
-<div class="flex flex-col">
+<div class="flex flex-col" layout-table>
     <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
         <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
             <div class="shadow overflow-hidden border-b border-gray-200 dark:border-gray-800 sm:rounded-lg">
@@ -12,9 +13,6 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Name
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                                Documents
-                            </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                                 Size
                             </th>
@@ -22,19 +20,26 @@
                                 Last updated
                             </th>
                             <th scope="col" class="relative px-6 py-3">
-                                <span class="sr-only">Edit</span>
+                                <span class="sr-only">Actions</span>
                             </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                        @if (Model != null && Model.Any())
+                        @if (Model != null && Model.Results.Any())
                         {
-                            @foreach (var item in Model)
+                            @foreach (var item in Model.Results)
                             {
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-primary-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                                            @if (item.Type == ElementItemType.Document)
+                                            {
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-primary-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                                            }
+                                            else
+                                            {
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-primary-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                                            }
                                             <div class="ml-4">
                                                 <div class="text-sm font-medium text-gray-900 dark:text-gray-300 truncate">
                                                     @item.Name
@@ -42,24 +47,25 @@
                                                 @if (!string.IsNullOrWhiteSpace(item.Description))
                                                 {
                                                     <div class="text-sm text-gray-500 dark:text-gray-600 truncate">
-                                                        @item.Description
+                                                        @item.Description!.Truncate(20)
                                                     </div>
                                                 }
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300 hidden md:table-cell">
-                                        @("document".ToQuantity(@item.DocumentsCount))
-                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300 hidden sm:table-cell">
                                         @item.Size.Bytes()
+                                        <span class="italic text-xs">(@((item.Type == ElementItemType.Document ? "file" : "document").ToQuantity(item.ChildrensCount)))</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300 text-sm sm:text-base">
-                                        @item.UpdatedAt.Humanize()
+                                        @item.LastUpdate.Humanize()
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <a up-target="[layout-main]" asp-action="Show" asp-controller="Folders" asp-route-id="@item.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">Details</a>
-                                        <a up-target="[layout-main]" asp-action="Index" asp-controller="Documents" asp-route-folderId="@item.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">Documents</a>
+                                        <a up-target="[layout-main]" asp-action="Show" asp-controller="@(item.Type.ToString())s" asp-route-id="@item.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">Details</a>
+                                        @if (item.Type == ElementItemType.Folder)
+                                        {
+                                            <a up-target="[layout-main]" asp-action="Index" asp-controller="Documents" asp-route-folderId="@item.Id" class="text-primary-600 hover:text-primary-500 active:text-primary-400">Documents</a>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -68,12 +74,14 @@
                         {
                             <tr>
                                 <td colspan="10" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                    no folders
+                                    no elements
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
+
+                <partial name="~/Views/Shared/Partials/_Pagination.cshtml" model="@Model?.Pagination" />
             </div>
         </div>
     </div>

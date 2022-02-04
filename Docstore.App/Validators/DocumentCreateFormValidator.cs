@@ -12,7 +12,6 @@ namespace Docstore.App.Validators
                 .MaximumLength(255);
 
             RuleFor(x => x.Description)
-                .NotEmpty()
                 .MaximumLength(255);
 
             RuleFor(x => x.Files)

@@ -6,7 +6,6 @@ namespace Docstore.App.Models
     public class HomeIndexViewModel
     {
         public IEnumerable<Document> LastDocuments { get; set; } = Enumerable.Empty<Document>();
-        public PagedResult<Document> Documents { get; set; } = PagedResult<Document>.Empty<Document>();
-        public IEnumerable<Folder> Folders { get; set; } = Enumerable.Empty<Folder>();
+        public PagedResult<ElementItem> Elements { get; set; } = PagedResult<ElementItem>.Empty<ElementItem>();
     }
 }

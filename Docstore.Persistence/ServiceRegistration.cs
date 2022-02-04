@@ -22,6 +22,7 @@ namespace Docstore.Persistence
             services.AddTransient<IDocumentRepository, DocumentRepository>();
             services.AddTransient<IFolderRepository, FolderRepository>();
             services.AddTransient<IDocumentFileRepository, DocumentFileRepository>();
+            services.AddTransient<IGlobalRepository, GlobalRepository>();
             #endregion
         }
         public static void UsePersistenceInfrastructure(this WebApplication app)
