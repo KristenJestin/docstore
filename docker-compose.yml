@@ -1,39 +1,39 @@
-version: '3'
+version: "3"
 
 services:
-    app:
-        # Build dockerfile
-        build: .
-        # Restart container in case of crashes etc
-        restart: always
-        ports:
-            - '80:80'
-        volumes:
-            - document_files:/app/wwwroot/uploads
-            - logs:/app/logs
-        networks:
-            - database
-    database:
-        image: postgres:12
-        env_file:
-            - .env
-        environment:
-            POSTGRES_USER: ${DB_USER:-postgres}
-            POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-            PGDATA: /data/postgres
-        volumes:
-            - database:/data/postgres
-        ports:
-            - '${DB_PORT:-5432}:5432'
-        networks:
-            - database
-        restart: unless-stopped
+  app:
+    # Build dockerfile
+    build: .
+    # Restart container in case of crashes etc
+    restart: always
+    ports:
+      - "5000:80"
+    volumes:
+      - document_files:/app/wwwroot/uploads
+      - logs:/app/logs
+    networks:
+      - database
+  database:
+    image: postgres:12
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      PGDATA: /data/postgres
+    volumes:
+      - database:/data/postgres
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - database
+    restart: unless-stopped
 
 networks:
-    database:
-        driver: bridge
+  database:
+    driver: bridge
 
 volumes:
-    database:
-    document_files: 
-    logs: 
+  database:
+  document_files:
+  logs:
