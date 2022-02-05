@@ -1,9 +1,6 @@
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// config
-const baseOutDir = '../wwwroot'
-
 // https://vitejs.dev/config/
 export default defineConfig({
     build: {
@@ -23,8 +20,8 @@ export default defineConfig({
             manifest: {
                 name: 'Docstore',
                 short_name: 'Docstore',
-                description: 'Application used to store files in an encrypted way',
-                theme_color: '#EAB308',
+                description: 'Application allowing to store files in a secure way via encryption.',
+                theme_color: '#facc15',
                 icons: [
                     {
                         src: 'pwa-192x192.png',

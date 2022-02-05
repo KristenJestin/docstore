@@ -13,7 +13,7 @@ namespace Docstore.App.Controllers
     [Authorize]
     public class HomeController : ExtendedController
     {
-        private const int PAGE_SIZE = 15;
+        private const int PAGE_SIZE = 10;
 
         private readonly ILogger<HomeController> _logger;
         private readonly ApplicationDbContext _db;

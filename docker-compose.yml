@@ -12,7 +12,7 @@ services:
             - document_files:/app/wwwroot/uploads
             - logs:/app/logs
         networks:
-            - database    
+            - database
     database:
         image: postgres:12
         env_file:
