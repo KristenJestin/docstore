@@ -15,7 +15,10 @@ namespace Docstore.App.Models.Forms
 
         public int? FolderId { get; set; }
 
+        [DisplayFormat(ApplyFormatInEditMode = true, DataFormatString = "{0:yyyy-MM-dd}")]
         public DateTime? ReceivedAt { get; set; }
+
+        [DisplayFormat(ApplyFormatInEditMode = true, DataFormatString = "{0:yyyy-MM-dd}")]
         public DateTime? EndsAt { get; set; }
 
 
