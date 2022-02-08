@@ -1,4 +1,5 @@
 using AspNetCoreRateLimit;
+using Docstore.App.Services;
 using Docstore.Application.Models;
 using Docstore.Identity;
 using Docstore.Persistence;
@@ -32,6 +33,10 @@ builder.Services.AddMemoryCache();
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddInMemoryRateLimiting();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
+// hosted
+builder.Services.AddHostedService<FileWithoutDocumentFileBackgroundService>();
+builder.Services.AddHostedService<DocumentFileWithoutDocumentBackgroundService>();
 
 // controller
 builder.Services.AddControllersWithViews();

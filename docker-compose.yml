@@ -9,7 +9,7 @@ services:
     ports:
       - "5000:80"
     volumes:
-      - document_files:/app/wwwroot/uploads
+      - document_files:/app/uploads
       - logs:/app/logs
     networks:
       - database
