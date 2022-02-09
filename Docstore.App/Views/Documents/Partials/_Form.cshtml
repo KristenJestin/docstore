@@ -8,7 +8,7 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-500" asp-errors-class="text-red-700 dark:text-red-500" asp-for="Form.Files">Files</label>
             <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md relative transition ease-in-out duration-300" x-bind:class="{'ring-4 ring-inset ring-primary-300':hover}">
 
-                <input type="file" multiple="multiple" class="absolute inset-0 z-50 w-full h-full p-0 m-0 outline-none opacity-0 cursor-pointer"
+                <input type="file" multiple="multiple" class="absolute inset-0 z-10 w-full h-full p-0 m-0 outline-none opacity-0 cursor-pointer"
                        x-on:change="await onFilesChange($event.target.files)"
                        x-on:dragover="hover = true"
                        x-on:dragleave="hover = false"
