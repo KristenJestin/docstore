@@ -39,6 +39,12 @@ Article on the development part of the project (FR) : [Docstore](https://kristen
 
 ### Docker
 
+Clone the project
+
+```bash
+  git clone https://github.com/KristenJestin/docstore
+```
+
 Start with docker compose
 
 ```bash
