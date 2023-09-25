@@ -6,7 +6,7 @@
 
 Application allowing to store files in a secure way via encryption.
 
-Article on the development part of the project (FR) : [Docstore](https://kristenjestin.fr/articles/8-docstore)
+Article on the development part of the project (FR) : [Docstore](https://kristenjestin.fr/articles/docstore)
 
 ## Tech Stack
 
