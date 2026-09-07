@@ -25,6 +25,7 @@ import {
 	reorderDocumentTypeLayoutsInput,
 	reorderDocumentTypesInput,
 	savedDocumentTypeLayoutSchema,
+	setDefaultDocumentTypeLayoutInput,
 	setDocumentTypeOverrideInput,
 	testDocumentTypeLayoutInput,
 	testDocumentTypeLayoutResultSchema,
@@ -53,6 +54,7 @@ import {
 	removeLayout,
 	reorderDocumentTypes,
 	reorderLayouts,
+	setDefaultLayout,
 	setDocumentOverride,
 	suggestDocumentTypes,
 	testLayout,
@@ -321,6 +323,17 @@ export const documentTypeRouter = {
 		.input(removeDocumentTypeLayoutInput)
 		.output(z.object({ id: z.string(), deleted: z.literal(true) }))
 		.handler(({ input, context }) => removeLayout(context.db, input.id)),
+
+	setDefaultLayout: writeProcedure
+		.route({
+			method: "POST",
+			path: "/document-types/layouts/{id}/default",
+			tags: TAGS,
+			summary: "Make a layout the default (fallback) of its document type",
+		})
+		.input(setDefaultDocumentTypeLayoutInput)
+		.output(z.array(documentTypeLayoutSchema))
+		.handler(({ input, context }) => setDefaultLayout(context.db, input.id)),
 
 	reorderLayouts: writeProcedure
 		.route({

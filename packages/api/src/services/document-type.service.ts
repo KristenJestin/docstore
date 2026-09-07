@@ -1840,6 +1840,40 @@ export async function removeLayout(
 	return { id, deleted: true as const };
 }
 
+/**
+ * Moves the "Default" of a type onto another of its layouts.
+ *
+ * The default layout is the fallback when nothing else matches, and the home of
+ * the extraction rules of a type that has only one. Until now it was whichever
+ * layout `documentType.create` opened, for good: the only way to move it was to
+ * delete it and let `removeLayout` promote a sibling, taking its extraction
+ * rules down with it. A type keeps exactly one, so promoting demotes the other.
+ */
+export async function setDefaultLayout(
+	db: Db,
+	id: string,
+): Promise<DocumentTypeLayoutDto[]> {
+	const layout = await requireLayout(db, id);
+	if (layout.isDefault) return loadLayouts(db, layout.documentTypeId);
+
+	await db.transaction(async (tx) => {
+		await tx
+			.update(documentTypeLayout)
+			.set({ isDefault: false })
+			.where(
+				and(
+					eq(documentTypeLayout.documentTypeId, layout.documentTypeId),
+					eq(documentTypeLayout.isDefault, true),
+				),
+			);
+		await tx
+			.update(documentTypeLayout)
+			.set({ isDefault: true })
+			.where(eq(documentTypeLayout.id, id));
+	});
+	return loadLayouts(db, layout.documentTypeId);
+}
+
 export async function reorderLayouts(
 	db: Db,
 	input: ReorderDocumentTypeLayoutsInput,

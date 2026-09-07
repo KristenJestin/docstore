@@ -414,6 +414,14 @@ export type RemoveDocumentTypeLayoutInput = z.infer<
 	typeof removeDocumentTypeLayoutInput
 >;
 
+export const setDefaultDocumentTypeLayoutInput = z.object({
+	/** Layout that becomes the fallback of its type; the other one is demoted. */
+	id: z.string().min(1),
+});
+export type SetDefaultDocumentTypeLayoutInput = z.infer<
+	typeof setDefaultDocumentTypeLayoutInput
+>;
+
 export const reorderDocumentTypeLayoutsInput = z.object({
 	documentTypeId: z.string().min(1),
 	/** The array order becomes `sortOrder` (0, 1, 2…). */

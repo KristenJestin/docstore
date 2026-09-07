@@ -166,6 +166,12 @@ named "Default" (`is_default = true`, no signature, no date range), and
 `removeLayout` refuses to delete the last one (`BAD_REQUEST`). Deleting the
 default one while others remain promotes the next layout to default.
 
+The flag moves: `documentType.setDefaultLayout({ id })` hands it to another
+layout of the same type and demotes the current one, so the fallback can be
+chosen without deleting the layout that holds it (and its extraction rules).
+The default layout is also an ordinary member of the evaluation order —
+`reorderLayouts` moves it up and down like any other.
+
 Beyond that, a type may have several layouts: the same payslip, reworked in
 2024. A layout carries a name, an optional date range (`valid_from`,
 `valid_until`), an optional signature (a rule condition tree) and its own

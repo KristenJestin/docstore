@@ -14,6 +14,7 @@ import {
 	LayoutTemplateIcon,
 	PencilIcon,
 	PlusIcon,
+	StarIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useId, useState } from "react";
@@ -74,6 +75,9 @@ export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
 		orpc.documentType.reorderLayouts.mutationOptions(),
 	);
 	const remove = useMutation(orpc.documentType.removeLayout.mutationOptions());
+	const makeDefault = useMutation(
+		orpc.documentType.setDefaultLayout.mutationOptions(),
+	);
 	const fromDocument = useMutation(
 		orpc.documentType.createLayoutFromDocument.mutationOptions(),
 	);
@@ -92,6 +96,20 @@ export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
 			});
 		} catch (error) {
 			toastApiError(error, "The layouts could not be reordered.");
+		}
+	};
+
+	/**
+	 * The default layout is the fallback when no other matches. It used to be
+	 * whichever layout the type was born with, for good: moving it meant
+	 * deleting that one, and its extraction rules went down with it.
+	 */
+	const onMakeDefault = async (layout: DocumentTypeLayoutDto) => {
+		try {
+			await makeDefault.mutateAsync({ id: layout.id });
+			toast.success(`"${layout.name}" is now the default layout.`);
+		} catch (error) {
+			toastApiError(error, "The default layout could not be changed.");
 		}
 	};
 
@@ -255,6 +273,18 @@ export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
 																	: "No signature"}
 															</Badge>
 															<div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
+																{layout.isDefault ? null : (
+																	<Button
+																		variant="ghost"
+																		size="icon-sm"
+																		aria-label={`Make ${layout.name} the default layout`}
+																		title="Make default"
+																		disabled={makeDefault.isPending}
+																		onClick={() => onMakeDefault(layout)}
+																	>
+																		<StarIcon />
+																	</Button>
+																)}
 																<Button
 																	variant="ghost"
 																	size="icon-sm"

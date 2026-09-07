@@ -1008,6 +1008,44 @@ describe("documentType — layouts", () => {
 		expect(unbounded.overlaps).toEqual([]);
 	});
 
+	/**
+	 * The default layout is the fallback of the type. It used to be whichever
+	 * layout the type was born with, for good: moving it meant deleting that
+	 * one, taking its extraction rules with it.
+	 */
+	test("moves the Default onto another layout, and reorders it freely", async () => {
+		const created = await client.documentType.create({ name: "Payslip" });
+		const initial = (await client.documentType.get({ id: created.id })).layouts;
+		const original = initial[0]?.id ?? "";
+		const extra = await client.documentType.addLayout({
+			documentTypeId: created.id,
+			name: "2024 redesign",
+		});
+
+		const moved = await client.documentType.setDefaultLayout({ id: extra.id });
+		expect(
+			moved.filter((layout) => layout.isDefault).map((layout) => layout.id),
+		).toEqual([extra.id]);
+
+		// Idempotent: promoting the current default changes nothing.
+		const again = await client.documentType.setDefaultLayout({ id: extra.id });
+		expect(
+			again.filter((layout) => layout.isDefault).map((layout) => layout.id),
+		).toEqual([extra.id]);
+
+		// And the default takes its turn in the evaluation order like any other.
+		const reordered = await client.documentType.reorderLayouts({
+			documentTypeId: created.id,
+			ids: [extra.id, original],
+		});
+		expect(reordered.map((layout) => layout.id)).toEqual([extra.id, original]);
+
+		await expectOrpcError(
+			client.documentType.setDefaultLayout({ id: "dtl_absent" }),
+			"NOT_FOUND",
+		);
+	});
+
 	test("refuses to remove the only layout of a type", async () => {
 		const created = await client.documentType.create({ name: "Payslip" });
 		const layouts = (await client.documentType.get({ id: created.id })).layouts;
