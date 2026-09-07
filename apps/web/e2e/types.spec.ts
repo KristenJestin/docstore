@@ -92,6 +92,20 @@ test.describe("document types", () => {
 			page.getByText("No extraction rule is attached to this layout."),
 		).toBeVisible({ timeout: 20_000 });
 
+		// --- The Default moves onto the new layout -----------------------------
+		// The type now has two, so the sortable list is shown: the fallback can be
+		// handed over without deleting the layout that holds it.
+		const makeDefault = page.getByRole("button", {
+			name: `Make ${layoutName} the default layout`,
+		});
+		await expect(makeDefault).toBeVisible();
+		await makeDefault.click();
+		// Once it is the default, the row no longer offers the action.
+		await expect(makeDefault).toBeHidden({ timeout: 15_000 });
+		await expect(
+			page.getByRole("button", { name: "Make Default the default layout" }),
+		).toBeVisible();
+
 		await page.goto(typeUrl);
 		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
 	});
