@@ -38,6 +38,7 @@ export const partyLinkJson = z.object({
 	name: z.string(),
 	type: z.string(),
 	role: z.string(),
+	logoKey: z.string().nullable(),
 	source: z.string(),
 	confidence: z.number().nullable(),
 });
@@ -79,6 +80,7 @@ export function toDocumentSummary(item: DocumentListItem): DocumentSummaryJson {
 			name: party.name,
 			type: party.type,
 			role: party.role,
+			logoKey: party.logoKey,
 			source: party.source,
 			confidence: party.confidence,
 		})),

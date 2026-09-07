@@ -43,9 +43,11 @@ const partyFields = {
 const partyDuplicateJson = z.object({
 	partyId: z.string(),
 	partyName: z.string(),
+	partyLogoKey: z.string().nullable(),
 	partyDocumentCount: z.number(),
 	otherPartyId: z.string(),
 	otherPartyName: z.string(),
+	otherPartyLogoKey: z.string().nullable(),
 	otherPartyDocumentCount: z.number(),
 	reason: partyDuplicateReasonSchema,
 	value: z.string(),

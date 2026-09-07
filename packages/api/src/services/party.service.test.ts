@@ -735,7 +735,9 @@ describe("party.duplicates", () => {
 
 		const domainPair = duplicates.find((row) => row.reason === "sameDomain");
 		expect(domainPair?.partyId).toBe(edf.id);
+		expect(domainPair?.partyLogoKey).toBeNull();
 		expect(domainPair?.otherPartyId).toBe(sameDomain.id);
+		expect(domainPair?.otherPartyLogoKey).toBeNull();
 		expect(domainPair?.value).toBe("edf.fr");
 
 		const namePair = duplicates.find((row) => row.reason === "sameName");

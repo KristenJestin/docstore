@@ -334,9 +334,11 @@ export type PartyDuplicateReason = z.infer<typeof partyDuplicateReasonSchema>;
 export const partyDuplicateSchema = z.object({
 	partyId: z.string(),
 	partyName: z.string(),
+	partyLogoKey: z.string().nullable(),
 	partyDocumentCount: z.int().min(0),
 	otherPartyId: z.string(),
 	otherPartyName: z.string(),
+	otherPartyLogoKey: z.string().nullable(),
 	otherPartyDocumentCount: z.int().min(0),
 	reason: partyDuplicateReasonSchema,
 	/** The shared domain, or the shared normalised name. */

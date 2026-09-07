@@ -100,10 +100,22 @@ export const documentTypeLayoutSchema = z.object({
 });
 export type DocumentTypeLayoutDto = z.infer<typeof documentTypeLayoutSchema>;
 
+/** Party named by a document type (issuer or subject), enough to render an avatar. */
+export const documentTypePartyRefSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	logoKey: z.string().nullable(),
+});
+export type DocumentTypePartyRef = z.infer<typeof documentTypePartyRefSchema>;
+
 export const documentTypeItemSchema = documentTypeSchema.extend({
 	categoryName: z.string().nullable(),
+	/** @deprecated Use `issuer.name`; kept for compatibility. */
 	issuerName: z.string().nullable(),
+	/** @deprecated Use `subject.name`; kept for compatibility. */
 	subjectName: z.string().nullable(),
+	issuer: documentTypePartyRefSchema.nullable(),
+	subject: documentTypePartyRefSchema.nullable(),
 	layoutCount: z.int().min(0),
 	/** Documents carrying this type. */
 	documentCount: z.int().min(0),
@@ -246,6 +258,7 @@ export type SetDocumentTypeOverrideInput = z.infer<
 export const documentTypeSuggestionSchema = z.object({
 	partyId: z.string(),
 	partyName: z.string(),
+	partyLogoKey: z.string().nullable(),
 	categoryId: z.string(),
 	categoryName: z.string(),
 	periodicity: periodicitySchema,

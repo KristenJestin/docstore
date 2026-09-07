@@ -1,4 +1,5 @@
 import { cn } from "@docstore/ui/lib/utils";
+import { useState } from "react";
 
 import { partyLogoUrl } from "@/lib/file-urls";
 
@@ -38,18 +39,26 @@ export interface PartyAvatarProps {
 	className?: string;
 }
 
-/** Absolute URL of the logo, or `null` when the initials must be used. */
+/**
+ * Absolute URL of the logo, or `null` when there is no way to fetch one.
+ *
+ * `logoKey` is either an absolute URL, a storage key (rendered through
+ * `partyId`), or unknown: a caller that only has `partyId` (a list row that
+ * did not embed the logo key) still gets a URL, on the chance the party
+ * carries a logo — `onError` below falls back to the initials when it does
+ * not.
+ */
 function logoSrc(
 	logoKey: string | null | undefined,
 	partyId: string | undefined,
 ): string | null {
-	if (!logoKey) {
-		return null;
-	}
-	if (logoKey.startsWith("http")) {
+	if (logoKey?.startsWith("http")) {
 		return logoKey;
 	}
-	return partyId ? partyLogoUrl(partyId, logoKey) : null;
+	if (logoKey) {
+		return partyId ? partyLogoUrl(partyId, logoKey) : null;
+	}
+	return partyId ? partyLogoUrl(partyId) : null;
 }
 
 /**
@@ -64,7 +73,8 @@ export function PartyAvatar({
 	size = "md",
 	className,
 }: PartyAvatarProps) {
-	const src = logoSrc(logoKey, partyId);
+	const [failed, setFailed] = useState(false);
+	const src = failed ? null : logoSrc(logoKey, partyId);
 
 	if (src) {
 		return (
@@ -72,6 +82,7 @@ export function PartyAvatar({
 				src={src}
 				alt=""
 				aria-hidden
+				onError={() => setFailed(true)}
 				className={cn(
 					"shrink-0 rounded-full bg-card object-contain ring-1 ring-border",
 					SIZE_CLASSES[size],

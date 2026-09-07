@@ -340,6 +340,12 @@ describe("documentType — missing periods", () => {
 		expect(listed).toHaveLength(1);
 		expect(listed[0]?.stats?.missing).toEqual(["2024-03", "2024-05"]);
 		expect(listed[0]?.issuerName).toBe("EDF");
+		expect(listed[0]?.issuer).toEqual({
+			id: partyId,
+			name: "EDF",
+			logoKey: null,
+		});
+		expect(listed[0]?.subject).toBeNull();
 		expect(listed[0]?.categoryName).toBe("Invoice");
 	});
 
@@ -586,6 +592,7 @@ describe("documentType.suggest", () => {
 			periodicity: "monthly",
 			sampleCount: 3,
 			partyName: "EDF",
+			partyLogoKey: null,
 			categoryName: "Invoice",
 			startPeriod: "2024-01-01",
 			endPeriod: "2024-03-01",
@@ -666,6 +673,7 @@ describe("documentType.createFromSuggestion", () => {
 		// Left open on purpose: the point is to spot the next missing period.
 		expect(created.endPeriod).toBeNull();
 		expect(created.issuerName).toBe("EDF");
+		expect(created.issuer).toEqual({ id: partyId, name: "EDF", logoKey: null });
 		expect(created.categoryName).toBe("Invoice");
 		expect(created.stats?.present).toBe(2);
 		expect(created.stats?.lastPeriod).toBe("2024-02");

@@ -469,21 +469,24 @@ export async function listPartyDuplicates(db: Db): Promise<PartyDuplicate[]> {
 	const rows = await db.execute<{
 		party_id: string;
 		party_name: string;
+		party_logo_key: string | null;
 		other_party_id: string;
 		other_party_name: string;
+		other_party_logo_key: string | null;
 		reason: PartyDuplicate["reason"];
 		value: string;
 	}>(sql`
 		with live as (
-			select ${party.id} as id, ${party.name} as name,
+			select ${party.id} as id, ${party.name} as name, ${party.logoKey} as logo_key,
 				${party.identifiers} as identifiers, ${party.createdAt} as created_at
 			from ${party}
 			where ${party.archivedAt} is null
 		),
 		by_domain as (
 			select distinct
-				first.id as party_id, first.name as party_name,
+				first.id as party_id, first.name as party_name, first.logo_key as party_logo_key,
 				second.id as other_party_id, second.name as other_party_name,
+				second.logo_key as other_party_logo_key,
 				'sameDomain'::text as reason, first_domain.value as value
 			from live as first
 			cross join lateral jsonb_array_elements_text(
@@ -498,8 +501,9 @@ export async function listPartyDuplicates(db: Db): Promise<PartyDuplicate[]> {
 		),
 		by_name as (
 			select
-				first.id as party_id, first.name as party_name,
+				first.id as party_id, first.name as party_name, first.logo_key as party_logo_key,
 				second.id as other_party_id, second.name as other_party_name,
+				second.logo_key as other_party_logo_key,
 				'sameName'::text as reason,
 				lower(btrim(regexp_replace(first.name, '\\s+', ' ', 'g'))) as value
 			from live as first
@@ -529,9 +533,11 @@ export async function listPartyDuplicates(db: Db): Promise<PartyDuplicate[]> {
 		duplicates.push({
 			partyId: row.party_id,
 			partyName: row.party_name,
+			partyLogoKey: row.party_logo_key,
 			partyDocumentCount: counts.get(row.party_id) ?? 0,
 			otherPartyId: row.other_party_id,
 			otherPartyName: row.other_party_name,
+			otherPartyLogoKey: row.other_party_logo_key,
 			otherPartyDocumentCount: counts.get(row.other_party_id) ?? 0,
 			reason: row.reason,
 			value: row.value,

@@ -122,12 +122,14 @@ export function PartyDuplicatesPanel({ onClose }: { onClose: () => void }) {
 											side="A"
 											partyId={pair.partyId}
 											name={pair.partyName}
+											logoKey={pair.partyLogoKey}
 											documentCount={pair.partyDocumentCount}
 										/>
 										<DuplicateSide
 											side="B"
 											partyId={pair.otherPartyId}
 											name={pair.otherPartyName}
+											logoKey={pair.otherPartyLogoKey}
 											documentCount={pair.otherPartyDocumentCount}
 										/>
 									</div>
@@ -215,17 +217,19 @@ function DuplicateSide({
 	side,
 	partyId,
 	name,
+	logoKey,
 	documentCount,
 }: {
 	side: "A" | "B";
 	partyId: string;
 	name: string;
+	logoKey: string | null;
 	documentCount: number;
 }) {
 	return (
 		<div className="flex min-w-0 flex-1 items-center gap-2">
 			<span className="mono-label shrink-0">{side}</span>
-			<PartyAvatar name={name} partyId={partyId} size="sm" />
+			<PartyAvatar name={name} logoKey={logoKey} partyId={partyId} size="sm" />
 			<div className="min-w-0">
 				<Link
 					to="/parties/$partyId"

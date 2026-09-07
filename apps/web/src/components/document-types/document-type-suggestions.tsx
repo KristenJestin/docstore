@@ -82,7 +82,12 @@ function SuggestionRow({
 }: SuggestionRowProps) {
 	return (
 		<li className="row-in flex flex-wrap items-center gap-3 px-4 py-3">
-			<PartyAvatar name={suggestion.partyName} size="sm" />
+			<PartyAvatar
+				name={suggestion.partyName}
+				logoKey={suggestion.partyLogoKey}
+				partyId={suggestion.partyId}
+				size="sm"
+			/>
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-sm">
 					{suggestedDocumentTypeName(

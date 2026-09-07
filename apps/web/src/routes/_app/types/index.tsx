@@ -178,14 +178,19 @@ function DocumentTypesPage() {
 						span: 2,
 						hideBelowLg: true,
 						cell: (item) =>
-							item.issuerName ? (
+							item.issuer ? (
 								<span className="flex min-w-0 items-center gap-2">
-									<PartyAvatar name={item.issuerName} size="sm" />
+									<PartyAvatar
+										name={item.issuer.name}
+										logoKey={item.issuer.logoKey}
+										partyId={item.issuer.id}
+										size="sm"
+									/>
 									<span
-										title={item.issuerName}
+										title={item.issuer.name}
 										className="min-w-0 truncate text-sm"
 									>
-										{item.issuerName}
+										{item.issuer.name}
 									</span>
 								</span>
 							) : (

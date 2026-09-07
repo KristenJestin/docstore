@@ -355,12 +355,12 @@ function DocumentTypeDetailPage() {
 									<InfoRow
 										label="Issuer"
 										value={detail.issuerName ?? "Any issuer"}
-										avatar={detail.issuerName}
+										party={detail.issuer}
 									/>
 									<InfoRow
 										label="Subject"
 										value={detail.subjectName ?? "—"}
-										avatar={detail.subjectName}
+										party={detail.subject}
 									/>
 									<InfoRow
 										label="Category"
@@ -434,17 +434,24 @@ function DocumentTypeDetailPage() {
 function InfoRow({
 	label,
 	value,
-	avatar,
+	party,
 }: {
 	label: string;
 	value: string;
-	avatar?: string | null;
+	party?: { id: string; name: string; logoKey: string | null } | null;
 }) {
 	return (
 		<div className="flex items-center justify-between gap-3">
 			<span className="text-muted-foreground text-xs">{label}</span>
 			<span className="flex min-w-0 items-center gap-1.5">
-				{avatar ? <PartyAvatar name={avatar} size="sm" /> : null}
+				{party ? (
+					<PartyAvatar
+						name={party.name}
+						logoKey={party.logoKey}
+						partyId={party.id}
+						size="sm"
+					/>
+				) : null}
 				<span className="truncate font-mono text-xs tabular-nums">{value}</span>
 			</span>
 		</div>

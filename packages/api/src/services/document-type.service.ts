@@ -369,10 +369,18 @@ export function statsFromTimeline(
 /* Labels and counters                                                  */
 /* ------------------------------------------------------------------ */
 
+interface PartyLabel {
+	name: string;
+	logoKey: string | null;
+}
+
 async function labelsFor(
 	db: Db,
 	rows: DocumentTypeRow[],
-): Promise<{ parties: Map<string, string>; categories: Map<string, string> }> {
+): Promise<{
+	parties: Map<string, PartyLabel>;
+	categories: Map<string, string>;
+}> {
 	const partyIds = [
 		...new Set(
 			rows
@@ -387,7 +395,7 @@ async function labelsFor(
 	const [partyRows, categoryRows] = await Promise.all([
 		partyIds.length > 0
 			? db
-					.select({ id: party.id, name: party.name })
+					.select({ id: party.id, name: party.name, logoKey: party.logoKey })
 					.from(party)
 					.where(inArray(party.id, partyIds))
 			: Promise.resolve([]),
@@ -400,9 +408,26 @@ async function labelsFor(
 	]);
 
 	return {
-		parties: new Map(partyRows.map((row) => [row.id, row.name])),
+		parties: new Map(
+			partyRows.map((row) => [
+				row.id,
+				{ name: row.name, logoKey: row.logoKey },
+			]),
+		),
 		categories: new Map(categoryRows.map((row) => [row.id, row.name])),
 	};
+}
+
+/** Party reference exposed on a document type item (`issuer`/`subject`). */
+function partyRefFor(
+	partyId: string | null,
+	labels: Map<string, PartyLabel>,
+): { id: string; name: string; logoKey: string | null } | null {
+	if (!partyId) return null;
+	const label = labels.get(partyId);
+	return label
+		? { id: partyId, name: label.name, logoKey: label.logoKey }
+		: null;
 }
 
 /**
@@ -479,11 +504,13 @@ function toItem(
 			? (labels.categories.get(row.categoryId) ?? null)
 			: null,
 		issuerName: row.issuerPartyId
-			? (labels.parties.get(row.issuerPartyId) ?? null)
+			? (labels.parties.get(row.issuerPartyId)?.name ?? null)
 			: null,
 		subjectName: row.subjectPartyId
-			? (labels.parties.get(row.subjectPartyId) ?? null)
+			? (labels.parties.get(row.subjectPartyId)?.name ?? null)
 			: null,
+		issuer: partyRefFor(row.issuerPartyId, labels.parties),
+		subject: partyRefFor(row.subjectPartyId, labels.parties),
 		layoutCount: counts.layouts.get(row.id) ?? 0,
 		documentCount: counts.documents.get(row.id) ?? 0,
 		stats,
@@ -996,6 +1023,7 @@ export async function suggestDocumentTypes(
 			documentId: document.id,
 			partyId: documentParty.partyId,
 			partyName: party.name,
+			partyLogoKey: party.logoKey,
 			categoryId: document.categoryId,
 			categoryName: category.name,
 			month: monthExpression,
@@ -1023,6 +1051,7 @@ export async function suggestDocumentTypes(
 	type Bucket = {
 		partyId: string;
 		partyName: string;
+		partyLogoKey: string | null;
 		categoryId: string;
 		categoryName: string;
 		months: string[];
@@ -1040,6 +1069,7 @@ export async function suggestDocumentTypes(
 			buckets.set(key, {
 				partyId: row.partyId,
 				partyName: row.partyName,
+				partyLogoKey: row.partyLogoKey,
 				categoryId: row.categoryId,
 				categoryName: row.categoryName,
 				months: [row.month],
@@ -1066,6 +1096,7 @@ export async function suggestDocumentTypes(
 		suggestions.push({
 			partyId: bucket.partyId,
 			partyName: bucket.partyName,
+			partyLogoKey: bucket.partyLogoKey,
 			categoryId: bucket.categoryId,
 			categoryName: bucket.categoryName,
 			periodicity,
