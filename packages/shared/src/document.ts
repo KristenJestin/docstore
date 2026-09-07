@@ -98,6 +98,24 @@ export const asnSourceSchema = z.enum(ASN_SOURCES);
 export type AsnSource = z.infer<typeof asnSourceSchema>;
 
 /**
+ * Where `document_date` comes from (SPEC §5).
+ *
+ * `labelled` is a date the text introduces itself ("payé le", "date
+ * d'émission", "issued on"), `period` one of the bounds of the covered period
+ * the text spells out, `inferred` the bare first date found in the text — the
+ * only one weak enough to be worth flagging — and `manual` a date someone
+ * typed.
+ */
+export const DATE_SOURCES = [
+	"labelled",
+	"period",
+	"inferred",
+	"manual",
+] as const;
+export const dateSourceSchema = z.enum(DATE_SOURCES);
+export type DateSource = z.infer<typeof dateSourceSchema>;
+
+/**
  * Reasons for moving to the review queue (SPEC §4: "when the confidence is
  * below the threshold, the document goes to review").
  */
@@ -126,6 +144,13 @@ export const INFORMATIONAL_REVIEW_REASON_CODES = [
 	"typeCandidate",
 ] as const;
 
+/**
+ * Metadata whose `lowConfidence` reason is informational: the value is written,
+ * shown with its confidence, and corrected in one click. A date read off the
+ * text used to queue every single document (SPEC §5).
+ */
+const INFORMATIONAL_LOW_CONFIDENCE_FIELDS = ["documentDate"] as const;
+
 export const reviewReasonSchema = z.object({
 	code: reviewReasonCodeSchema,
 	message: z.string(),
@@ -143,10 +168,25 @@ export type ReviewReason = z.infer<typeof reviewReasonSchema>;
 /** `true` when the reason justifies the `review` status by itself. */
 export function isBlockingReviewReason(reason: {
 	code: ReviewReasonCode;
+	field?: string | undefined;
 }): boolean {
-	return !(INFORMATIONAL_REVIEW_REASON_CODES as readonly string[]).includes(
-		reason.code,
-	);
+	if (
+		(INFORMATIONAL_REVIEW_REASON_CODES as readonly string[]).includes(
+			reason.code,
+		)
+	) {
+		return false;
+	}
+	if (
+		reason.code === "lowConfidence" &&
+		reason.field !== undefined &&
+		(INFORMATIONAL_LOW_CONFIDENCE_FIELDS as readonly string[]).includes(
+			reason.field,
+		)
+	) {
+		return false;
+	}
+	return true;
 }
 
 export const documentSortSchema = z.enum(DOCUMENT_SORTS);
@@ -380,6 +420,10 @@ export const documentSchema = z.object({
 	status: documentStatusSchema,
 	documentDate: z.string().nullable(),
 	datePrecision: datePrecisionSchema.nullable(),
+	/** How `documentDate` was obtained; `null` while the document has none. */
+	dateSource: dateSourceSchema.nullable(),
+	/** 0–1 confidence of an automatic date; `null` when a human set it. */
+	dateConfidence: z.number().nullable(),
 	periodStart: z.string().nullable(),
 	periodEnd: z.string().nullable(),
 	receivedAt: z.string().nullable(),

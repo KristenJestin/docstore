@@ -1,4 +1,4 @@
-import type { DatePrecision } from "@docstore/shared/document";
+import type { DatePrecision, DateSource } from "@docstore/shared/document";
 
 /**
  * Recognition of French dates.
@@ -293,4 +293,79 @@ export function detectIssueDate(text: string): DateCandidate | null {
 		};
 	}
 	return null;
+}
+
+/**
+ * Confidence of a date the text introduces itself ("payé le", "issued on") or
+ * that is a bound of the covered period it spells out. Both are read from an
+ * explicit statement, not guessed: they sit above the review threshold.
+ */
+export const LABELLED_DATE_CONFIDENCE = 0.9;
+
+/**
+ * Confidence of the bare "first date found in the text": the only case where
+ * the pipeline is really guessing, and the only one worth telling the user
+ * about.
+ */
+export const INFERRED_DATE_CONFIDENCE = 0.6;
+
+export interface DocumentDatePick {
+	candidate: DateCandidate;
+	/** Never `manual`: this function only ever reads the document. */
+	source: Exclude<DateSource, "manual">;
+	confidence: number;
+}
+
+export interface DocumentDateInput {
+	/** OCR text of the document. */
+	text: string;
+	/** Dates already detected in that text, in order of appearance. */
+	detectedDates?: readonly DateCandidate[] | undefined;
+	/** Covered period of the document, when it has one. */
+	periodStart?: string | null | undefined;
+	periodEnd?: string | null | undefined;
+}
+
+/**
+ * Date of a document read off its text, with where it comes from.
+ *
+ * An explicit label wins over everything. Failing one, the first date that is
+ * not a bound of the covered period is taken — those describe the period, not
+ * the document — and only that last resort is a guess worth flagging. A date
+ * that *is* a bound of a period the document carries is the period's own date,
+ * read from a "du … au …" statement: it is trusted like a labelled one.
+ */
+export function pickDocumentDate(
+	input: DocumentDateInput,
+): DocumentDatePick | null {
+	const labelled = detectIssueDate(input.text);
+	if (labelled) {
+		return {
+			candidate: labelled,
+			source: "labelled",
+			confidence: LABELLED_DATE_CONFIDENCE,
+		};
+	}
+
+	const detected = input.detectedDates ?? [];
+	const bounds = new Set(
+		[input.periodStart, input.periodEnd].filter(
+			(value): value is string => typeof value === "string",
+		),
+	);
+	const candidate =
+		detected.find((item) => !bounds.has(item.date)) ?? detected[0];
+	if (!candidate) return null;
+
+	return bounds.has(candidate.date)
+		? {
+				candidate,
+				source: "period",
+				confidence: LABELLED_DATE_CONFIDENCE,
+			}
+		: {
+				candidate,
+				source: "inferred",
+				confidence: INFERRED_DATE_CONFIDENCE,
+			};
 }

@@ -16,6 +16,7 @@ import { documentType } from "@docstore/db/schema/document-type";
 import { party } from "@docstore/db/schema/party";
 import type { TestDb } from "@docstore/db/test-utils";
 import { createTestDb, truncateAll } from "@docstore/db/test-utils";
+import { isBlockingReviewReason } from "@docstore/shared/document";
 import { eq } from "drizzle-orm";
 import { analyzeDocument, computeReviewReasons } from "./analyze";
 import { writeSetting } from "./settings";
@@ -464,5 +465,90 @@ describe("analyzeDocument — payslip dates", () => {
 		expect(doc.documentDate).toBe("2026-12-24");
 		// The period carries no marker: it is filled all the same.
 		expect(doc.periodStart).toBe("2026-08-01");
+	});
+});
+
+/**
+ * A date read off the text used to carry a flat 0.6 confidence, under the 0.75
+ * threshold: every single document landed in the review queue for it.
+ */
+describe("analyzeDocument — where the document date comes from", () => {
+	test("a labelled date is written with a confidence above the threshold", async () => {
+		const id = await insertDocument({
+			content:
+				"Facture\nPériode du 01/08/2026 au 31/08/2026\nPayé le 05/09/2026",
+		});
+		const reasons = await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.documentDate).toBe("2026-09-05");
+		expect(doc.dateSource).toBe("labelled");
+		expect(doc.dateConfidence).toBe(0.9);
+		expect(reasons.filter((reason) => reason.field === "documentDate")).toEqual(
+			[],
+		);
+	});
+
+	test("a date read off the covered period is trusted as well", async () => {
+		const id = await insertDocument({
+			content: "Relevé de compte du 01/08/2026 au 31/08/2026",
+		});
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.documentDate).toBe("2026-08-01");
+		expect(doc.dateSource).toBe("period");
+		expect(doc.dateConfidence).toBe(0.9);
+	});
+
+	test("the bare first date of the text is informational, never blocking", async () => {
+		// The date is the only thing under scrutiny here.
+		await writeSetting(db, "review.requireCategory", false);
+		await writeSetting(db, "review.requireIssuer", false);
+		const id = await insertDocument({
+			content: "Facture 12/09/2026 — total 30,00 EUR",
+			status: "review",
+		});
+		const reasons = await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.documentDate).toBe("2026-09-12");
+		expect(doc.dateSource).toBe("inferred");
+		expect(doc.dateConfidence).toBe(0.6);
+
+		const dateReason = reasons.find(
+			(reason) =>
+				reason.code === "lowConfidence" && reason.field === "documentDate",
+		);
+		expect(dateReason).toBeDefined();
+		expect(reasons.some(isBlockingReviewReason)).toBe(false);
+
+		// The reason is surfaced, but the document goes on living its life.
+		await computeReviewReasons(db, id);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
+
+	test("a date typed by hand drops the reason it used to raise", async () => {
+		const id = await insertDocument({
+			content: "Facture 12/09/2026",
+			status: "review",
+			documentDate: "2026-01-15",
+			datePrecision: "day",
+			manualFields: ["documentDate"],
+			dateSource: "manual",
+			reviewReasons: [
+				{
+					code: "lowConfidence",
+					message: 'Date "12/09/2026" inferred from the text (confidence 60%).',
+					confidence: 0.6,
+					field: "documentDate",
+				},
+				{ code: "missingCategory", message: "No category.", field: "category" },
+			],
+		});
+
+		const reasons = await computeReviewReasons(db, id);
+		expect(reasons.map((reason) => reason.code)).toEqual(["missingCategory"]);
+		expect((await loadDocument(id)).documentDate).toBe("2026-01-15");
 	});
 });

@@ -3,9 +3,12 @@ import {
 	detectDates,
 	detectIssueDate,
 	detectPeriods,
+	INFERRED_DATE_CONFIDENCE,
+	LABELLED_DATE_CONFIDENCE,
 	monthFromName,
 	parseFrenchDate,
 	parseFrenchMonth,
+	pickDocumentDate,
 } from "./dates";
 
 describe("parseFrenchDate", () => {
@@ -166,5 +169,62 @@ describe("detectIssueDate", () => {
 
 	test("returns nothing when no label is present", () => {
 		expect(detectIssueDate("Facture du 05/09/2026")).toBeNull();
+	});
+});
+
+describe("pickDocumentDate", () => {
+	const pick = (text: string, period?: { start: string; end: string }) =>
+		pickDocumentDate({
+			text,
+			detectedDates: detectDates(text),
+			periodStart: period?.start ?? null,
+			periodEnd: period?.end ?? null,
+		});
+
+	test("a labelled date is trusted, not guessed", () => {
+		const text = "Bulletin du 01/08/2026 au 31/08/2026 — payé le 05/09/2026";
+		expect(
+			pick(text, { start: "2026-08-01", end: "2026-08-31" }),
+		).toMatchObject({
+			source: "labelled",
+			confidence: LABELLED_DATE_CONFIDENCE,
+			candidate: { date: "2026-09-05" },
+		});
+	});
+
+	test("a date read off the covered period is trusted too", () => {
+		// Every date of the text is a bound of the period: the document date can
+		// only be the period's own, which the text states explicitly.
+		const text = "Relevé du 01/08/2026 au 31/08/2026";
+		expect(
+			pick(text, { start: "2026-08-01", end: "2026-08-31" }),
+		).toMatchObject({
+			source: "period",
+			confidence: LABELLED_DATE_CONFIDENCE,
+			candidate: { date: "2026-08-01" },
+		});
+	});
+
+	test("the bare first date of the text stays a guess", () => {
+		expect(pick("Facture 12/09/2026 — total 30,00")).toMatchObject({
+			source: "inferred",
+			confidence: INFERRED_DATE_CONFIDENCE,
+			candidate: { date: "2026-09-12" },
+		});
+	});
+
+	test("a date outside the period bounds is still only inferred", () => {
+		const text = "Période du 01/08/2026 au 31/08/2026\nÉdition 12/09/2026";
+		expect(
+			pick(text, { start: "2026-08-01", end: "2026-08-31" }),
+		).toMatchObject({
+			source: "inferred",
+			confidence: INFERRED_DATE_CONFIDENCE,
+			candidate: { date: "2026-09-12" },
+		});
+	});
+
+	test("nothing to read means nothing to propose", () => {
+		expect(pick("No date at all in this text.")).toBeNull();
 	});
 });

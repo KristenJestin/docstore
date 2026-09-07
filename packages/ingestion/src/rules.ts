@@ -383,6 +383,10 @@ export async function applyOperations(
 					.set({
 						documentDate: operation.date,
 						datePrecision: operation.precision,
+						// A rule (or the extraction rule of a layout) read the date off a
+						// place someone pointed at: it is a labelled date, not a guess.
+						dateSource: "labelled",
+						dateConfidence: operation.confidence,
 					})
 					.where(eq(document.id, documentId));
 				result.applied.push(operation);

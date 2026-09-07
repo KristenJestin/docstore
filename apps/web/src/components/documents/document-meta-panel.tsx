@@ -53,7 +53,11 @@ import { orpc } from "@/utils/orpc";
 import { FormField } from "../form-field";
 import { MonoLabel } from "../mono-label";
 import { CategoryPicker, useCategoryLineage } from "./category-picker";
-import { AssignmentSourceBadge, DocumentStatusBadge } from "./document-badges";
+import {
+	AssignmentSourceBadge,
+	DateSourceBadge,
+	DocumentStatusBadge,
+} from "./document-badges";
 import {
 	approvalBlockedReason,
 	DOCUMENT_FILE_KIND_LABELS,
@@ -419,7 +423,15 @@ export function DocumentMetaPanel({
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
 					<FormField
-						label="Document date"
+						label={
+							<span className="flex items-center gap-2">
+								Document date
+								<DateSourceBadge
+									source={document.dateSource}
+									confidence={document.dateConfidence}
+								/>
+							</span>
+						}
 						htmlFor={`${ids}-date`}
 						errors={errors.documentDate ? [errors.documentDate] : undefined}
 					>

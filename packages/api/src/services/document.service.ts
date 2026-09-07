@@ -107,6 +107,8 @@ const documentColumns = {
 	status: document.status,
 	documentDate: document.documentDate,
 	datePrecision: document.datePrecision,
+	dateSource: document.dateSource,
+	dateConfidence: document.dateConfidence,
 	periodStart: document.periodStart,
 	periodEnd: document.periodEnd,
 	receivedAt: document.receivedAt,
@@ -955,6 +957,10 @@ export async function updateDocument(
 		patch.documentDate = input.documentDate ?? null;
 		// `documentDate: null` takes the precision with it.
 		if (input.documentDate === null) patch.datePrecision = null;
+		// A date typed in is nobody's guess any more: the "inferred" badge and the
+		// confidence that went with it go away.
+		patch.dateSource = input.documentDate === null ? null : "manual";
+		patch.dateConfidence = null;
 	}
 	if (input.datePrecision !== undefined) {
 		patch.datePrecision = input.datePrecision ?? null;

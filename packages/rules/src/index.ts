@@ -29,14 +29,19 @@ export {
 } from "./condition";
 export {
 	type DateCandidate,
+	type DocumentDateInput,
+	type DocumentDatePick,
 	detectDates,
 	detectIssueDate,
 	detectPeriods,
 	formatDate,
+	INFERRED_DATE_CONFIDENCE,
+	LABELLED_DATE_CONFIDENCE,
 	monthFromName,
 	type PeriodCandidate,
 	parseFrenchDate,
 	parseFrenchMonth,
+	pickDocumentDate,
 } from "./dates";
 export {
 	type ExtractionInput,

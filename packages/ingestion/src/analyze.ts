@@ -7,7 +7,7 @@ import {
 	documentTypeLayout,
 } from "@docstore/db/schema/document-type";
 import { party } from "@docstore/db/schema/party";
-import { AUTO_DATE_CONFIDENCE, detectIssueDate } from "@docstore/rules";
+import { pickDocumentDate } from "@docstore/rules";
 import type { ReviewReason } from "@docstore/shared/document";
 import {
 	isBlockingReviewReason,
@@ -137,6 +137,11 @@ async function proposeDocumentPeriod(
  * An explicit payment or issue date ("payé le", "date d'émission", "issued
  * on") wins over the first date of the text: on a payslip that first date is
  * the start of the covered period, which files the document a month early.
+ * `document.date_source` records which of the two answered, and
+ * `document.date_confidence` how much it is worth — only a bare first date
+ * (`inferred`) sits under the threshold, and even then the reason it raises is
+ * informational: the date is written, badged, and corrected in one click
+ * instead of sending every single document to Review.
  *
  * The date already on the row is overwritten unless a human set it: a payslip
  * ingested before this module learnt to read "payé le" carries the start of its
@@ -157,31 +162,32 @@ async function proposeDocumentDate(
 	) {
 		return [];
 	}
-	const labelled = detectIssueDate(prepared.subject.content);
-	const detected = prepared.subject.detectedDates ?? [];
-	// Failing an explicit label, the first date that is not one of the bounds of
-	// the covered period: those describe the period, not the document.
-	const bounds = new Set(
-		[prepared.subject.periodStart, prepared.subject.periodEnd].filter(
-			(value): value is string => value !== null,
-		),
-	);
-	const candidate =
-		labelled ?? detected.find((item) => !bounds.has(item.date)) ?? detected[0];
-	if (!candidate) return [];
+	const pick = pickDocumentDate({
+		text: prepared.subject.content,
+		detectedDates: prepared.subject.detectedDates,
+		periodStart: prepared.subject.periodStart,
+		periodEnd: prepared.subject.periodEnd,
+	});
+	if (!pick) return [];
+	const { candidate } = pick;
 
 	await db
 		.update(document)
-		.set({ documentDate: candidate.date, datePrecision: candidate.precision })
+		.set({
+			documentDate: candidate.date,
+			datePrecision: candidate.precision,
+			dateSource: pick.source,
+			dateConfidence: pick.confidence,
+		})
 		.where(eq(document.id, documentId));
 	prepared.subject.documentDate = candidate.date;
 
-	if (AUTO_DATE_CONFIDENCE >= threshold) return [];
+	if (pick.confidence >= threshold) return [];
 	return [
 		{
 			code: "lowConfidence",
-			message: `Date "${candidate.raw}" inferred from the text (confidence ${Math.round(AUTO_DATE_CONFIDENCE * 100)}%).`,
-			confidence: AUTO_DATE_CONFIDENCE,
+			message: `Date "${candidate.raw}" inferred from the text (confidence ${Math.round(pick.confidence * 100)}%).`,
+			confidence: pick.confidence,
 			field: "documentDate",
 		},
 	];
@@ -515,6 +521,8 @@ export async function computeReviewReasons(
 			categoryConfidence: document.categoryConfidence,
 			documentTypeId: document.documentTypeId,
 			layoutId: document.layoutId,
+			manualFields: document.manualFields,
+			dateConfidence: document.dateConfidence,
 			reviewReasons: document.reviewReasons,
 		})
 		.from(document)
@@ -626,8 +634,10 @@ export async function computeReviewReasons(
 					(item) => !isConfidenceSatisfied(item.confidence, threshold),
 				);
 			case "documentDate":
-				// No persisted confidence to re-check against: kept as-is.
-				return true;
+				// A date someone typed settles the question, whatever the pipeline
+				// had read; otherwise the persisted confidence decides.
+				if (isManualField(current.manualFields, "documentDate")) return false;
+				return !isConfidenceSatisfied(current.dateConfidence, threshold);
 			default: {
 				if (!reason.field || !fieldConfidences.has(reason.field)) return true;
 				return !isConfidenceSatisfied(

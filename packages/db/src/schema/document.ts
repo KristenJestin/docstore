@@ -3,6 +3,7 @@ import {
 	ASN_SOURCES,
 	ASSIGNMENT_SOURCES,
 	DATE_PRECISIONS,
+	DATE_SOURCES,
 	DOCUMENT_FILE_KINDS,
 	DOCUMENT_PARTY_ROLES,
 	DOCUMENT_SOURCES,
@@ -58,6 +59,7 @@ export const assignmentSourceEnum = pgEnum(
 );
 export const documentSourceEnum = pgEnum("document_source", DOCUMENT_SOURCES);
 export const asnSourceEnum = pgEnum("asn_source", ASN_SOURCES);
+export const dateSourceEnum = pgEnum("date_source", DATE_SOURCES);
 
 export const document = pgTable(
 	"document",
@@ -69,6 +71,15 @@ export const document = pgTable(
 		status: documentStatusEnum("status").notNull().default("processing"),
 		documentDate: date("document_date"),
 		datePrecision: datePrecisionEnum("date_precision"),
+		/**
+		 * Where `document_date` comes from: an explicit label in the text, the
+		 * covered period, the bare first date found, or a human. A date is written
+		 * whatever its confidence — only `inferred` is weak enough to be worth an
+		 * informational review reason (SPEC §5).
+		 */
+		dateSource: dateSourceEnum("date_source"),
+		/** 0–1; null when a human typed the date. */
+		dateConfidence: real("date_confidence"),
 		periodStart: date("period_start"),
 		periodEnd: date("period_end"),
 		receivedAt: date("received_at"),

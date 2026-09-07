@@ -1,6 +1,7 @@
 import type {
 	AssignmentSource,
 	DatePrecision,
+	DateSource,
 	DocumentFileKind,
 	DocumentPartyRole,
 	DocumentSort,
@@ -134,6 +135,24 @@ export const ASSIGNMENT_SOURCE_ICONS: Record<AssignmentSource, LucideIcon> = {
 	manual: PencilIcon,
 	rule: WandSparklesIcon,
 	mcp: BotIcon,
+};
+
+/**
+ * Where the document date comes from. `manual` is the absence of a badge: a
+ * date someone typed needs no explanation.
+ */
+export const DATE_SOURCE_LABELS: Record<DateSource, string> = {
+	labelled: "labelled",
+	period: "period",
+	inferred: "inferred",
+	manual: "manual",
+};
+
+export const DATE_SOURCE_HINTS: Record<DateSource, string> = {
+	labelled: "Read from an explicit label in the text (“payé le”, “issued on”).",
+	period: "Read from the period the document covers.",
+	inferred: "First date found in the text: check it.",
+	manual: "Date entered by hand.",
 };
 
 export const DATE_PRECISION_LABELS: Record<DatePrecision, string> = {
