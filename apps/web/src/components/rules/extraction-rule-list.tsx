@@ -100,6 +100,7 @@ export function LayoutExtractionRules({
 									{targetLabel(rule)}
 								</p>
 							</div>
+							{rule.required ? <Badge tone="warning">Required</Badge> : null}
 							<Badge tone="outline">{rule.strategy.kind}</Badge>
 							<Button
 								variant="ghost"

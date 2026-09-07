@@ -246,12 +246,17 @@ export const plannedOperationSchema = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("set_sensitive"), sensitive: z.boolean() }),
 	/** Logged but not executed (iteration 6). */
 	z.object({ type: z.literal("webhook"), url: z.string() }),
-	/** The extraction produced nothing: feeds the review queue. */
+	/**
+	 * The extraction produced nothing. A required rule feeds the review queue; an
+	 * optional one only leaves an informational trace (`extractionMissed`).
+	 * Absent on the operations logged before the flag existed: read as optional.
+	 */
 	z.object({
 		type: z.literal("extraction_failed"),
 		extractionRuleId: z.string(),
 		extractionRuleName: z.string(),
 		fieldId: z.string().optional(),
+		required: z.boolean().optional(),
 	}),
 ]);
 export type PlannedOperation = z.infer<typeof plannedOperationSchema>;

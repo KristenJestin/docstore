@@ -55,8 +55,9 @@ function rule(actions: RuleAction[]): RuleLike {
 function outcome(
 	target: ExtractionRuleLike["target"],
 	result: ExtractionResult,
-	id = "ext_1",
+	options: { id?: string; required?: boolean } = {},
 ): Map<string, ExtractionOutcome> {
+	const id = options.id ?? "ext_1";
 	return new Map([
 		[
 			id,
@@ -67,6 +68,9 @@ function outcome(
 					target,
 					strategy: { kind: "regex", pattern: "x", group: 1 },
 					postprocess: [],
+					...(options.required === undefined
+						? {}
+						: { required: options.required }),
 				},
 				result,
 			},
@@ -224,6 +228,24 @@ describe("planActions", () => {
 			extractionRuleId: "ext_1",
 			extractionRuleName: "Net à payer",
 			fieldId: "cf_net",
+			// The rule says nothing: a miss is optional, and never blocking.
+			required: false,
+		});
+	});
+
+	test("a required extraction carries the flag into the failure", () => {
+		const operations = planActions(
+			rule([{ type: "set_document_date", extractionRuleId: "ext_1" }]),
+			subject(),
+			outcome(
+				{ kind: "field", fieldId: "cf_net" },
+				{ raw: null, value: null, confidence: 0 },
+				{ required: true },
+			),
+		);
+		expect(operations[0]).toMatchObject({
+			type: "extraction_failed",
+			required: true,
 		});
 	});
 

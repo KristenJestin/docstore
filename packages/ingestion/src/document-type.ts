@@ -165,6 +165,7 @@ function toOutcome(
 			target: row.target,
 			strategy: row.strategy,
 			postprocess: row.postprocess,
+			required: row.required,
 		},
 		result,
 	};

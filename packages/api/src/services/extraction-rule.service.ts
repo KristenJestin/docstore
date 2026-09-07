@@ -157,6 +157,7 @@ export async function createExtractionRule(
 			target: input.target,
 			strategy: input.strategy,
 			postprocess: input.postprocess,
+			required: input.required,
 			layoutId: input.layoutId,
 		})
 		.returning();
@@ -181,6 +182,7 @@ export async function updateExtractionRule(
 	if (input.target !== undefined) patch.target = input.target;
 	if (input.strategy !== undefined) patch.strategy = input.strategy;
 	if (input.postprocess !== undefined) patch.postprocess = input.postprocess;
+	if (input.required !== undefined) patch.required = input.required;
 	if (input.layoutId !== undefined) {
 		await requireLayout(db, input.layoutId);
 		patch.layoutId = input.layoutId;

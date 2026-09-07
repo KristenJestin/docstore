@@ -132,6 +132,13 @@ export const extractionRuleSchema = z.object({
 	strategy: extractionStrategySchema,
 	postprocess: z.array(postprocessStepSchema),
 	/**
+	 * `true` when the document is unusable without this value: a rule that finds
+	 * nothing then blocks the document in Review. Optional by default — a miss
+	 * leaves the field empty and only raises the informational `extractionMissed`
+	 * reason.
+	 */
+	required: z.boolean(),
+	/**
 	 * Layout the rule belongs to. An extraction rule only exists inside a
 	 * document type: it runs when its layout is selected, and the type carries
 	 * the category.
@@ -147,6 +154,8 @@ export const createExtractionRuleInput = z.object({
 	target: extractionTargetSchema,
 	strategy: extractionStrategySchema,
 	postprocess: z.array(postprocessStepSchema).default([]),
+	/** `true` sends the document to Review when the rule finds nothing. */
+	required: z.boolean().default(false),
 	/** Required: a rule always belongs to a layout of a document type. */
 	layoutId: z.string().min(1),
 });
@@ -160,6 +169,7 @@ export const updateExtractionRuleInput = z.object({
 	target: extractionTargetSchema.optional(),
 	strategy: extractionStrategySchema.optional(),
 	postprocess: z.array(postprocessStepSchema).optional(),
+	required: z.boolean().optional(),
 	/** Moves the rule to another layout (of any type). */
 	layoutId: z.string().min(1).optional(),
 });
@@ -194,6 +204,7 @@ export const extractionRuleDraftSchema = z.object({
 	target: extractionTargetSchema.default({ kind: "title" }),
 	strategy: extractionStrategySchema,
 	postprocess: z.array(postprocessStepSchema).default([]),
+	required: z.boolean().default(false),
 });
 export type ExtractionRuleDraft = z.infer<typeof extractionRuleDraftSchema>;
 

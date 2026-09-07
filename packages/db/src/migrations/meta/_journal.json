@@ -197,6 +197,13 @@
 			"when": 1788821089838,
 			"tag": "0027_document-date-confidence",
 			"breakpoints": true
+		},
+		{
+			"idx": 28,
+			"version": "7",
+			"when": 1788821129528,
+			"tag": "0028_extraction-rule-required",
+			"breakpoints": true
 		}
 	]
 }

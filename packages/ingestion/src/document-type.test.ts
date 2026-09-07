@@ -21,6 +21,7 @@ import { extractionRule, rule } from "@docstore/db/schema/rule";
 import { documentTag, tag } from "@docstore/db/schema/tag";
 import type { TestDb } from "@docstore/db/test-utils";
 import { createTestDb, truncateAll } from "@docstore/db/test-utils";
+import { isBlockingReviewReason } from "@docstore/shared/document";
 import { and, eq } from "drizzle-orm";
 import { analyzeDocument, computeReviewReasons } from "./analyze";
 import {
@@ -498,6 +499,84 @@ describe("applyDocumentType — layouts", () => {
 			number: 1234,
 		});
 		expect(values.every((value) => value.source === "rule")).toBe(true);
+	});
+
+	/**
+	 * An extraction that finds nothing used to block every document. Only a rule
+	 * its author marked "required" does now.
+	 */
+	test("an optional rule that finds nothing leaves an informational trace", async () => {
+		const documentTypeId = await insertType();
+		const layoutId = await insertLayout(documentTypeId, {
+			name: "Only",
+			isDefault: true,
+		});
+		const fields = await db
+			.insert(customField)
+			.values({ name: "Reference", slug: "reference", type: "text" })
+			.returning({ id: customField.id });
+		const fieldId = fields[0]?.id ?? "";
+		const rules = await db
+			.insert(extractionRule)
+			.values({
+				name: "Reference",
+				layoutId,
+				target: { kind: "field", fieldId },
+				strategy: { kind: "regex", pattern: "Référence : (\\w+)", group: 1 },
+				postprocess: [],
+			})
+			.returning({ id: extractionRule.id });
+		const extractionRuleId = rules[0]?.id ?? "";
+
+		const id = await insertDocument({ content: "Nothing to extract here." });
+		const outcome = await applyDocumentType(db, id, documentTypeId, {
+			source: "manual",
+		});
+
+		expect(outcome.reviewReasons.map((reason) => reason.code)).toEqual([
+			"extractionMissed",
+		]);
+		const reason = outcome.reviewReasons[0];
+		expect(reason?.meta).toEqual({ ruleId: extractionRuleId, fieldId });
+		expect(outcome.reviewReasons.some(isBlockingReviewReason)).toBe(false);
+		// The field is simply left empty.
+		expect(
+			await db
+				.select()
+				.from(documentFieldValue)
+				.where(eq(documentFieldValue.documentId, id)),
+		).toEqual([]);
+	});
+
+	test("a required rule that finds nothing still blocks the document", async () => {
+		const documentTypeId = await insertType();
+		const layoutId = await insertLayout(documentTypeId, {
+			name: "Only",
+			isDefault: true,
+		});
+		const fields = await db
+			.insert(customField)
+			.values({ name: "Reference", slug: "reference", type: "text" })
+			.returning({ id: customField.id });
+		const fieldId = fields[0]?.id ?? "";
+		await db.insert(extractionRule).values({
+			name: "Reference",
+			layoutId,
+			required: true,
+			target: { kind: "field", fieldId },
+			strategy: { kind: "regex", pattern: "Référence : (\\w+)", group: 1 },
+			postprocess: [],
+		});
+
+		const id = await insertDocument({ content: "Nothing to extract here." });
+		const outcome = await applyDocumentType(db, id, documentTypeId, {
+			source: "manual",
+		});
+
+		expect(outcome.reviewReasons.map((reason) => reason.code)).toEqual([
+			"extractionFailed",
+		]);
+		expect(outcome.reviewReasons.some(isBlockingReviewReason)).toBe(true);
 	});
 });
 

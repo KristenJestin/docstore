@@ -39,6 +39,8 @@ export interface ExtractionRuleLike {
 	target: ExtractionTarget;
 	strategy: ExtractionStrategy;
 	postprocess: PostprocessStep[];
+	/** `true` when a miss must block the document in Review. */
+	required?: boolean;
 }
 
 export interface ExtractionOutcome {
@@ -90,6 +92,7 @@ export function operationFromExtraction(
 		extractionRuleId: rule.id,
 		extractionRuleName: rule.name,
 		...(rule.target.kind === "field" ? { fieldId: rule.target.fieldId } : {}),
+		required: rule.required ?? false,
 	};
 	if (result.value === null || result.value === undefined) return failed;
 

@@ -124,6 +124,8 @@ export const REVIEW_REASON_CODES = [
 	"missingCategory",
 	"missingIssuer",
 	"extractionFailed",
+	/** An optional extraction rule found nothing: the field is simply empty. */
+	"extractionMissed",
 	"possibleDuplicate",
 	"recurringCandidate",
 	/** A document type has layouts but none of them could be selected. */
@@ -142,6 +144,7 @@ export type ReviewReasonCode = z.infer<typeof reviewReasonCodeSchema>;
 export const INFORMATIONAL_REVIEW_REASON_CODES = [
 	"recurringCandidate",
 	"typeCandidate",
+	"extractionMissed",
 ] as const;
 
 /**

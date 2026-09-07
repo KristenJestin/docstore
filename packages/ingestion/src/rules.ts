@@ -457,12 +457,32 @@ export async function applyOperations(
 				break;
 			}
 			case "extraction_failed": {
-				result.reasons.push({
-					code: "extractionFailed",
-					message: `The extraction rule "${operation.extractionRuleName}" found nothing.`,
-					...(operation.fieldId ? { field: operation.fieldId } : {}),
-					...(ruleId ? { ruleId } : {}),
-				});
+				// Only a rule flagged "required" holds the document back. Anything
+				// else is a value the layout could not find this time: the field stays
+				// empty and the miss is recorded for the record (SPEC §4).
+				result.reasons.push(
+					operation.required
+						? {
+								code: "extractionFailed",
+								message: `The extraction rule "${operation.extractionRuleName}" found nothing, and it is required.`,
+								...(operation.fieldId ? { field: operation.fieldId } : {}),
+								...(ruleId ? { ruleId } : {}),
+								meta: {
+									ruleId: operation.extractionRuleId,
+									...(operation.fieldId ? { fieldId: operation.fieldId } : {}),
+								},
+							}
+						: {
+								code: "extractionMissed",
+								message: `The extraction rule "${operation.extractionRuleName}" found nothing: the field was left empty.`,
+								...(operation.fieldId ? { field: operation.fieldId } : {}),
+								...(ruleId ? { ruleId } : {}),
+								meta: {
+									ruleId: operation.extractionRuleId,
+									...(operation.fieldId ? { fieldId: operation.fieldId } : {}),
+								},
+							},
+				);
 				break;
 			}
 			case "webhook": {
@@ -519,6 +539,7 @@ function toExtractionRuleLike(row: ExtractionRuleRow) {
 		target: row.target,
 		strategy: row.strategy,
 		postprocess: row.postprocess,
+		required: row.required,
 	};
 }
 

@@ -160,6 +160,32 @@ describe("extractionRule CRUD", () => {
 		});
 	});
 
+	test("a rule is optional unless it is told otherwise", async () => {
+		const { layoutId } = await seedLayout();
+		const created = await client.extractionRule.create({
+			name: "Reference",
+			layoutId,
+			target: { kind: "title" },
+			strategy: { kind: "regex", pattern: "Ref (\\w+)", group: 1 },
+		});
+		expect(created.required).toBe(false);
+
+		const promoted = await client.extractionRule.update({
+			id: created.id,
+			required: true,
+		});
+		expect(promoted.required).toBe(true);
+		expect((await client.extractionRule.get({ id: created.id })).required).toBe(
+			true,
+		);
+
+		const demoted = await client.extractionRule.update({
+			id: created.id,
+			required: false,
+		});
+		expect(demoted.required).toBe(false);
+	});
+
 	test("requires a layout or a document type to list", async () => {
 		await expectOrpcError(client.extractionRule.list({}), "BAD_REQUEST");
 	});

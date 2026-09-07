@@ -31,6 +31,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@docstore/ui/components/select";
+import { Switch } from "@docstore/ui/components/switch";
 import {
 	Tabs,
 	TabsContent,
@@ -81,6 +82,8 @@ interface ExtractionDraft {
 	anchorFlags: string;
 	zone: ZoneRect;
 	postprocess: PostprocessStep[];
+	/** `true` blocks the document in Review when the rule finds nothing. */
+	required: boolean;
 	/** Layout the rule belongs to: a rule never exists outside one (SPEC §9). */
 	layoutId: string;
 }
@@ -100,6 +103,7 @@ const EMPTY_DRAFT: ExtractionDraft = {
 	anchorFlags: "i",
 	zone: { page: 1, x0: 0.1, y0: 0.1, x1: 0.5, y1: 0.2 },
 	postprocess: [],
+	required: false,
 	layoutId: "",
 };
 
@@ -134,6 +138,7 @@ function toDraft(rule: ExtractionRule): ExtractionDraft {
 					}
 				: EMPTY_DRAFT.zone,
 		postprocess: rule.postprocess,
+		required: rule.required,
 		layoutId: rule.layoutId,
 	};
 }
@@ -249,6 +254,7 @@ export function ExtractionRuleEditor({
 					target: toTarget(draft),
 					strategy: toStrategy(draft),
 					postprocess: draft.postprocess,
+					required: draft.required,
 					layoutId: draft.layoutId,
 				});
 				toast.success("Extraction rule saved.");
@@ -259,6 +265,7 @@ export function ExtractionRuleEditor({
 				target: toTarget(draft),
 				strategy: toStrategy(draft),
 				postprocess: draft.postprocess,
+				required: draft.required,
 				layoutId: draft.layoutId,
 			});
 			toast.success(`Extraction rule "${created.name}" created.`);
@@ -444,6 +451,21 @@ export function ExtractionRuleEditor({
 									</Select>
 								</FormField>
 							) : null}
+
+							<div className="flex items-center justify-between gap-4">
+								<div>
+									<p className="font-medium text-sm">Required value</p>
+									<p className="text-muted-foreground text-xs">
+										Off: a miss leaves the field empty. On: the document waits
+										in Review until someone fills it.
+									</p>
+								</div>
+								<Switch
+									aria-label="Required value"
+									checked={draft.required}
+									onCheckedChange={(required) => patch({ required })}
+								/>
+							</div>
 
 							<div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs ring-1 ring-border">
 								<Badge tone="info">{layoutName ?? "Layout"}</Badge>

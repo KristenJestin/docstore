@@ -40,6 +40,7 @@ import {
 	PencilIcon,
 	RepeatIcon,
 	ReplaceIcon,
+	ScanSearchIcon,
 	ScanTextIcon,
 	SendIcon,
 	UserIcon,
@@ -172,6 +173,7 @@ export const REVIEW_REASON_LABELS: Record<ReviewReasonCode, string> = {
 	missingCategory: "Missing category",
 	missingIssuer: "Missing issuer",
 	extractionFailed: "Extraction failed",
+	extractionMissed: "Nothing extracted",
 	possibleDuplicate: "Possible duplicate",
 	recurringCandidate: "Recurring document",
 	unknownLayout: "Unknown layout",
@@ -183,6 +185,8 @@ export const REVIEW_REASON_LABELS: Record<ReviewReasonCode, string> = {
  * say what actually happened to the document.
  */
 export const REVIEW_REASON_HINTS: Partial<Record<ReviewReasonCode, string>> = {
+	extractionMissed:
+		"The rule is optional, so the document was not held back. Mark it required if the document is unusable without that value.",
 	unknownLayout:
 		"No layout matched this document: the default layout of the type was used, and its extraction rules ran all the same.",
 };
@@ -192,6 +196,7 @@ export const REVIEW_REASON_ICONS: Record<ReviewReasonCode, LucideIcon> = {
 	missingCategory: FolderXIcon,
 	missingIssuer: UserXIcon,
 	extractionFailed: ScanTextIcon,
+	extractionMissed: ScanSearchIcon,
 	possibleDuplicate: CopyIcon,
 	recurringCandidate: RepeatIcon,
 	unknownLayout: LayoutTemplateIcon,

@@ -81,6 +81,13 @@ export const extractionRule = pgTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		/**
+		 * "The document is unusable without this value" (SPEC §4). A required rule
+		 * that finds nothing blocks the document in Review; an optional one — the
+		 * default — leaves the field empty and only raises the informational
+		 * `extractionMissed` reason.
+		 */
+		required: boolean("required").notNull().default(false),
+		/**
 		 * Layout owning the rule (SPEC §9): an extraction rule only ever exists
 		 * inside a document type, and only runs when its layout is selected.
 		 */
