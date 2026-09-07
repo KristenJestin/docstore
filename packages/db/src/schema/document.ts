@@ -93,6 +93,15 @@ export const document = pgTable(
 			.notNull()
 			.default("manual"),
 		categoryConfidence: real("category_confidence"),
+		/**
+		 * When a human approved the automatic category (SPEC §4).
+		 *
+		 * Approving used to rewrite `category_source` to `manual`, which locked
+		 * the value out of every later pass: a type applied afterwards no longer
+		 * corrected it. The confirmation is recorded here instead, and the
+		 * assignment keeps saying who produced it.
+		 */
+		categoryConfirmedAt: timestamp("category_confirmed_at"),
 		/** Document type carried by the document (SPEC §9). */
 		documentTypeId: text("document_type_id").references(() => documentType.id, {
 			onDelete: "set null",
@@ -228,6 +237,8 @@ export const documentParty = pgTable(
 		/** 0–1, null when the assignment is manual. */
 		confidence: real("confidence"),
 		source: assignmentSourceEnum("source").notNull().default("manual"),
+		/** When a human approved this link in Review (SPEC §4). */
+		confirmedAt: timestamp("confirmed_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => [

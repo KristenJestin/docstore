@@ -204,6 +204,13 @@
 			"when": 1788821129528,
 			"tag": "0028_extraction-rule-required",
 			"breakpoints": true
+		},
+		{
+			"idx": 29,
+			"version": "7",
+			"when": 1788821151624,
+			"tag": "0029_confirmed-assignments",
+			"breakpoints": true
 		}
 	]
 }

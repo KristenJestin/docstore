@@ -37,6 +37,8 @@ export const documentTag = pgTable(
 		/** 0–1, null when the assignment is manual. */
 		confidence: real("confidence"),
 		source: assignmentSourceEnum("source").notNull().default("manual"),
+		/** When a human approved this tag in Review (SPEC §4). */
+		confirmedAt: timestamp("confirmed_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => [

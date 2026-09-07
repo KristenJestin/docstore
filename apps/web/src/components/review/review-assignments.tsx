@@ -41,7 +41,16 @@ function buildRows(document: DocumentDetail): AssignmentRow[] {
 			key: "category",
 			kind: "category",
 			label: `category ${document.category.name}`,
-			content: <CategoryBadge category={document.category} />,
+			content: (
+				<span className="flex min-w-0 items-center gap-2">
+					<CategoryBadge category={document.category} />
+					<AssignmentSourceBadge
+						source={document.category.source}
+						confidence={document.category.confidence}
+						confirmedAt={document.category.confirmedAt}
+					/>
+				</span>
+			),
 		});
 	}
 
@@ -51,7 +60,16 @@ function buildRows(document: DocumentDetail): AssignmentRow[] {
 			kind: "tag",
 			ref: tag.id,
 			label: `tag ${tag.name}`,
-			content: <TagChip tag={tag} />,
+			content: (
+				<span className="flex min-w-0 items-center gap-2">
+					<TagChip tag={tag} />
+					<AssignmentSourceBadge
+						source={tag.source}
+						confidence={tag.confidence}
+						confirmedAt={tag.confirmedAt}
+					/>
+				</span>
+			),
 		});
 	}
 
@@ -77,6 +95,7 @@ function buildRows(document: DocumentDetail): AssignmentRow[] {
 					<AssignmentSourceBadge
 						source={party.source}
 						confidence={party.confidence}
+						confirmedAt={party.confirmedAt}
 					/>
 				</span>
 			),
@@ -95,6 +114,7 @@ function buildRows(document: DocumentDetail): AssignmentRow[] {
 					<AssignmentSourceBadge
 						source={value.source}
 						confidence={value.confidence}
+						confirmedAt={value.confirmedAt}
 					/>
 				</span>
 			),
@@ -111,7 +131,8 @@ export interface ReviewAssignmentsProps {
 /**
  * Metadata set during ingestion, each line with a "keep" tick and a "reject"
  * cross (`review.rejectAssignment`). Keeping is a local mark: approving the
- * document is what turns every automatic assignment into a manual one.
+ * document is what stamps every automatic assignment "confirmed". They stay
+ * automatic, so a later rule run may still refresh them.
  */
 export function ReviewAssignments({ document }: ReviewAssignmentsProps) {
 	const [kept, setKept] = useState<string[]>([]);

@@ -7,8 +7,9 @@ import type {
 import type { TagSummary } from "@docstore/shared/tag";
 import { Badge } from "@docstore/ui/components/badge";
 import { cn } from "@docstore/ui/lib/utils";
-import { CalendarSearchIcon } from "lucide-react";
+import { CalendarSearchIcon, CheckCheckIcon } from "lucide-react";
 
+import { formatDateTime } from "@/components/settings/settings-labels";
 import {
 	ASSIGNMENT_SOURCE_ICONS,
 	ASSIGNMENT_SOURCE_LABELS,
@@ -102,21 +103,42 @@ export function TagChip({
 
 /**
  * Origin of an assignment: nothing for manual input, an "auto" badge carrying
- * the confidence for a rule or an MCP agent.
+ * the confidence for a rule or an MCP agent, and "confirmed" once someone
+ * approved it in Review.
+ *
+ * A confirmed assignment is still an automatic one — the rules keep it up to
+ * date, and the badge goes back to "auto" the day one of them writes a new
+ * value (SPEC §4).
  */
 export function AssignmentSourceBadge({
 	source,
 	confidence,
+	confirmedAt = null,
 	className,
 }: {
 	source: AssignmentSource;
 	confidence: number | null;
+	/** When a human approved the assignment in Review. */
+	confirmedAt?: Date | null;
 	className?: string;
 }) {
 	if (source === "manual") {
 		return null;
 	}
 	const score = formatConfidence(confidence);
+	const origin = `${ASSIGNMENT_SOURCE_LABELS[source]}${score ? `, ${score}` : ""}`;
+	if (confirmedAt) {
+		return (
+			<Badge
+				tone="success"
+				className={className}
+				title={`Approved in Review on ${formatDateTime(confirmedAt)} (${origin})`}
+			>
+				<CheckCheckIcon aria-hidden />
+				confirmed
+			</Badge>
+		);
+	}
 	const Icon = ASSIGNMENT_SOURCE_ICONS[source];
 	return (
 		<Badge

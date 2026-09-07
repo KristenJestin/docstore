@@ -163,31 +163,60 @@ describe("review.list / count", () => {
 });
 
 describe("review.approve", () => {
-	test("switches the assignments to manual and makes the document active", async () => {
+	test("confirms the assignments and makes the document active", async () => {
 		const { documentId } = await seedReviewDocument();
 
 		const detail = await client.review.approve({ id: documentId });
 		expect(detail.status).toBe("active");
 		expect(detail.reviewReasons).toEqual([]);
+
+		// Confirmed, not frozen: the source and the confidence still say where
+		// the value came from, so the next automatic pass may refresh it.
 		expect(detail.parties[0]).toMatchObject({
-			source: "manual",
-			confidence: null,
+			source: "rule",
+			confidence: 0.7,
 		});
+		expect(detail.parties[0]?.confirmedAt).toBeInstanceOf(Date);
 		expect(detail.fieldValues[0]).toMatchObject({
-			source: "manual",
-			confidence: null,
+			source: "rule",
+			confidence: 0.6,
 		});
+		expect(detail.fieldValues[0]?.confirmedAt).toBeInstanceOf(Date);
 		expect(detail.category).toMatchObject({
-			source: "manual",
-			confidence: null,
+			source: "rule",
+			confidence: 0.82,
 		});
+		expect(detail.category?.confirmedAt).toBeInstanceOf(Date);
+		expect(detail.tags[0]?.confirmedAt).toBeInstanceOf(Date);
 
 		const tags = await db
 			.select()
 			.from(documentTag)
 			.where(eq(documentTag.documentId, documentId));
-		expect(tags[0]?.source).toBe("manual");
-		expect(tags[0]?.confidence).toBeNull();
+		expect(tags[0]?.source).toBe("rule");
+		expect(tags[0]?.confirmedAt).toBeInstanceOf(Date);
+	});
+
+	/**
+	 * Confirming is not freezing: only what a human typed becomes `manual`, and
+	 * the stamp goes away with the value it described. That is what lets a rule
+	 * fixed after the fact reach a document someone already cleared from the
+	 * queue (see `document-type.test.ts` for the round trip).
+	 */
+	test("a value typed by hand is manual, and carries no confirmation", async () => {
+		const { documentId, fieldId } = await seedReviewDocument();
+		await client.review.approve({ id: documentId });
+
+		const detail = await client.document.setFieldValue({
+			id: documentId,
+			fieldId,
+			value: { kind: "money", amount: 42, currency: "EUR" },
+		});
+		expect(detail.fieldValues[0]).toMatchObject({
+			source: "manual",
+			confidence: null,
+		});
+		expect(detail.fieldValues[0]?.confirmedAt).toBeNull();
 	});
 
 	test("applies the patch before approving", async () => {
@@ -225,10 +254,7 @@ describe("review.approveMany", () => {
 
 		const firstDoc = await client.document.get({ id: first.documentId });
 		expect(firstDoc.status).toBe("active");
-		expect(firstDoc.category).toMatchObject({
-			source: "manual",
-			confidence: null,
-		});
+		expect(firstDoc.category?.confirmedAt).toBeInstanceOf(Date);
 
 		const secondDoc = await client.document.get({ id: second.documentId });
 		expect(secondDoc.status).toBe("active");

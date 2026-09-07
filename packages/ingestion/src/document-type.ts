@@ -521,6 +521,8 @@ export async function applyDocumentType(
 					categoryId: type.categoryId,
 					categorySource: source,
 					categoryConfidence: confidence,
+					// The approval described the category being replaced.
+					categoryConfirmedAt: null,
 				})
 				.where(eq(document.id, documentId));
 		}

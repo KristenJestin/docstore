@@ -123,6 +123,7 @@ const documentColumns = {
 	categoryId: document.categoryId,
 	categorySource: document.categorySource,
 	categoryConfidence: document.categoryConfidence,
+	categoryConfirmedAt: document.categoryConfirmedAt,
 	manualFields: document.manualFields,
 	source: document.source,
 	reviewReasons: document.reviewReasons,
@@ -145,6 +146,7 @@ const documentListColumns = {
 	categoryId: document.categoryId,
 	categorySource: document.categorySource,
 	categoryConfidence: document.categoryConfidence,
+	categoryConfirmedAt: document.categoryConfirmedAt,
 	documentTypeId: document.documentTypeId,
 };
 
@@ -172,6 +174,7 @@ const documentPartyColumns = {
 	role: documentParty.role,
 	source: documentParty.source,
 	confidence: documentParty.confidence,
+	confirmedAt: documentParty.confirmedAt,
 };
 
 /** Postgres dictionary used for indexing and search. */
@@ -501,15 +504,23 @@ async function loadCategoryBases(
  * `category_confidence`), not a property of the category itself.
  */
 function categorySummaryOf(
-	categoryId: string | null,
-	categorySource: AssignmentSource,
-	categoryConfidence: number | null,
+	row: {
+		categoryId: string | null;
+		categorySource: AssignmentSource;
+		categoryConfidence: number | null;
+		categoryConfirmedAt: Date | null;
+	},
 	bases: Map<string, CategoryBase>,
 ): CategorySummary | null {
-	if (!categoryId) return null;
-	const base = bases.get(categoryId);
+	if (!row.categoryId) return null;
+	const base = bases.get(row.categoryId);
 	if (!base) return null;
-	return { ...base, source: categorySource, confidence: categoryConfidence };
+	return {
+		...base,
+		source: row.categorySource,
+		confidence: row.categoryConfidence,
+		confirmedAt: row.categoryConfirmedAt,
+	};
 }
 
 /** Names and colors of the document types carried by a page of results. */
@@ -547,6 +558,7 @@ async function loadFieldValues(
 			value: documentFieldValue.value,
 			confidence: documentFieldValue.confidence,
 			source: documentFieldValue.source,
+			confirmedAt: documentFieldValue.confirmedAt,
 			updatedAt: documentFieldValue.updatedAt,
 			field: customField,
 		})
@@ -665,6 +677,7 @@ export async function listDocuments(
 			categoryId,
 			categorySource,
 			categoryConfidence,
+			categoryConfirmedAt,
 			documentTypeId,
 			...rest
 		} = row;
@@ -672,12 +685,7 @@ export async function listDocuments(
 			...rest,
 			parties: partyLinks.get(row.id) ?? [],
 			tags: tagLinks.get(row.id) ?? [],
-			category: categorySummaryOf(
-				categoryId,
-				categorySource,
-				categoryConfidence,
-				categoryBases,
-			),
+			category: categorySummaryOf(row, categoryBases),
 			documentType: documentTypeId
 				? (documentTypes.get(documentTypeId) ?? null)
 				: null,
@@ -698,6 +706,7 @@ export async function listDocuments(
 type DocumentRow = DocumentDto & {
 	categorySource: AssignmentSource;
 	categoryConfidence: number | null;
+	categoryConfirmedAt: Date | null;
 };
 
 async function requireDocument(db: Db, id: string): Promise<DocumentRow> {
@@ -772,12 +781,7 @@ export async function getDocument(db: Db, id: string): Promise<DocumentDetail> {
 		parties: partyLinks.get(id) ?? [],
 		tags: tagLinks.get(id) ?? [],
 		fieldValues,
-		category: categorySummaryOf(
-			row.categoryId,
-			row.categorySource,
-			row.categoryConfidence,
-			categoryBases,
-		),
+		category: categorySummaryOf(row, categoryBases),
 		relations,
 		dossiers,
 		documentType: documentTypeMembership,
@@ -1305,7 +1309,11 @@ export async function deleteDocumentPermanently(
 /* Category, tags and custom fields                                     */
 /* ------------------------------------------------------------------ */
 
-/** Manual assignment (SPEC): always resets `categorySource`/`categoryConfidence`. */
+/**
+ * Manual assignment (SPEC): always resets `categorySource`/`categoryConfidence`.
+ * A category someone typed is theirs, so the approval stamp goes with the value
+ * it described.
+ */
 export async function setDocumentCategory(
 	db: Db,
 	id: string,
@@ -1317,7 +1325,12 @@ export async function setDocumentCategory(
 	}
 	await db
 		.update(document)
-		.set({ categoryId, categorySource: "manual", categoryConfidence: null })
+		.set({
+			categoryId,
+			categorySource: "manual",
+			categoryConfidence: null,
+			categoryConfirmedAt: null,
+		})
 		.where(eq(document.id, id));
 	// `missingCategory` and the low-confidence reason on the category no longer
 	// apply once a human has decided.
@@ -1413,12 +1426,19 @@ export async function setDocumentFieldValue(
 	const source = origin.source ?? "manual";
 	const confidence = source === "rule" ? (origin.confidence ?? null) : null;
 
+	// A new value invalidates the approval the old one carried.
 	await db
 		.insert(documentFieldValue)
 		.values({ documentId: id, fieldId, value, source, confidence })
 		.onConflictDoUpdate({
 			target: [documentFieldValue.documentId, documentFieldValue.fieldId],
-			set: { value, source, confidence, updatedAt: new Date() },
+			set: {
+				value,
+				source,
+				confidence,
+				confirmedAt: null,
+				updatedAt: new Date(),
+			},
 		});
 
 	return getDocument(db, id);
@@ -1534,6 +1554,7 @@ export async function bulkDocuments(
 						categoryId: action.categoryId,
 						categorySource: "manual",
 						categoryConfidence: null,
+						categoryConfirmedAt: null,
 					})
 					.where(inArray(document.id, found))
 					.returning({ id: document.id });

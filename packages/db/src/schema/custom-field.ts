@@ -62,6 +62,12 @@ export const documentFieldValue = pgTable(
 		value: jsonb("value").$type<CustomFieldValue>().notNull(),
 		confidence: real("confidence"),
 		source: assignmentSourceEnum("source").notNull().default("manual"),
+		/**
+		 * When a human approved this value in Review (SPEC §4). The value stays
+		 * `rule`-sourced, so a later run of the same extraction still refreshes
+		 * it; the confirmation is dropped along with the old value.
+		 */
+		confirmedAt: timestamp("confirmed_at"),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())

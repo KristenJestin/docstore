@@ -79,6 +79,29 @@ list because no automatic pass writes them in the first place.
 `manualFields` is returned by `document.get` (and by the MCP `get_document`), so
 the interface can show which values are pinned against the pipeline.
 
+### What approving a review does
+
+`review.approve` accepts what the pipeline proposed. It stamps the current time
+on every assignment that did not come from a human — `document_party`,
+`document_tag` and `document_field_value` carry a `confirmed_at`, the category
+its `document.category_confirmed_at` — then empties `review_reasons` and moves
+the document to `active`. The interface shows a "confirmed" badge in place of
+the "auto" one.
+
+Approving does not make those values manual. It used to, and the cost only
+showed up later: an extraction rule fixed weeks after the fact no longer
+touched the documents that had been through the queue, so a corrected layout
+had to be re-applied by hand, document by document. A confirmed assignment is
+still an automatic one — the next rule run, `document.reprocess` or a
+re-applied document type refreshes it, and the confirmation is dropped along
+with the value it described, which puts the "auto" badge back.
+
+Only what someone typed is manual: `document.update` (which also fills
+`manualFields`), `document.setCategory`, `document.setTags`,
+`document.setFieldValue` and the bulk actions. Rejecting an assignment
+(`review.rejectAssignment`) removes it outright and stays available on a
+confirmed one, since confirming no longer disguises it as a hand entry.
+
 ## 1. Polling cadence
 
 pg-boss only schedules one cron expression per queue name, and cron does not go

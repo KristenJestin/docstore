@@ -502,6 +502,88 @@ describe("applyDocumentType — layouts", () => {
 	});
 
 	/**
+	 * Approving a document stamps `confirmed_at` instead of rewriting the value
+	 * to `manual`: a layout fixed afterwards still reaches it, and the stamp
+	 * goes away with the value it described (SPEC §4).
+	 */
+	test("re-applying the type refreshes a confirmed value, dropping the stamp", async () => {
+		const documentTypeId = await insertType();
+		const layoutId = await insertLayout(documentTypeId, {
+			name: "Only",
+			isDefault: true,
+		});
+		const fields = await db
+			.insert(customField)
+			.values({ name: "Net pay", slug: "net-pay", type: "number" })
+			.returning({ id: customField.id });
+		const fieldId = fields[0]?.id ?? "";
+		await db.insert(extractionRule).values({
+			name: "Net pay",
+			layoutId,
+			target: { kind: "field", fieldId },
+			strategy: { kind: "regex", pattern: "Net à payer : (\\d+)", group: 1 },
+			postprocess: [],
+		});
+
+		const id = await insertDocument({ content: "Net à payer : 1234" });
+		// The state `review.approve` leaves behind: still `rule`, now confirmed.
+		await db.insert(documentFieldValue).values({
+			documentId: id,
+			fieldId,
+			value: { kind: "number", number: 999 },
+			source: "rule",
+			confidence: 0.4,
+			confirmedAt: new Date(),
+		});
+
+		await applyDocumentType(db, id, documentTypeId, { source: "manual" });
+
+		const [value] = await db
+			.select()
+			.from(documentFieldValue)
+			.where(eq(documentFieldValue.documentId, id));
+		expect(value?.value).toEqual({ kind: "number", number: 1234 });
+		expect(value?.confirmedAt).toBeNull();
+	});
+
+	test("a value someone typed survives the same pass", async () => {
+		const documentTypeId = await insertType();
+		const layoutId = await insertLayout(documentTypeId, {
+			name: "Only",
+			isDefault: true,
+		});
+		const fields = await db
+			.insert(customField)
+			.values({ name: "Net pay", slug: "net-pay", type: "number" })
+			.returning({ id: customField.id });
+		const fieldId = fields[0]?.id ?? "";
+		await db.insert(extractionRule).values({
+			name: "Net pay",
+			layoutId,
+			target: { kind: "field", fieldId },
+			strategy: { kind: "regex", pattern: "Net à payer : (\\d+)", group: 1 },
+			postprocess: [],
+		});
+
+		const id = await insertDocument({ content: "Net à payer : 1234" });
+		await db.insert(documentFieldValue).values({
+			documentId: id,
+			fieldId,
+			value: { kind: "number", number: 999 },
+			source: "manual",
+			confidence: null,
+		});
+
+		await applyDocumentType(db, id, documentTypeId, { source: "manual" });
+
+		const [value] = await db
+			.select()
+			.from(documentFieldValue)
+			.where(eq(documentFieldValue.documentId, id));
+		expect(value?.value).toEqual({ kind: "number", number: 999 });
+	});
+
+	/**
 	 * An extraction that finds nothing used to block every document. Only a rule
 	 * its author marked "required" does now.
 	 */

@@ -217,6 +217,7 @@ export async function loadTagsByDocument(
 			color: tag.color,
 			source: documentTag.source,
 			confidence: documentTag.confidence,
+			confirmedAt: documentTag.confirmedAt,
 		})
 		.from(documentTag)
 		.innerJoin(tag, eq(tag.id, documentTag.tagId))

@@ -21,6 +21,8 @@ export const tagSummarySchema = z.object({
 	color: z.string().nullable(),
 	source: assignmentSourceSchema,
 	confidence: z.number().nullable(),
+	/** When a human approved the link in Review; `null` otherwise. */
+	confirmedAt: z.date().nullable(),
 });
 export type TagSummary = z.infer<typeof tagSummarySchema>;
 

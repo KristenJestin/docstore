@@ -27,7 +27,16 @@ import type {
 	ReviewItem,
 } from "@docstore/shared/review";
 import { ORPCError } from "@orpc/server";
-import { and, asc, count, eq, inArray, isNull, ne } from "drizzle-orm";
+import {
+	and,
+	asc,
+	count,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+} from "drizzle-orm";
 import {
 	assertNotTrashed,
 	getDocument,
@@ -158,9 +167,17 @@ function assertAutomatic(sources: AssignmentSource[]): void {
 }
 
 /**
- * Approves the automatic suggestions: the optional patch is applied, the
- * assignments coming from rules become manual (confidence cleared) and the
- * document goes back to `active`.
+ * Approves the automatic suggestions: the optional patch is applied, every
+ * assignment a rule produced is stamped `confirmed_at` and the document goes
+ * back to `active`.
+ *
+ * Approving used to rewrite those assignments to `manual`. It read as "a human
+ * accepted this", but it also meant "no automatic pass may touch it again":
+ * fixing the layout of a document type and re-applying it left the approved
+ * documents on their old values, and only a hand edit could bring them back.
+ * Approving now says who agreed and when, and nothing more — what the rules
+ * wrote stays theirs to refresh, and only what someone typed is `manual`
+ * (SPEC §4).
  */
 export async function approveReview(
 	db: Db,
@@ -168,8 +185,8 @@ export async function approveReview(
 	patch?: Omit<UpdateDocumentInput, "status">,
 ): Promise<DocumentDetail> {
 	const current = await requireReviewDocument(db, id);
-	// Approving freezes the automatic proposals as if a human had accepted them:
-	// nothing the trash holds is accepted (SPEC §2).
+	// Approving accepts the automatic proposals: nothing the trash holds is
+	// accepted (SPEC §2).
 	assertNotTrashed(current);
 	assertApprovable(current.status);
 
@@ -177,32 +194,42 @@ export async function approveReview(
 		await updateDocument(db, id, patch);
 	}
 
+	const confirmedAt = new Date();
 	await db.transaction(async (tx) => {
 		await tx
 			.update(documentParty)
-			.set({ source: "manual", confidence: null })
+			.set({ confirmedAt })
 			.where(
-				and(eq(documentParty.documentId, id), eq(documentParty.source, "rule")),
+				and(
+					eq(documentParty.documentId, id),
+					ne(documentParty.source, "manual"),
+				),
 			);
 		await tx
 			.update(documentTag)
-			.set({ source: "manual", confidence: null })
+			.set({ confirmedAt })
 			.where(
-				and(eq(documentTag.documentId, id), eq(documentTag.source, "rule")),
+				and(eq(documentTag.documentId, id), ne(documentTag.source, "manual")),
 			);
 		await tx
 			.update(documentFieldValue)
-			.set({ source: "manual", confidence: null })
+			.set({ confirmedAt })
 			.where(
 				and(
 					eq(documentFieldValue.documentId, id),
-					eq(documentFieldValue.source, "rule"),
+					ne(documentFieldValue.source, "manual"),
 				),
 			);
 		await tx
 			.update(document)
-			.set({ categorySource: "manual", categoryConfidence: null })
-			.where(and(eq(document.id, id), eq(document.categorySource, "rule")));
+			.set({ categoryConfirmedAt: confirmedAt })
+			.where(
+				and(
+					eq(document.id, id),
+					isNotNull(document.categoryId),
+					ne(document.categorySource, "manual"),
+				),
+			);
 		await tx
 			.update(document)
 			.set({ status: "active", reviewReasons: [] })
@@ -335,6 +362,7 @@ export async function rejectAssignment(
 					categoryId: null,
 					categorySource: "manual",
 					categoryConfidence: null,
+					categoryConfirmedAt: null,
 				})
 				.where(eq(document.id, input.id));
 			break;

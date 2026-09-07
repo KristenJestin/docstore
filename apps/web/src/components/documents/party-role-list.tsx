@@ -117,6 +117,7 @@ export function PartyRoleList({ documentId, parties }: PartyRoleListProps) {
 								<AssignmentSourceBadge
 									source={link.source}
 									confidence={link.confidence}
+									confirmedAt={link.confirmedAt}
 								/>
 								<Badge tone={link.role === "issuer" ? "primary" : "neutral"}>
 									<RoleIcon aria-hidden />

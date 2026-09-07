@@ -334,6 +334,8 @@ export const documentPartyLinkSchema = z.object({
 	logoKey: z.string().nullable(),
 	source: assignmentSourceSchema,
 	confidence: z.number().nullable(),
+	/** When a human approved the link in Review; `null` otherwise. */
+	confirmedAt: z.date().nullable(),
 });
 export type DocumentPartyLink = z.infer<typeof documentPartyLinkSchema>;
 
@@ -465,6 +467,8 @@ export const documentFieldValueSchema = z.object({
 	value: customFieldValueSchema,
 	confidence: z.number().nullable(),
 	source: assignmentSourceSchema,
+	/** When a human approved the value in Review; `null` otherwise. */
+	confirmedAt: z.date().nullable(),
 	updatedAt: z.date(),
 	field: customFieldSchema,
 });

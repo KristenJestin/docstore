@@ -38,6 +38,8 @@ export const categorySummarySchema = z.object({
 	color: z.string().nullable(),
 	source: assignmentSourceSchema,
 	confidence: z.number().nullable(),
+	/** When a human approved the assignment in Review; `null` otherwise. */
+	confirmedAt: z.date().nullable(),
 });
 export type CategorySummary = z.infer<typeof categorySummarySchema>;
 

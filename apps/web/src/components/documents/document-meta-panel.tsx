@@ -583,6 +583,7 @@ export function DocumentMetaPanel({
 												<AssignmentSourceBadge
 													source={current.source}
 													confidence={current.confidence}
+													confirmedAt={current.confirmedAt}
 												/>
 											) : null}
 											<FieldExtractButton document={document} field={field} />

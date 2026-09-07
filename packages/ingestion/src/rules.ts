@@ -223,7 +223,9 @@ async function applySetField(
 		return;
 	}
 
-	// A manual entry is never overwritten by a rule.
+	// A manual entry is never overwritten by a rule. A value someone merely
+	// approved in Review is not one: the rule refreshes it, and the approval
+	// goes away with the value it described (SPEC §4).
 	const existing = await db
 		.select({ source: documentFieldValue.source })
 		.from(documentFieldValue)
@@ -251,6 +253,7 @@ async function applySetField(
 				value,
 				source: "rule",
 				confidence: operation.confidence,
+				confirmedAt: null,
 				updatedAt: new Date(),
 			},
 		});
