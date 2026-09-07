@@ -33,6 +33,13 @@ export interface DataListColumn<T> {
 	/** Hides the column below the `lg` breakpoint. */
 	hideBelowLg?: boolean;
 	cell: (item: T) => ReactNode;
+	/**
+	 * Placeholder drawn in this column while the list loads. Defaults to a
+	 * single bar; a column whose cell has a shape of its own (thumbnail,
+	 * avatar, two lines of text) passes the matching arrangement so that the
+	 * rows do not move when the data lands.
+	 */
+	skeleton?: ReactNode;
 }
 
 export interface DataListProps<T> {
@@ -124,7 +131,9 @@ export function DataList<T>({
 									<div className="grid min-w-0 flex-1 grid-cols-12 items-center gap-4">
 										{columns.map((column) => (
 											<div key={column.id} className={columnClasses(column)}>
-												<Skeleton className="h-4 w-full max-w-40" />
+												{column.skeleton ?? (
+													<Skeleton className="h-4 w-full max-w-40" />
+												)}
 											</div>
 										))}
 									</div>

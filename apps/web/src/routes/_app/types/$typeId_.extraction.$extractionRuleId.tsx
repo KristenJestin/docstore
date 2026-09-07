@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { EmptyState } from "@/components/empty-state";
+import { FormPageSkeleton } from "@/components/page-skeletons";
 import { ExtractionRuleEditor } from "@/components/rules/extraction-rule-editor";
 import { orpc } from "@/utils/orpc";
 
@@ -11,6 +12,13 @@ export const Route = createFileRoute(
 	"/_app/types/$typeId_/extraction/$extractionRuleId",
 )({
 	component: ExtractionRuleDetailPage,
+	pendingComponent: FormPageSkeleton,
+	loader: ({ context, params }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.extractionRule.get.queryOptions({
+				input: { id: params.extractionRuleId },
+			}),
+		),
 });
 
 function ExtractionRuleDetailPage() {

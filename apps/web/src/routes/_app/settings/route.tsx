@@ -1,10 +1,11 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
-
 import { PageHeader } from "@/components/page-header";
+import { SettingsLayoutSkeleton } from "@/components/page-skeletons";
 import { SETTINGS_TABS } from "@/lib/navigation";
 
 export const Route = createFileRoute("/_app/settings")({
 	component: SettingsLayout,
+	pendingComponent: SettingsLayoutSkeleton,
 });
 
 /**

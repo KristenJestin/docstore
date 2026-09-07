@@ -20,7 +20,6 @@ import {
 	UploadCloudIcon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-
 import { DataList } from "@/components/data-list";
 import { DateText } from "@/components/date-text";
 import { BulkActionsBar } from "@/components/documents/bulk-actions-bar";
@@ -33,6 +32,7 @@ import { useUpload } from "@/components/documents/upload-provider";
 import { EmptyState } from "@/components/empty-state";
 import { ExportDialog } from "@/components/export/export-dialog";
 import { PageHeader } from "@/components/page-header";
+import { DocumentsSkeleton } from "@/components/page-skeletons";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import {
 	type DocumentSearch,
@@ -51,6 +51,14 @@ export const Route = createFileRoute("/_app/documents/")({
 	component: DocumentsPage,
 	validateSearch: (search): DocumentSearch =>
 		documentSearchSchema.parse(search),
+	pendingComponent: DocumentsSkeleton,
+	loaderDeps: ({ search }) => search,
+	loader: ({ context, deps }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.document.list.queryOptions({
+				input: toListDocumentsInput(deps),
+			}),
+		),
 });
 
 function DocumentsPage() {

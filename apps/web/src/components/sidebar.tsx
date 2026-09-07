@@ -1,3 +1,4 @@
+import { APP_VERSION } from "@docstore/shared/settings";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button, buttonVariants } from "@docstore/ui/components/button";
 import {
@@ -36,17 +37,29 @@ const PROCESSING_POLL_MS = 3000;
 export interface SidebarProps {
 	/** Called after a navigation (closes the mobile panel). */
 	onNavigate?: () => void;
+	/**
+	 * Shell drawn before there is a session to query with: the navigation is
+	 * static so it shows as is, and everything that needs the API — counters,
+	 * library block, user block — waits behind a placeholder.
+	 */
+	pending?: boolean;
 	className?: string;
 }
 
 /** Sidebar content: brand, navigation, library block, account. */
-export function Sidebar({ onNavigate, className }: SidebarProps) {
+export function Sidebar({
+	onNavigate,
+	pending = false,
+	className,
+}: SidebarProps) {
 	// Every counter polls on the shared idle cadence. While a document is being
 	// processed its numbers move on their own, so the stats fall back to the
-	// faster cadence of the list until the pipeline is done.
+	// faster cadence of the list until the pipeline is done. Nothing is fetched
+	// while the shell is still pending (session not resolved yet).
 	const stats = useQuery({
 		...orpc.document.stats.queryOptions({ input: {} }),
 		...counterPollOptions,
+		enabled: !pending,
 		refetchInterval: (query) =>
 			(query.state.data?.byStatus.processing ?? 0) > 0
 				? PROCESSING_POLL_MS
@@ -55,20 +68,24 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 	const parties = useQuery({
 		...orpc.party.list.queryOptions({ input: { page: 1, pageSize: 1 } }),
 		...counterPollOptions,
+		enabled: !pending,
 	});
 	const documentTypes = useQuery({
 		...orpc.documentType.list.queryOptions({
 			input: { recurringOnly: false, includeDisabled: true },
 		}),
 		...counterPollOptions,
+		enabled: !pending,
 	});
 	const dossiers = useQuery({
 		...orpc.dossier.list.queryOptions({ input: { includeClosed: false } }),
 		...counterPollOptions,
+		enabled: !pending,
 	});
 	const reminders = useQuery({
 		...orpc.reminder.count.queryOptions({ input: {} }),
 		...counterPollOptions,
+		enabled: !pending,
 	});
 
 	const counters: Record<string, number | undefined> = {
@@ -78,6 +95,16 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 		documentTypes: documentTypes.data?.length,
 		dossiers: dossiers.data?.length,
 		reminders: reminders.data?.count,
+	};
+
+	/** A counter still on its way shows a bar of its own width, not a gap. */
+	const counterPending: Record<string, boolean> = {
+		documents: pending || stats.isLoading,
+		review: pending || stats.isLoading,
+		parties: pending || parties.isLoading,
+		documentTypes: pending || documentTypes.isLoading,
+		dossiers: pending || dossiers.isLoading,
+		reminders: pending || reminders.isLoading,
 	};
 
 	/** Enabled recurring types missing at least one period, badged in red. */
@@ -118,9 +145,11 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 										<span className="min-w-0 flex-1 truncate">
 											{item.label}
 										</span>
-										{(item.counter === "review" ||
-											item.counter === "reminders") &&
-										counter ? (
+										{item.counter && counterPending[item.counter] ? (
+											<Skeleton className="h-4 w-6 shrink-0" />
+										) : (item.counter === "review" ||
+												item.counter === "reminders") &&
+											counter ? (
 											<Badge
 												tone="warning"
 												data-testid={`nav-count-${item.counter}`}
@@ -152,13 +181,17 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 						)}
 					</div>
 				))}
-				<SavedSearchNav onNavigate={onNavigate} />
+				{pending ? null : <SavedSearchNav onNavigate={onNavigate} />}
 			</nav>
 
 			<div className="mt-4 space-y-3 border-border border-t pt-4">
-				<LibraryBlock total={stats.data?.total} review={stats.data?.review} />
+				<LibraryBlock
+					total={stats.data?.total}
+					review={stats.data?.review}
+					loading={pending || stats.isLoading}
+				/>
 				<div className="flex items-center gap-1">
-					<UserBlock onNavigate={onNavigate} />
+					<UserBlock onNavigate={onNavigate} pending={pending} />
 					<SettingsButton onNavigate={onNavigate} />
 				</div>
 			</div>
@@ -170,21 +203,29 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 function LibraryBlock({
 	total,
 	review,
+	loading = false,
 }: {
 	total: number | undefined;
 	review: number | undefined;
+	/** Keeps the frame and the bar, replaces the two figures by placeholders. */
+	loading?: boolean;
 }) {
 	const done = Math.max((total ?? 0) - (review ?? 0), 0);
-	const ratio = total && total > 0 ? Math.round((done / total) * 100) : 0;
+	const ratio =
+		loading || !total || total <= 0 ? 0 : Math.round((done / total) * 100);
 
 	return (
 		<div className="shell">
 			<div className="rounded-xl bg-card px-3 py-3 shadow-soft ring-1 ring-border">
 				<div className="flex items-center justify-between gap-2">
 					<p className="font-semibold text-xs">Library</p>
-					<p className="font-mono text-muted-foreground text-xs tabular-nums">
-						{countLabel(total ?? 0, "doc")}
-					</p>
+					{loading ? (
+						<Skeleton className="h-4 w-14" />
+					) : (
+						<p className="font-mono text-muted-foreground text-xs tabular-nums">
+							{countLabel(total ?? 0, "doc")}
+						</p>
+					)}
 				</div>
 				<div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted ring-1 ring-border">
 					<div
@@ -192,11 +233,15 @@ function LibraryBlock({
 						style={{ width: `${ratio}%` }}
 					/>
 				</div>
-				<p className="mt-2 text-muted-foreground text-xs">
-					{review && review > 0
-						? `${review} to review`
-						: "Nothing to review right now"}
-				</p>
+				{loading ? (
+					<Skeleton className="mt-2 h-4 w-32" />
+				) : (
+					<p className="mt-2 text-muted-foreground text-xs">
+						{review && review > 0
+							? `${review} to review`
+							: "Nothing to review right now"}
+					</p>
+				)}
 			</div>
 		</div>
 	);
@@ -220,16 +265,27 @@ function SettingsButton({ onNavigate }: { onNavigate?: () => void }) {
 				Settings
 				<Kbd>G</Kbd>
 				<Kbd>,</Kbd>
+				{/* The version of the running build, straight from the root
+				    package.json (see scripts/sync-version.ts). */}
+				<span className="ml-1 font-mono text-muted-foreground text-xs tabular-nums">
+					v{APP_VERSION}
+				</span>
 			</TooltipContent>
 		</Tooltip>
 	);
 }
 
-function UserBlock({ onNavigate }: { onNavigate?: () => void }) {
+function UserBlock({
+	onNavigate,
+	pending = false,
+}: {
+	onNavigate?: () => void;
+	pending?: boolean;
+}) {
 	const navigate = useNavigate();
 	const { data: session, isPending } = authClient.useSession();
 
-	if (isPending) {
+	if (pending || isPending) {
 		return <Skeleton className="h-10 w-full" />;
 	}
 

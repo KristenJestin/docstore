@@ -25,12 +25,12 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
-
 import { useConfirm } from "@/components/confirm-dialog";
 import { formatDate } from "@/components/date-text";
 import { DocumentListForParty } from "@/components/documents/document-list-for-party";
 import { EmptyState } from "@/components/empty-state";
 import { MonoLabel } from "@/components/mono-label";
+import { DetailSkeleton } from "@/components/page-skeletons";
 import { PartyMergeDialog } from "@/components/parties/party-merge-dialog";
 import { PartyAvatar } from "@/components/party-avatar";
 import { PartyFormSheet } from "@/components/party-form-sheet";
@@ -47,6 +47,11 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_app/parties/$partyId")({
 	component: PartyDetailPage,
+	pendingComponent: DetailSkeleton,
+	loader: ({ context, params }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.party.get.queryOptions({ input: { id: params.partyId } }),
+		),
 });
 
 function PartyDetailPage() {

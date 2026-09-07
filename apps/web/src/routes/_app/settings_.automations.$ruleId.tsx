@@ -2,13 +2,18 @@ import { Button } from "@docstore/ui/components/button";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-
 import { EmptyState } from "@/components/empty-state";
+import { FormPageSkeleton } from "@/components/page-skeletons";
 import { RuleEditor } from "@/components/rules/rule-editor";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_app/settings_/automations/$ruleId")({
 	component: AutomationDetailPage,
+	pendingComponent: FormPageSkeleton,
+	loader: ({ context, params }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.rule.get.queryOptions({ input: { id: params.ruleId } }),
+		),
 });
 
 function AutomationDetailPage() {

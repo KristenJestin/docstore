@@ -13,14 +13,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-
 import { PageHeader } from "@/components/page-header";
+import { RemindersSkeleton } from "@/components/page-skeletons";
 import { ReminderList } from "@/components/reminders/reminder-list";
 import { toastApiError } from "@/lib/api-error";
 import { orpc } from "@/utils/orpc";
 
+/** Reminders pulled in one page: a household never has more than a few. */
+const REMINDER_LIMIT = 200;
+
 export const Route = createFileRoute("/_app/reminders")({
 	component: RemindersPage,
+	pendingComponent: RemindersSkeleton,
+	loader: ({ context }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.reminder.list.queryOptions({
+				input: { status: "pending", limit: REMINDER_LIMIT },
+			}),
+		),
 });
 
 /** English labels of the reminder statuses, plus the "everything" entry. */
@@ -37,7 +47,10 @@ function RemindersPage() {
 
 	const reminders = useQuery(
 		orpc.reminder.list.queryOptions({
-			input: { status: status === "all" ? undefined : status, limit: 200 },
+			input: {
+				status: status === "all" ? undefined : status,
+				limit: REMINDER_LIMIT,
+			},
 		}),
 	);
 	const generate = useMutation(orpc.reminder.generate.mutationOptions());

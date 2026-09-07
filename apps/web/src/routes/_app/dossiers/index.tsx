@@ -19,13 +19,13 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-
 import { useConfirm } from "@/components/confirm-dialog";
 import { DataList } from "@/components/data-list";
 import { DateText } from "@/components/date-text";
 import { DossierFormSheet } from "@/components/dossiers/dossier-form-sheet";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { DossiersSkeleton } from "@/components/page-skeletons";
 import { SearchInput } from "@/components/search-input";
 import { toastApiError } from "@/lib/api-error";
 import { PAGE_ACTIONS, usePageAction } from "@/lib/page-actions";
@@ -33,6 +33,13 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_app/dossiers/")({
 	component: DossiersPage,
+	pendingComponent: DossiersSkeleton,
+	loader: ({ context }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.dossier.list.queryOptions({
+				input: { includeClosed: true },
+			}),
+		),
 });
 
 function DossiersPage() {

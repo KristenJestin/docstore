@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateText } from "@/components/date-text";
 import { DocumentStatusBadge } from "@/components/documents/document-badges";
@@ -28,6 +27,7 @@ import { FAILED_STATUS_HINT } from "@/components/documents/document-labels";
 import { DocumentMetaPanel } from "@/components/documents/document-meta-panel";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { EmptyState } from "@/components/empty-state";
+import { DocumentDetailSkeleton } from "@/components/page-skeletons";
 import { ShareDialog } from "@/components/share/share-dialog";
 import { toastApiError } from "@/lib/api-error";
 import { orpc } from "@/utils/orpc";
@@ -37,6 +37,13 @@ const PROCESSING_POLL_MS = 3000;
 
 export const Route = createFileRoute("/_app/documents/$documentId")({
 	component: DocumentDetailPage,
+	pendingComponent: DocumentDetailSkeleton,
+	loader: ({ context, params }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.document.get.queryOptions({
+				input: { id: params.documentId },
+			}),
+		),
 });
 
 function DocumentDetailPage() {

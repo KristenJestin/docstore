@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
-
 import { DateText } from "@/components/date-text";
 import { DocumentTypeSuggestionList } from "@/components/document-types/document-type-suggestions";
 import { DocumentRow } from "@/components/documents/document-row";
@@ -26,6 +25,7 @@ import { useUpload } from "@/components/documents/upload-provider";
 import { EmptyState } from "@/components/empty-state";
 import { MonoLabel } from "@/components/mono-label";
 import { PageHeader } from "@/components/page-header";
+import { DashboardSkeleton } from "@/components/page-skeletons";
 import { PAGE_ACTIONS, usePageAction } from "@/lib/page-actions";
 import { countLabel } from "@/lib/plural";
 import { orpc } from "@/utils/orpc";
@@ -48,6 +48,11 @@ function isoDate(offsetDays = 0): string {
 
 export const Route = createFileRoute("/_app/")({
 	component: DashboardPage,
+	pendingComponent: DashboardSkeleton,
+	loader: ({ context }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.document.stats.queryOptions({ input: {} }),
+		),
 });
 
 function DashboardPage() {

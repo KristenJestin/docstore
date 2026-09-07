@@ -6,6 +6,7 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from "@docstore/ui/components/sheet";
+import { Skeleton } from "@docstore/ui/components/skeleton";
 import { useNavigate } from "@tanstack/react-router";
 import { MenuIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -27,19 +28,37 @@ import { Sidebar } from "./sidebar";
  * prominent search bar, command palette, confirmation dialogs and keyboard
  * shortcuts.
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+	children,
+	pending = false,
+}: {
+	children: ReactNode;
+	/**
+	 * Drawn before the session is known: the frame, the brand and the static
+	 * navigation are real, everything that would need a call to the API is a
+	 * placeholder. Same markup either way, so nothing moves once the session
+	 * lands.
+	 */
+	pending?: boolean;
+}) {
 	return (
 		<CommandPaletteProvider>
 			<ConfirmDialogProvider>
 				<UploadProvider>
-					<AppShellLayout>{children}</AppShellLayout>
+					<AppShellLayout pending={pending}>{children}</AppShellLayout>
 				</UploadProvider>
 			</ConfirmDialogProvider>
 		</CommandPaletteProvider>
 	);
 }
 
-function AppShellLayout({ children }: { children: ReactNode }) {
+function AppShellLayout({
+	children,
+	pending,
+}: {
+	children: ReactNode;
+	pending: boolean;
+}) {
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const navigate = useNavigate();
 	const { setOpen, toggle } = useCommandPalette();
@@ -73,11 +92,15 @@ function AppShellLayout({ children }: { children: ReactNode }) {
 
 	return (
 		<div className="flex min-h-svh bg-background">
-			<PartyCommandGroups />
-			<DocumentCommandGroups />
+			{pending ? null : (
+				<>
+					<PartyCommandGroups />
+					<DocumentCommandGroups />
+				</>
+			)}
 
 			<aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-border border-r bg-sidebar lg:flex">
-				<Sidebar />
+				<Sidebar pending={pending} />
 			</aside>
 
 			<div className="flex min-w-0 flex-1 flex-col">
@@ -100,15 +123,23 @@ function AppShellLayout({ children }: { children: ReactNode }) {
 							</SheetTrigger>
 							<SheetContent side="left" className="w-72 p-0">
 								<SheetTitle className="sr-only">Navigation</SheetTitle>
-								<Sidebar onNavigate={() => setMobileOpen(false)} />
+								<Sidebar
+									pending={pending}
+									onNavigate={() => setMobileOpen(false)}
+								/>
 							</SheetContent>
 						</Sheet>
 
 						<GlobalSearchButton onClick={() => setOpen(true)} />
 
 						<div className="ml-auto flex items-center gap-2">
-							<ReminderBell />
-							<Button className="group" onClick={() => openUpload()}>
+							{pending ? <Skeleton className="size-9 rounded-md" /> : null}
+							{pending ? null : <ReminderBell />}
+							<Button
+								className="group"
+								disabled={pending}
+								onClick={() => openUpload()}
+							>
 								<PlusIcon className="transition-transform duration-500 ease-premium group-hover:rotate-90" />
 								Add
 							</Button>

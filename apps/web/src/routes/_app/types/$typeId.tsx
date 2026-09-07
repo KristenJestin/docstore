@@ -23,7 +23,6 @@ import { MinusIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateText } from "@/components/date-text";
 import {
@@ -40,6 +39,7 @@ import { RegenerateTitlesButton } from "@/components/document-types/regenerate-t
 import { DocumentRow } from "@/components/documents/document-row";
 import { EmptyState } from "@/components/empty-state";
 import { MonoLabel } from "@/components/mono-label";
+import { DetailSkeleton } from "@/components/page-skeletons";
 import { PartyAvatar } from "@/components/party-avatar";
 import { TestDocumentPicker } from "@/components/rules/test-document-picker";
 import { toastApiError } from "@/lib/api-error";
@@ -58,6 +58,13 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/_app/types/$typeId")({
 	validateSearch: searchSchema,
 	component: DocumentTypeDetailPage,
+	pendingComponent: DetailSkeleton,
+	loader: ({ context, params }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.documentType.get.queryOptions({
+				input: { id: params.typeId },
+			}),
+		),
 });
 
 function DocumentTypeDetailPage() {

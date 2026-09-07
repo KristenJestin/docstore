@@ -5,10 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CopyCheckIcon, PlusIcon, UsersIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-
 import { DataList } from "@/components/data-list";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PartiesSkeleton } from "@/components/page-skeletons";
 import { PartyDuplicatesPanel } from "@/components/parties/party-duplicates-panel";
 import {
 	needsClientFilter,
@@ -37,6 +37,13 @@ const SEARCH_DEBOUNCE_MS = 300;
 export const Route = createFileRoute("/_app/parties/")({
 	component: PartiesPage,
 	validateSearch: (search): PartySearch => partySearchSchema.parse(search),
+	pendingComponent: PartiesSkeleton,
+	loader: ({ context }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.party.list.queryOptions({
+				input: { includeArchived: true, page: 1, pageSize: PAGE_SIZE },
+			}),
+		),
 });
 
 function PartiesPage() {

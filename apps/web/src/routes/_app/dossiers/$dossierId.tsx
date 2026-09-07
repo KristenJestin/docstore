@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-
 import { useConfirm } from "@/components/confirm-dialog";
 import { DataList } from "@/components/data-list";
 import { DateText } from "@/components/date-text";
@@ -31,6 +30,7 @@ import { DocumentTitleCell } from "@/components/documents/document-row";
 import { DossierDocumentPicker } from "@/components/dossiers/dossier-document-picker";
 import { DossierFormSheet } from "@/components/dossiers/dossier-form-sheet";
 import { EmptyState } from "@/components/empty-state";
+import { DetailSkeleton } from "@/components/page-skeletons";
 import { ShareDialog } from "@/components/share/share-dialog";
 import { toastApiError } from "@/lib/api-error";
 import { plural } from "@/lib/plural";
@@ -41,6 +41,13 @@ const PAGE_SIZE = 50;
 
 export const Route = createFileRoute("/_app/dossiers/$dossierId")({
 	component: DossierDetailPage,
+	pendingComponent: DetailSkeleton,
+	loader: ({ context, params }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.dossier.get.queryOptions({
+				input: { id: params.dossierId },
+			}),
+		),
 });
 
 function DossierDetailPage() {

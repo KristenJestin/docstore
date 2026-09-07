@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { FormPageSkeleton } from "@/components/page-skeletons";
 import { ExtractionRuleEditor } from "@/components/rules/extraction-rule-editor";
 
 /**
@@ -15,6 +16,7 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/_app/types/$typeId_/extraction/new")({
 	validateSearch: searchSchema,
 	component: NewExtractionRulePage,
+	pendingComponent: FormPageSkeleton,
 });
 
 function NewExtractionRulePage() {

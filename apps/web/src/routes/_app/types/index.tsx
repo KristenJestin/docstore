@@ -7,7 +7,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { LayersIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-
 import { DataList } from "@/components/data-list";
 import {
 	DocumentTypeMark,
@@ -23,6 +22,7 @@ import { DocumentTypeFormSheet } from "@/components/document-types/document-type
 import { DocumentTypeSuggestions } from "@/components/document-types/document-type-suggestions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { DocumentTypesSkeleton } from "@/components/page-skeletons";
 import { PartyAvatar } from "@/components/party-avatar";
 import { toastApiError } from "@/lib/api-error";
 import { PAGE_ACTIONS, usePageAction } from "@/lib/page-actions";
@@ -36,6 +36,14 @@ export const Route = createFileRoute("/_app/types/")({
 	validateSearch: (search): DocumentTypeSearch =>
 		documentTypeSearchSchema.parse(search),
 	component: DocumentTypesPage,
+	pendingComponent: DocumentTypesSkeleton,
+	loaderDeps: ({ search }) => ({ recurringOnly: search.recurring === true }),
+	loader: ({ context, deps }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.documentType.list.queryOptions({
+				input: { recurringOnly: deps.recurringOnly, includeDisabled: true },
+			}),
+		),
 });
 
 function DocumentTypesPage() {

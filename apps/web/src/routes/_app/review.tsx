@@ -7,7 +7,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CheckIcon, InboxIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-
 import { DataList } from "@/components/data-list";
 import { DateText } from "@/components/date-text";
 import {
@@ -17,6 +16,7 @@ import {
 import { DocumentTitleCell } from "@/components/documents/document-row";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { ReviewSkeleton } from "@/components/page-skeletons";
 import {
 	hasReviewFilters,
 	matchesReviewFilters,
@@ -41,6 +41,13 @@ const FILTERED_PAGE_SIZE = 100;
 export const Route = createFileRoute("/_app/review")({
 	component: ReviewPage,
 	validateSearch: (search): ReviewSearch => reviewSearchSchema.parse(search),
+	pendingComponent: ReviewSkeleton,
+	loader: ({ context }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.review.list.queryOptions({
+				input: { page: 1, pageSize: PAGE_SIZE },
+			}),
+		),
 });
 
 /** Lowest confidence carried by the review reasons, `null` when there is none. */

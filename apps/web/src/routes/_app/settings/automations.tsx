@@ -2,12 +2,18 @@ import { Button } from "@docstore/ui/components/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { HistoryIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
+import { SettingsSkeleton } from "@/components/page-skeletons";
 import { AUTOMATIONS_DESCRIPTION } from "@/components/rules/rule-labels";
 import { RuleList } from "@/components/rules/rule-list";
 import { RuleRunsDrawer } from "@/components/rules/rule-runs-drawer";
 
 export const Route = createFileRoute("/_app/settings/automations")({
 	component: AutomationsPage,
+	pendingComponent: SettingsSkeleton,
+	loader: ({ context }) =>
+		context.queryClient.ensureQueryData(
+			context.orpc.rule.list.queryOptions({ input: {} }),
+		),
 });
 
 /**

@@ -379,5 +379,13 @@
 			transition-duration: 1ms !important;
 			scroll-behavior: auto !important;
 		}
+		/*
+		 * The loading placeholders are the one thing that pulses for as long as
+		 * a page takes to answer. Clipping the loop above would still fire it
+		 * once; here it simply never starts, and the block stays a flat tint.
+		 */
+		[data-slot="skeleton"] {
+			animation: none !important;
+		}
 	}
 }

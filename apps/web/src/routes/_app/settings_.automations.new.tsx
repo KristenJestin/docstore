@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { FormPageSkeleton } from "@/components/page-skeletons";
 import { RuleEditor } from "@/components/rules/rule-editor";
 
 /**
@@ -8,6 +9,7 @@ import { RuleEditor } from "@/components/rules/rule-editor";
  */
 export const Route = createFileRoute("/_app/settings_/automations/new")({
 	component: NewAutomationPage,
+	pendingComponent: FormPageSkeleton,
 });
 
 function NewAutomationPage() {
