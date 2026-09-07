@@ -1,5 +1,6 @@
 {
 	"name": "docstore",
+	"version": "2.1.0",
 	"private": true,
 	"workspaces": {
 		"packages": [
@@ -33,11 +34,12 @@
 	},
 	"scripts": {
 		"dev": "bun run scripts/dev.ts",
+		"sync-version": "bun run scripts/sync-version.ts",
 		"wt": "bun run scripts/worktree.ts add",
 		"wt:remove": "bun run scripts/worktree.ts remove",
 		"db:reset": "bun run scripts/db-reset.ts",
 		"db:demo": "bun run scripts/demo.ts",
-		"build": "turbo run build",
+		"build": "bun run sync-version && turbo run build",
 		"check-types": "turbo run check-types",
 		"test": "turbo run test",
 		"test:e2e": "turbo run test:e2e -F web --",

@@ -149,8 +149,12 @@ export type SetSettingInput = z.infer<typeof setSettingInput>;
 /* Server information                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Application version, reported by `settings.serverInfo`. */
-export const APP_VERSION = "1.0.0";
+/**
+ * Application version, reported by `settings.serverInfo` and shown by the
+ * interface. Its single source is the root `package.json`, projected into
+ * `version.ts` by `scripts/sync-version.ts`.
+ */
+export { APP_VERSION } from "./version";
 
 /**
  * What the interface needs to know about the machine it talks to: the two

@@ -75,6 +75,20 @@ openssl rand -base64 24   # POSTGRES_PASSWORD
 > With a non-standard `HTTP_PORT`, include it in the URL
 > (`PUBLIC_URL=http://localhost:8080`).
 
+## Version of the image
+
+The version shown in Settings → General and returned by `settings.serverInfo`
+is the `version` of the root `package.json`: `bun run build` projects it into
+`packages/shared/src/version.ts` (`scripts/sync-version.ts`) before compiling,
+and the image build runs that same command. An image therefore always reports
+the version of the sources it was built from — bump the manifest, rebuild.
+
+A build can stamp another value, for a nightly or a fork:
+
+```sh
+docker build -f docker/Dockerfile --build-arg APP_VERSION=2.1.0-rc.1 .
+```
+
 ## Server configuration file (intake sources)
 
 The stack mounts `${CONFIG_PATH_HOST:-./config}` read-only on `/data/config`

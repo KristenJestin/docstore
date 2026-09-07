@@ -74,6 +74,12 @@ COPY . .
 # Front-end and API are served by the same Caddy, hence the same origin.
 ARG PUBLIC_URL=http://localhost
 ENV VITE_SERVER_URL=${PUBLIC_URL}
+
+# Version reported by the interface and by `settings.serverInfo`. Left empty,
+# `bun run build` takes the root package.json version (scripts/sync-version.ts):
+# the image always carries the version of the sources it was built from.
+ARG APP_VERSION=
+ENV APP_VERSION=${APP_VERSION}
 ENV NODE_ENV=production
 # The @t3-oss/env validation does not need to run during the build (no DB, no
 # secret): only the VITE_ variables are actually inlined.

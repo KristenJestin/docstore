@@ -164,6 +164,14 @@ async function main(): Promise<void> {
 
 	const apiPort = await findFreePort(3000);
 
+	// The version the interface and the API report comes from the root manifest
+	// (see scripts/sync-version.ts); regenerate it before anything compiles it.
+	await run("bun", ["run", join("scripts", "sync-version.ts")], {
+		cwd: workspace.root,
+		env: process.env,
+		prefix: "",
+	});
+
 	// Database first: the server seeds and starts pg-boss against it, and
 	// pg-boss lives in the same database, so the whole queue isolates too.
 	console.log(`[dev] preparing database ${database}…`);
