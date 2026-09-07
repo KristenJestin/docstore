@@ -15,6 +15,7 @@ export const PERIODICITIES = [
 	"weekly",
 	"monthly",
 	"quarterly",
+	"semiannual",
 	"yearly",
 ] as const;
 export const periodicitySchema = z.enum(PERIODICITIES);
@@ -24,6 +25,7 @@ export const PERIODICITY_LABELS: Record<Periodicity, string> = {
 	weekly: "weekly",
 	monthly: "monthly",
 	quarterly: "quarterly",
+	semiannual: "semiannual",
 	yearly: "yearly",
 };
 
@@ -128,6 +130,8 @@ export function periodLengthInMonths(periodicity: Periodicity): number {
 			return 1;
 		case "quarterly":
 			return 3;
+		case "semiannual":
+			return 6;
 		default:
 			return 12;
 	}
@@ -142,6 +146,9 @@ export function periodStartOf(periodicity: Periodicity, iso: string): string {
 			return makeDate(year, month, 1);
 		case "quarterly":
 			return makeDate(year, Math.floor((month - 1) / 3) * 3 + 1, 1);
+		case "semiannual":
+			// Two halves a year: 1 January and 1 July.
+			return makeDate(year, Math.floor((month - 1) / 6) * 6 + 1, 1);
 		default:
 			return makeDate(year, 1, 1);
 	}
@@ -165,7 +172,10 @@ export function periodEndOf(
 	return addDays(nextPeriodStart(periodicity, periodStart), -1);
 }
 
-/** Readable key of a period: `2026-W09`, `2026-03`, `2026-Q1` or `2026`. */
+/**
+ * Readable key of a period: `2026-W09`, `2026-03`, `2026-Q1`, `2026-H1` or
+ * `2026`.
+ */
 export function periodKeyOf(periodicity: Periodicity, iso: string): string {
 	const start = periodStartOf(periodicity, iso);
 	if (periodicity === "weekly") {
@@ -179,6 +189,8 @@ export function periodKeyOf(periodicity: Periodicity, iso: string): string {
 			return `${yyyy}-${String(month).padStart(2, "0")}`;
 		case "quarterly":
 			return `${yyyy}-Q${Math.floor((month - 1) / 3) + 1}`;
+		case "semiannual":
+			return `${yyyy}-H${Math.floor((month - 1) / 6) + 1}`;
 		default:
 			return yyyy;
 	}
@@ -251,7 +263,7 @@ export const recurrenceStatsSchema = z.object({
 	/** Periods already due or covered (`present` + `missing`). */
 	expected: z.int().min(0),
 	present: z.int().min(0),
-	/** Keys of the missing periods (`2026-03`, `2026-Q1`, `2026`). */
+	/** Keys of the missing periods (`2026-03`, `2026-Q1`, `2026-H1`, `2026`). */
 	missing: z.array(z.string()),
 	/** Last period covered by a document, `null` when there is none. */
 	lastPeriod: z.string().nullable(),
@@ -296,14 +308,15 @@ function median(values: number[], fallback: number): number {
 /**
  * Periodicity inferred from the median gap **in days** between two successive
  * observed periods: ≤ 10 days → weekly, ≤ 45 → monthly, ≤ 120 → quarterly,
- * beyond → yearly. An empty list (a single observation) falls back to
- * `monthly`.
+ * ≤ 220 → semiannual (a half-year runs 181 to 184 days), beyond → yearly. An
+ * empty list (a single observation) falls back to `monthly`.
  */
 export function periodicityFromDayGaps(gaps: number[]): Periodicity {
 	const value = median(gaps, 30);
 	if (value <= 10) return "weekly";
 	if (value <= 45) return "monthly";
 	if (value <= 120) return "quarterly";
+	if (value <= 220) return "semiannual";
 	return "yearly";
 }
 

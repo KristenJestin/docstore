@@ -148,6 +148,13 @@
 			"when": 1788728737809,
 			"tag": "0020_manual-fields",
 			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "7",
+			"when": 1788799957214,
+			"tag": "0021_periodicity-semiannual",
+			"breakpoints": true
 		}
 	]
 }

@@ -268,6 +268,7 @@ export function CreateTypeFromReasonButton({
 		(periodicity === "weekly" ||
 			periodicity === "monthly" ||
 			periodicity === "quarterly" ||
+			periodicity === "semiannual" ||
 			periodicity === "yearly");
 
 	if (!usable) {

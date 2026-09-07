@@ -261,6 +261,41 @@ describe("documentType — missing periods", () => {
 		expect(detail.stats?.present).toBe(2);
 	});
 
+	test("semiannual: two halves a year, keyed H1 and H2", async () => {
+		await seedPeriodDocument("2024-02-15");
+		await seedPeriodDocument("2025-08-01");
+		const created = await client.documentType.create({
+			...monthlyInput(),
+			name: "Semiannual statement",
+			recurrence: {
+				periodicity: "semiannual",
+				startPeriod: "2024-03-10",
+				endPeriod: "2025-12-31",
+				graceDays: 0,
+			},
+		});
+
+		// The start is snapped to 1 January, the first day of its half.
+		expect(created.startPeriod).toBe("2024-01-01");
+
+		const detail = await client.documentType.get({ id: created.id });
+		expect(detail.timeline.map((entry) => entry.period)).toEqual([
+			"2024-H1",
+			"2024-H2",
+			"2025-H1",
+			"2025-H2",
+		]);
+		expect(detail.timeline.map((entry) => entry.dueDate)).toEqual([
+			"2024-06-30",
+			"2024-12-31",
+			"2025-06-30",
+			"2025-12-31",
+		]);
+		expect(detail.stats?.missing).toEqual(["2024-H2", "2025-H1"]);
+		expect(detail.stats?.present).toBe(2);
+		expect(detail.stats?.lastPeriod).toBe("2025-H2");
+	});
+
 	test("yearly recurrence", async () => {
 		await seedPeriodDocument("2021-05-01");
 		const created = await client.documentType.create({

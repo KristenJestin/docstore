@@ -29,14 +29,48 @@ import {
 /**
  * Period field of a recurrence: the control follows the periodicity — a day
  * picker snapped to the Monday (weekly), a month grid ("Sep 2026"), a year plus
- * a segmented quarter ("Q3 2026") or a year list ("2026"). The stored value
- * stays the first day of the period, the format the API expects.
+ * a segmented quarter or half-year ("Q3 2026", "H1 2026") or a year list
+ * ("2026"). The stored value stays the first day of the period, the format the
+ * API expects.
  */
 
-/** Zero-based first month of each quarter. */
-const QUARTER_MONTHS = [0, 3, 6, 9] as const;
+/** Zero-based first month of each segment, for the segmented periodicities. */
+const SEGMENT_MONTHS = {
+	quarterly: [0, 3, 6, 9],
+	semiannual: [0, 6],
+} as const;
 
-const QUARTERS = [1, 2, 3, 4] as const;
+/** Letter heading a segment: "Q3 2026", "H1 2026". */
+const SEGMENT_PREFIXES = { quarterly: "Q", semiannual: "H" } as const;
+
+/** What one segment is called, for the accessible names. */
+const SEGMENT_NAMES = {
+	quarterly: "quarter",
+	semiannual: "half-year",
+} as const;
+
+/** Periodicities the "year + segments" control handles. */
+export type SegmentedPeriodicity = keyof typeof SEGMENT_MONTHS;
+
+export function isSegmentedPeriodicity(
+	periodicity: Periodicity,
+): periodicity is SegmentedPeriodicity {
+	return periodicity === "quarterly" || periodicity === "semiannual";
+}
+
+/** Months covered by one period; `1` for a week, which never reads it. */
+function monthSpanOf(periodicity: Periodicity): number {
+	switch (periodicity) {
+		case "yearly":
+			return 12;
+		case "semiannual":
+			return 6;
+		case "quarterly":
+			return 3;
+		default:
+			return 1;
+	}
+}
 
 /** `YYYY-MM-DD` → `{ year, month }`, or `null` when the period is empty. */
 function partsOf(value: string | null): { year: number; month: number } | null {
@@ -57,28 +91,31 @@ export function toPeriodStart(iso: string, periodicity: Periodicity): string {
 	}
 	const year = Number(iso.slice(0, 4));
 	const month = Number(iso.slice(5, 7)) - 1;
-	const first =
-		periodicity === "yearly"
-			? 0
-			: periodicity === "quarterly"
-				? Math.floor(month / 3) * 3
-				: month;
+	const span = monthSpanOf(periodicity);
+	const first = Math.floor(month / span) * span;
 	return `${year}-${String(first + 1).padStart(2, "0")}-01`;
 }
 
-/** First day of the quarter `quarter` of `year`, in `YYYY-MM-DD`. */
-function quarterStart(year: number, quarter: number): string {
-	const month = QUARTER_MONTHS[quarter - 1] ?? 0;
+/** First day of segment `segment` (1-based) of `year`, in `YYYY-MM-DD`. */
+function segmentStart(
+	year: number,
+	periodicity: SegmentedPeriodicity,
+	segment: number,
+): string {
+	const month = SEGMENT_MONTHS[periodicity][segment - 1] ?? 0;
 	return `${year}-${String(month + 1).padStart(2, "0")}-01`;
 }
 
-/** 1 to 4 — quarter holding the period, or `null`. */
-export function quarterOf(value: string | null): number | null {
+/** 1-based segment holding the period (quarter or half-year), or `null`. */
+export function segmentOf(
+	value: string | null,
+	periodicity: SegmentedPeriodicity,
+): number | null {
 	const parts = partsOf(value);
-	return parts ? Math.floor(parts.month / 3) + 1 : null;
+	return parts ? Math.floor(parts.month / monthSpanOf(periodicity)) + 1 : null;
 }
 
-/** "Sep 2026", "Q3 2026" or "2026". */
+/** "Sep 2026", "Q3 2026", "H1 2026" or "2026". */
 export function formatPeriod(
 	value: string | null,
 	periodicity: Periodicity,
@@ -87,8 +124,9 @@ export function formatPeriod(
 	if (!parts) {
 		return "";
 	}
-	if (periodicity === "quarterly") {
-		return `Q${Math.floor(parts.month / 3) + 1} ${parts.year}`;
+	if (isSegmentedPeriodicity(periodicity)) {
+		const segment = Math.floor(parts.month / monthSpanOf(periodicity)) + 1;
+		return `${SEGMENT_PREFIXES[periodicity]}${segment} ${parts.year}`;
 	}
 	if (periodicity === "weekly") {
 		return formatDateValue(value, "day");
@@ -117,8 +155,7 @@ export function periodRangeLabel(
 			to: formatDateValue(dateToIso(end), "day"),
 		};
 	}
-	const span =
-		periodicity === "yearly" ? 12 : periodicity === "quarterly" ? 3 : 1;
+	const span = monthSpanOf(periodicity);
 	const start = new Date(parts.year, parts.month, 1);
 	const end = new Date(parts.year, parts.month + span - 1, 1);
 	const format = new Intl.DateTimeFormat("en-GB", {
@@ -146,11 +183,12 @@ export function PeriodPicker({
 	id,
 	className,
 }: PeriodPickerProps) {
-	if (periodicity === "quarterly") {
+	if (isSegmentedPeriodicity(periodicity)) {
 		return (
-			<QuarterPicker
+			<SegmentedPeriodPicker
 				id={id}
 				label={label}
+				periodicity={periodicity}
 				value={value}
 				onValueChange={onValueChange}
 				className={className}
@@ -177,16 +215,18 @@ export function PeriodPicker({
 	);
 }
 
-/** Year field plus the four quarters as a segmented control. */
-function QuarterPicker({
+/** Year field plus the segments (Q1…Q4, H1/H2) as a segmented control. */
+function SegmentedPeriodPicker({
 	value,
 	onValueChange,
+	periodicity,
 	label,
 	id,
 	className,
 }: {
 	value: string | null;
 	onValueChange: (value: string | null) => void;
+	periodicity: SegmentedPeriodicity;
 	label: string;
 	id?: string;
 	className?: string;
@@ -201,7 +241,11 @@ function QuarterPicker({
 		setDraft(next ? String(next.year) : "");
 	}, [value]);
 
-	const quarter = quarterOf(value);
+	const prefix = SEGMENT_PREFIXES[periodicity];
+	const segmentName = SEGMENT_NAMES[periodicity];
+	const segmentLabel = periodicity === "quarterly" ? "Quarter" : "Half-year";
+	const segments = SEGMENT_MONTHS[periodicity].map((_, index) => index + 1);
+	const segment = segmentOf(value, periodicity);
 
 	const applyYear = (raw: string) => {
 		const year = Number(raw.trim());
@@ -209,7 +253,7 @@ function QuarterPicker({
 			setDraft(parts ? String(parts.year) : "");
 			return;
 		}
-		onValueChange(quarterStart(year, quarter ?? 1));
+		onValueChange(segmentStart(year, periodicity, segment ?? 1));
 	};
 
 	return (
@@ -251,7 +295,7 @@ function QuarterPicker({
 								value={parts?.year ?? null}
 								onSelect={(year) => {
 									setOpen(false);
-									onValueChange(quarterStart(year, quarter ?? 1));
+									onValueChange(segmentStart(year, periodicity, segment ?? 1));
 								}}
 							/>
 						</PopoverContent>
@@ -263,25 +307,28 @@ function QuarterPicker({
 				spacing={0}
 				variant="outline"
 				size="sm"
-				aria-label={`${label} quarter`}
-				value={quarter ? [`Q${quarter}`] : []}
+				aria-label={`${label} ${segmentName}`}
+				value={segment ? [`${prefix}${segment}`] : []}
 				onValueChange={(next: string[]) => {
 					const picked = next.at(-1);
 					if (!picked) {
 						return;
 					}
 					const year = parts?.year ?? new Date().getFullYear();
-					onValueChange(quarterStart(year, Number(picked.slice(1))));
+					onValueChange(
+						segmentStart(year, periodicity, Number(picked.slice(1))),
+					);
 				}}
 			>
-				{QUARTERS.map((item) => (
+				{segments.map((item) => (
 					<ToggleGroupItem
 						key={item}
-						value={`Q${item}`}
-						aria-label={`Quarter ${item}`}
+						value={`${prefix}${item}`}
+						aria-label={`${segmentLabel} ${item}`}
 						className="font-mono tabular-nums"
 					>
-						Q{item}
+						{prefix}
+						{item}
 					</ToggleGroupItem>
 				))}
 			</ToggleGroup>

@@ -118,7 +118,7 @@ export function registerCollectionTools(
 		{
 			title: "List document types",
 			description:
-				'Document types ("the same document we keep receiving"): identity, layouts, and — for the recurring ones (weekly, monthly, quarterly, yearly) — the number of expected, covered and missing periods.',
+				'Document types ("the same document we keep receiving"): identity, layouts, and — for the recurring ones (weekly, monthly, quarterly, semiannual, yearly) — the number of expected, covered and missing periods.',
 			inputSchema: {
 				query: z.string().trim().min(1).optional(),
 				recurringOnly: mcpBoolean

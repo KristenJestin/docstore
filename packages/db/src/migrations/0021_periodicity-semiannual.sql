@@ -1,0 +1,1 @@
+ALTER TYPE "public"."series_periodicity" ADD VALUE 'semiannual' BEFORE 'yearly';

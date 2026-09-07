@@ -6,6 +6,7 @@ import type {
 } from "@docstore/shared/recurrence";
 import type { BadgeTone } from "@docstore/ui/components/badge";
 import {
+	CalendarClockIcon,
 	CalendarDaysIcon,
 	CalendarFoldIcon,
 	CalendarIcon,
@@ -15,7 +16,8 @@ import {
 
 /**
  * English labels of the document types (SPEC §9). They used to live in
- * `series-labels.ts`: types absorbed Series, and `weekly` joined the list.
+ * `series-labels.ts`: types absorbed Series, then `weekly` and `semiannual`
+ * joined the list.
  */
 
 /** Capitalised periodicity labels, for selects and headers. */
@@ -23,6 +25,7 @@ export const PERIODICITY_TITLES: Record<Periodicity, string> = {
 	weekly: "Weekly",
 	monthly: "Monthly",
 	quarterly: "Quarterly",
+	semiannual: "Semiannual",
 	yearly: "Yearly",
 };
 
@@ -31,6 +34,7 @@ export const PERIODICITY_ICONS: Record<Periodicity, LucideIcon> = {
 	weekly: CalendarIcon,
 	monthly: CalendarDaysIcon,
 	quarterly: CalendarRangeIcon,
+	semiannual: CalendarClockIcon,
 	yearly: CalendarFoldIcon,
 };
 
@@ -70,3 +74,20 @@ export const MEMBERSHIP_TONES: Record<MembershipKind, BadgeTone> = {
 	forced: "success",
 	excluded: "danger",
 };
+
+/**
+ * Tokens offered by the title template of a document type. On top of the ones
+ * the rules already know, a type fills `{type}` with its own name and gives
+ * `{period}` the key of the period the document falls into.
+ */
+export const TYPE_TITLE_PLACEHOLDERS: { token: string; hint: string }[] = [
+	{ token: "{type}", hint: "Name of the document type" },
+	{ token: "{period}", hint: "Period key, 2026-03 or 2026-H1" },
+	{ token: "{period:MMMM yyyy}", hint: "Period, March 2026" },
+	{ token: "{period:yyyy-MM}", hint: "Period, 2026-03" },
+	{ token: "{date}", hint: "Document date, 2026-03-17" },
+	{ token: "{date:YYYY-MM}", hint: "Document date, month only" },
+	{ token: "{issuer}", hint: "Name of the issuing party" },
+	{ token: "{category}", hint: "Category name" },
+	{ token: "{title}", hint: "Current title" },
+];

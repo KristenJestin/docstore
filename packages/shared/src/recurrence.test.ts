@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
+	addMonths,
 	dayGapsBetween,
 	dueDateOf,
 	enumeratePeriods,
 	expectedDateOf,
+	nextPeriodStart,
 	periodEndOf,
 	periodicityFromDayGaps,
 	periodKeyOf,
+	periodLengthInMonths,
 	periodStartOf,
 } from "./recurrence";
 
@@ -100,5 +103,55 @@ describe("dayGapsBetween", () => {
 			31, 29,
 		]);
 		expect(dayGapsBetween(["2024-01-01"])).toEqual([]);
+	});
+});
+
+describe("semiannual", () => {
+	test("splits the year on 1 January and 1 July", () => {
+		expect(periodStartOf("semiannual", "2026-01-01")).toBe("2026-01-01");
+		expect(periodStartOf("semiannual", "2026-06-30")).toBe("2026-01-01");
+		expect(periodStartOf("semiannual", "2026-07-01")).toBe("2026-07-01");
+		expect(periodStartOf("semiannual", "2026-12-31")).toBe("2026-07-01");
+	});
+
+	test("closes each half on its last day", () => {
+		expect(periodEndOf("semiannual", "2026-01-01")).toBe("2026-06-30");
+		expect(periodEndOf("semiannual", "2026-07-01")).toBe("2026-12-31");
+	});
+
+	test("keys read as YYYY-H1 and YYYY-H2", () => {
+		expect(periodKeyOf("semiannual", "2026-03-05")).toBe("2026-H1");
+		expect(periodKeyOf("semiannual", "2026-06-30")).toBe("2026-H1");
+		expect(periodKeyOf("semiannual", "2026-07-01")).toBe("2026-H2");
+		expect(periodKeyOf("semiannual", "2026-11-20")).toBe("2026-H2");
+	});
+
+	test("walks from one half to the next, and back", () => {
+		expect(enumeratePeriods("semiannual", "2025-02-10", "2026-08-01")).toEqual([
+			"2025-01-01",
+			"2025-07-01",
+			"2026-01-01",
+			"2026-07-01",
+		]);
+		expect(nextPeriodStart("semiannual", "2026-07-01")).toBe("2027-01-01");
+		// Previous half: one period backwards is six months backwards.
+		expect(addMonths("2026-01-01", -6)).toBe("2025-07-01");
+		expect(periodLengthInMonths("semiannual")).toBe(6);
+	});
+
+	test("the expected day lands in the last month of the half", () => {
+		expect(expectedDateOf("semiannual", "2026-01-01", null)).toBe("2026-06-30");
+		expect(expectedDateOf("semiannual", "2026-01-01", 10)).toBe("2026-06-10");
+		expect(expectedDateOf("semiannual", "2026-07-01", 31)).toBe("2026-12-31");
+		expect(dueDateOf("semiannual", "2026-07-01", 15, 15)).toBe("2026-12-30");
+	});
+
+	test("a median gap of 150 to 220 days infers a half-yearly rhythm", () => {
+		expect(periodicityFromDayGaps([181, 184])).toBe("semiannual");
+		expect(periodicityFromDayGaps([150])).toBe("semiannual");
+		expect(periodicityFromDayGaps([220])).toBe("semiannual");
+		// Outside the window the neighbours keep their say.
+		expect(periodicityFromDayGaps([91])).toBe("quarterly");
+		expect(periodicityFromDayGaps([221])).toBe("yearly");
 	});
 });

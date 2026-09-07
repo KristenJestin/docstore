@@ -32,9 +32,9 @@ queue holds low-confidence automatic proposals: approve_review accepts them,
 reject_assignment rejects one.
 A document type describes "the same document we keep receiving": category,
 issuer, subject, tags, title template, layouts carrying the extraction
-rules, and an optional recurrence (weekly, monthly, quarterly, yearly) whose
-missing periods list_missing_periods reports. apply_document_type writes all of
-that onto a document. A Dossier is a flat, cross-cutting collection, open or
+rules, and an optional recurrence (weekly, monthly, quarterly, semiannual,
+yearly) whose missing periods list_missing_periods reports.
+apply_document_type writes all of that onto a document. A Dossier is a flat, cross-cutting collection, open or
 closed. Reminders are generated from valid_until and from the recurring types.
 Two documents are linked by version_of, page_of, supersedes, related_to or
 fulfills (invoice <-> contract).
