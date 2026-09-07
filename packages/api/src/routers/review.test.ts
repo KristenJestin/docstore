@@ -400,6 +400,7 @@ describe("settings", () => {
 			"review.requireCategory": true,
 			"review.requireIssuer": true,
 			"reminders.expiryLeadDays": [90, 30, 7],
+			"asn.autoAssign": "never",
 		});
 
 		const updated = await client.settings.set({
@@ -424,6 +425,30 @@ describe("settings", () => {
 			client.settings.set({ key: "review.requireCategory", value: "yes" }),
 			"BAD_REQUEST",
 		);
+	});
+
+	test("asn.autoAssign only accepts its three modes", async () => {
+		expect(
+			(await client.settings.set({ key: "asn.autoAssign", value: "scans" }))[
+				"asn.autoAssign"
+			],
+		).toBe("scans");
+		expect(
+			(await client.settings.set({ key: "asn.autoAssign", value: "always" }))[
+				"asn.autoAssign"
+			],
+		).toBe("always");
+
+		await expectOrpcError(
+			client.settings.set({ key: "asn.autoAssign", value: "sometimes" }),
+			"BAD_REQUEST",
+		);
+		await expectOrpcError(
+			client.settings.set({ key: "asn.autoAssign", value: true }),
+			"BAD_REQUEST",
+		);
+		// The rejected write left the last valid value in place.
+		expect((await client.settings.get({}))["asn.autoAssign"]).toBe("always");
 	});
 
 	test("rejects an unknown key", async () => {

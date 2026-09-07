@@ -70,6 +70,8 @@ describe("document.nextAsn / assignAsn / byAsn", () => {
 
 		const assignedFirst = await client.document.assignAsn({ id: first });
 		expect(assignedFirst.asn).toBe(1);
+		// "Assign next" is a human asking: the badge must not read "auto".
+		expect(assignedFirst.asnSource).toBe("manual");
 		expect(await client.document.nextAsn({})).toEqual({ next: 2 });
 
 		const assignedSecond = await client.document.assignAsn({ id: second });

@@ -48,6 +48,20 @@ export class DocumentTypeNotFoundError extends Error {
 	}
 }
 
+/**
+ * Every attempt at `max(asn) + 1` lost the race against another assignment.
+ * The API turns it into a `CONFLICT`; retrying is always safe.
+ */
+export class AsnAllocationError extends Error {
+	readonly documentId: string;
+
+	constructor(documentId: string) {
+		super("Could not allocate an ASN: too many concurrent assignments.");
+		this.name = "AsnAllocationError";
+		this.documentId = documentId;
+	}
+}
+
 /** The document or file targeted by a step no longer exists. */
 export class PipelineTargetNotFoundError extends Error {
 	readonly documentId: string;

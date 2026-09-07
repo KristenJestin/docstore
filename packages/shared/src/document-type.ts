@@ -65,6 +65,8 @@ export const documentTypeSchema = z.object({
 	subjectPartyId: z.string().nullable(),
 	tagIds: z.array(z.string()),
 	sensitiveDefault: z.boolean(),
+	/** Applying the type hands the document an archive serial number. */
+	paperOriginal: z.boolean(),
 	titleTemplate: z.string().nullable(),
 	/** Same condition tree as the rules; `null` = never detected automatically. */
 	detection: ruleConditionSchema.nullable(),
@@ -172,6 +174,8 @@ export const createDocumentTypeInput = z.object({
 	subjectPartyId: z.string().min(1).nullish(),
 	tagIds: z.array(z.string().min(1)).default([]),
 	sensitiveDefault: z.boolean().default(false),
+	/** Numbers every document this type is applied to (SPEC §2). */
+	paperOriginal: z.boolean().default(false),
 	titleTemplate: z.string().trim().max(300).nullish(),
 	detection: ruleConditionSchema.nullish(),
 	detectionConfidence: z.number().min(0).max(1).optional(),

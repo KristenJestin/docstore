@@ -701,6 +701,7 @@ export async function createDocumentType(
 			subjectPartyId: input.subjectPartyId ?? null,
 			tagIds: input.tagIds,
 			sensitiveDefault: input.sensitiveDefault,
+			paperOriginal: input.paperOriginal,
 			// A recurring type gets a template out of the box, so its documents
 			// come out named after their period; a caller that passed one (even
 			// `null`, to say "leave the titles alone") is always obeyed.
@@ -764,6 +765,9 @@ export async function updateDocumentType(
 	if (input.tagIds !== undefined) patch.tagIds = input.tagIds;
 	if (input.sensitiveDefault !== undefined) {
 		patch.sensitiveDefault = input.sensitiveDefault;
+	}
+	if (input.paperOriginal !== undefined) {
+		patch.paperOriginal = input.paperOriginal;
 	}
 	if (input.titleTemplate !== undefined) {
 		patch.titleTemplate = input.titleTemplate ?? null;
@@ -912,6 +916,7 @@ export async function createDocumentTypeFromDocument(
 		subjectPartyId: subject?.partyId ?? null,
 		tagIds: prepared.subject.tags,
 		sensitiveDefault: prepared.document.sensitive,
+		paperOriginal: false,
 		recurrence: input.recurrence ?? null,
 	});
 
@@ -958,6 +963,7 @@ export async function createDocumentTypeFromSuggestion(
 		issuerPartyId: input.partyId,
 		tagIds: [],
 		sensitiveDefault: false,
+		paperOriginal: false,
 		recurrence: {
 			periodicity: input.periodicity,
 			startPeriod: input.startPeriod,

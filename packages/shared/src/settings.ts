@@ -13,6 +13,7 @@ export const SETTING_KEYS = [
 	"review.requireCategory",
 	"review.requireIssuer",
 	"reminders.expiryLeadDays",
+	"asn.autoAssign",
 ] as const;
 export const settingKeySchema = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof settingKeySchema>;
@@ -24,6 +25,23 @@ export const DEFAULT_CONFIDENCE_THRESHOLD = 0.75;
  * Lead days for expiry reminders: one reminder per value, counted back from
  * `document.valid_until`. Sorted descending, without duplicates.
  */
+/**
+ * When an archive serial number (ASN) is handed out without being asked for
+ * (SPEC §2).
+ *
+ * - `never`: numbering stays the manual gesture it has always been.
+ * - `always`: every document that leaves the pipeline gets a number.
+ * - `scans`: only the documents whose text had to be OCRed, that is those
+ *   arriving as a scan or a photograph — a paper original exists somewhere and
+ *   wants a place in the binder.
+ *
+ * A document type flagged `paperOriginal` numbers its documents whatever this
+ * setting says: the two combine with an `or`.
+ */
+export const ASN_AUTO_ASSIGN_MODES = ["never", "always", "scans"] as const;
+export const asnAutoAssignSchema = z.enum(ASN_AUTO_ASSIGN_MODES);
+export type AsnAutoAssignMode = z.infer<typeof asnAutoAssignSchema>;
+
 export const expiryLeadDaysSchema = z
 	.array(z.int().min(0).max(3650))
 	.min(1)
@@ -71,6 +89,13 @@ export const SETTING_DEFINITIONS: Record<SettingKey, SettingDefinition> = {
 		description:
 			"One reminder per value, counted back in days from the document expiry date (90, 30, 7…). Ten values at most.",
 	},
+	"asn.autoAssign": {
+		schema: asnAutoAssignSchema,
+		defaultValue: "never",
+		label: "Automatic ASN",
+		description:
+			"Hands out the next archive serial number on its own: never, on every document, or only on the scanned ones.",
+	},
 };
 
 /** Review queue settings, all resolved with their defaults. */
@@ -92,6 +117,7 @@ export const settingsSchema = z.object({
 	"review.requireCategory": z.boolean(),
 	"review.requireIssuer": z.boolean(),
 	"reminders.expiryLeadDays": z.array(z.int().min(0)),
+	"asn.autoAssign": asnAutoAssignSchema,
 });
 export type Settings = z.infer<typeof settingsSchema>;
 

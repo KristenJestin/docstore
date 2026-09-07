@@ -17,6 +17,8 @@ import { documentRelation } from "@docstore/db/schema/relation";
 import { documentTag } from "@docstore/db/schema/tag";
 import type { IngestionContext } from "@docstore/ingestion";
 import {
+	AsnAllocationError,
+	allocateAsn,
 	categoryChainIds,
 	clearDocumentType,
 	computeReviewReasons,
@@ -112,6 +114,7 @@ const documentColumns = {
 	validUntil: document.validUntil,
 	sensitive: document.sensitive,
 	asn: document.asn,
+	asnSource: document.asnSource,
 	physicalLocation: document.physicalLocation,
 	content: document.content,
 	notes: document.notes,
@@ -967,7 +970,12 @@ export async function updateDocument(
 	if (input.validUntil !== undefined) {
 		patch.validUntil = input.validUntil ?? null;
 	}
-	if (input.asn !== undefined) patch.asn = input.asn ?? null;
+	// A number typed in by hand is a manual one, and stays so even if the
+	// automatic numbering had put it there first.
+	if (input.asn !== undefined) {
+		patch.asn = input.asn ?? null;
+		patch.asnSource = "manual";
+	}
 	if (input.physicalLocation !== undefined) {
 		patch.physicalLocation = input.physicalLocation ?? null;
 	}
@@ -1041,41 +1049,29 @@ export async function nextAsn(db: Db): Promise<NextAsnResult> {
 	return { next: (row?.max ?? 0) + 1 };
 }
 
-/** Number of attempts before giving up on a concurrent ASN assignment. */
-const ASN_ATTEMPTS = 5;
-
 /**
  * Assigns the next ASN to a document, atomically.
  *
- * The number is computed by the database itself (`max(asn) + 1` inside the
- * `update`), so two concurrent calls cannot read the same maximum. The unique
- * index is the final arbiter: on a collision the update is simply replayed.
+ * The allocation itself lives in `@docstore/ingestion` (`allocateAsn`), shared
+ * with the automatic numbering: whoever asks, a number is handed out once and
+ * never twice.
  */
 export async function assignAsn(db: Db, id: string): Promise<DocumentDetail> {
 	// Numbering a document is filing it in a paper folder: the trash is not one
 	// (SPEC §2), and the number would be burnt on a document nobody keeps.
-	const current = await requireLiveDocument(db, id);
-	// Already numbered: assigning again would waste a number and break the link
-	// with the paper folder.
-	if (current.asn !== null) return getDocument(db, id);
+	// Already numbered: `allocateAsn` returns null rather than wasting a second
+	// number and breaking the link with the paper folder.
+	await requireLiveDocument(db, id);
 
-	for (let attempt = 0; attempt < ASN_ATTEMPTS; attempt += 1) {
-		try {
-			await db
-				.update(document)
-				.set({
-					asn: sql`(select coalesce(max(${document.asn}), 0) + 1 from ${document})`,
-				})
-				.where(and(eq(document.id, id), isNull(document.asn)));
-			return await getDocument(db, id);
-		} catch (error) {
-			if (!isUniqueViolation(error)) throw error;
+	try {
+		await allocateAsn(db, id, "manual");
+	} catch (error) {
+		if (error instanceof AsnAllocationError) {
+			throw new ORPCError("CONFLICT", { message: error.message });
 		}
+		throw error;
 	}
-
-	throw new ORPCError("CONFLICT", {
-		message: "Could not allocate an ASN: too many concurrent assignments.",
-	});
+	return getDocument(db, id);
 }
 
 /** Document carrying this ASN; `NOT_FOUND` when the number is free. */

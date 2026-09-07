@@ -38,6 +38,7 @@ import { periodKeyOf, periodStartOf } from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { computeReviewReasons } from "./analyze";
+import { maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
 import { DocumentTypeNotFoundError } from "./errors";
 import { titleFromFilename } from "./media";
@@ -644,6 +645,11 @@ export async function applyDocumentType(
 	// used to block the document on their absence no longer apply (same
 	// behaviour as `document.setCategory`).
 	await computeReviewReasons(db, documentId);
+
+	// A `paperOriginal` type numbers its documents whichever path applied it —
+	// pipeline detection, rule, manual assignment, bulk action or MCP — because
+	// they all end up here. The setting is read too, so the two combine.
+	await maybeAutoAssignAsn({ db }, documentId);
 
 	return {
 		documentId,

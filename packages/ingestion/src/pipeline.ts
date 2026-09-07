@@ -8,6 +8,7 @@ import { isBlockingReviewReason } from "@docstore/shared/document";
 import { thumbnailKey } from "@docstore/storage";
 import { and, eq } from "drizzle-orm";
 import { analyzeDocument, computeReviewReasons } from "./analyze";
+import { maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
 import { PipelineTargetNotFoundError } from "./errors";
 import { type DocumentProcessPayload, JOB_RETRY_LIMIT } from "./jobs";
@@ -168,6 +169,12 @@ export const finalize: PipelineStep = async (ctx, payload) => {
 		.set({ status, processingError: null })
 		.where(and(eq(document.id, doc.id), eq(document.status, "processing")))
 		.returning({ id: document.id });
+
+	// Numbering comes after the type has been applied (`analyze`) and after the
+	// status is settled: `maybeAutoAssignAsn` needs both to decide, and it is a
+	// no-op on a document that already carries a number, so replaying the
+	// pipeline never spends a second one.
+	await maybeAutoAssignAsn(ctx, doc.id);
 
 	// The event is only sent if `finalize` really changed the status: replaying
 	// the pipeline does not notify the subscribers again.

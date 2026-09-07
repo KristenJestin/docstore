@@ -164,6 +164,8 @@ export const documentDetailJson = documentSummaryJson.extend({
 	validFrom: z.string().nullable(),
 	validUntil: z.string().nullable(),
 	asn: z.number().nullable(),
+	/** `manual` or `auto`: who handed the archive serial number out. */
+	asnSource: z.string(),
 	physicalLocation: z.string().nullable(),
 	/** Free-text notes typed by a human, in light Markdown. */
 	notes: z.string().nullable(),
@@ -220,6 +222,7 @@ export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 		validFrom: detail.validFrom,
 		validUntil: detail.validUntil,
 		asn: detail.asn,
+		asnSource: detail.asnSource,
 		physicalLocation: detail.physicalLocation,
 		notes: detail.notes,
 		manualFields: detail.manualFields,

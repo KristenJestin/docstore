@@ -4,6 +4,14 @@ export {
 	computeReviewReasons,
 } from "./analyze";
 export {
+	ASN_ATTEMPTS,
+	type AsnContext,
+	allocateAsn,
+	asnAutoAssignMode,
+	isScannedDocument,
+	maybeAutoAssignAsn,
+} from "./asn";
+export {
 	type CreateIngestionContextOptions,
 	createIngestionContext,
 	type DecryptSecretHook,
@@ -30,6 +38,7 @@ export {
 	typeTitleContext,
 } from "./document-type";
 export {
+	AsnAllocationError,
 	DocumentTypeNotFoundError,
 	DuplicateOriginalError,
 	PipelineTargetNotFoundError,

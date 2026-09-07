@@ -162,6 +162,13 @@
 			"when": 1788800168537,
 			"tag": "0022_document-notes",
 			"breakpoints": true
+		},
+		{
+			"idx": 23,
+			"version": "7",
+			"when": 1788807374062,
+			"tag": "0023_document-type-paper-original",
+			"breakpoints": true
 		}
 	]
 }

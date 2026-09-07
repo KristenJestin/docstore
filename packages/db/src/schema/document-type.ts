@@ -54,6 +54,12 @@ export const documentType = pgTable(
 		}),
 		tagIds: text("tag_ids").array().notNull().default(sql`'{}'::text[]`),
 		sensitiveDefault: boolean("sensitive_default").notNull().default(false),
+		/**
+		 * "We keep the paper": applying this type hands the document the next
+		 * archive serial number, so the binder and the library stay in step
+		 * (SPEC §2). A document that already carries an ASN keeps it.
+		 */
+		paperOriginal: boolean("paper_original").notNull().default(false),
 		/** Rendered when the title is still the one derived from the filename. */
 		titleTemplate: text("title_template"),
 		/** Condition tree evaluated by `@docstore/rules`; null = never detected. */

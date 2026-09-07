@@ -1,5 +1,6 @@
 import type { OcrLayout, ReviewReason } from "@docstore/shared/document";
 import {
+	ASN_SOURCES,
 	ASSIGNMENT_SOURCES,
 	DATE_PRECISIONS,
 	DOCUMENT_FILE_KINDS,
@@ -56,6 +57,7 @@ export const assignmentSourceEnum = pgEnum(
 	ASSIGNMENT_SOURCES,
 );
 export const documentSourceEnum = pgEnum("document_source", DOCUMENT_SOURCES);
+export const asnSourceEnum = pgEnum("asn_source", ASN_SOURCES);
 
 export const document = pgTable(
 	"document",
@@ -107,6 +109,12 @@ export const document = pgTable(
 			.default(sql`'{}'::text[]`),
 		/** Physical archive number (Archive Serial Number). */
 		asn: integer("asn").unique(),
+		/**
+		 * Who handed the number out: a human, or the automatic numbering
+		 * (`asn.autoAssign`, or a `paperOriginal` document type). Meaningless
+		 * while `asn` is null, hence the `manual` default.
+		 */
+		asnSource: asnSourceEnum("asn_source").notNull().default("manual"),
 		physicalLocation: text("physical_location"),
 		/** OCR text concatenated from every file of the document. */
 		content: text("content"),

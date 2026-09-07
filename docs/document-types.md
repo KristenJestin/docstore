@@ -17,6 +17,7 @@ template, the page layouts and their extraction rules.
 | Parties | `issuer_party_id`, `subject_party_id` | a `document_party` row per role |
 | Tags | `tag_ids[]` | one `document_tag` row per tag |
 | Sensitivity | `sensitive_default` | raises `document.sensitive` (never lowers it) |
+| Paper original | `paper_original` | hands out an archive number (see "Archive numbers") |
 | Title | `title_template` | rewrites the title **while it still is the one derived from the filename** (see §3) |
 | Detection | `detection`, `detection_confidence` | see §5 |
 | Recurrence | `periodicity`, `start_period`, `end_period`, `expected_day`, `grace_days` | see §2 |
@@ -28,6 +29,26 @@ and `layout_id`, exactly like the category and the Party links.
 
 An automatic application (`source` other than `manual`) never overwrites a
 category set by hand, and never clears an existing Party link.
+
+### Archive numbers
+
+An ASN (archive serial number) ties a document to the sheet filed under the
+same number in the binder. It is usually handed out by hand, with **Assign
+next** on the document; two things can hand it out on their own.
+
+- The **Paper original** switch of a type (`paper_original`). Whichever path
+  applies the type — automatic detection, a rule, a manual assignment, a bulk
+  action or MCP — the document gets the next free number.
+- The **Automatic ASN** setting (`asn.autoAssign`, Settings → General):
+  `Never` (default), `Always`, or `Scans only` — the documents whose text had
+  to be recognised, that is those arriving as a scan or a photograph rather
+  than with a PDF text layer.
+
+The two combine with an `or`, and both stop short of the same three cases: a
+document that already carries a number keeps it, and a document in the trash or
+one the pipeline gave up on is never numbered. `document.asn_source` records
+who handed the number out (`manual` or `auto`); the interface shows an *auto*
+badge next to the number, and `get_document` reports it over MCP.
 
 ## 2. Recurrence
 

@@ -62,6 +62,13 @@ export const DOCUMENT_SOURCES = [
 	"api",
 ] as const;
 
+/**
+ * Who handed out the archive serial number: a human ("Assign next", or a
+ * number typed in), or the automatic numbering (`asn.autoAssign` setting, or a
+ * document type flagged `paperOriginal`).
+ */
+export const ASN_SOURCES = ["manual", "auto"] as const;
+
 export const DOCUMENT_SORTS = [
 	"documentDate:desc",
 	"documentDate:asc",
@@ -86,6 +93,9 @@ export type DocumentPartyRole = z.infer<typeof documentPartyRoleSchema>;
 
 export const documentSourceSchema = z.enum(DOCUMENT_SOURCES);
 export type DocumentSource = z.infer<typeof documentSourceSchema>;
+
+export const asnSourceSchema = z.enum(ASN_SOURCES);
+export type AsnSource = z.infer<typeof asnSourceSchema>;
 
 /**
  * Reasons for moving to the review queue (SPEC §4: "when the confidence is
@@ -257,6 +267,12 @@ export type OcrWord = z.infer<typeof ocrWordSchema>;
 export const ocrPageSchema = z.object({
 	width: z.number().positive(),
 	height: z.number().positive(),
+	/**
+	 * Resolution the coordinates are expressed in: 72 for a PDF text layer
+	 * (points), the render resolution for a page that went through OCR.
+	 * Optional, because layouts stored before it was surfaced have none.
+	 */
+	dpi: z.number().positive().optional(),
 	words: z.array(ocrWordSchema),
 });
 export type OcrPage = z.infer<typeof ocrPageSchema>;
@@ -371,6 +387,8 @@ export const documentSchema = z.object({
 	validUntil: z.string().nullable(),
 	sensitive: z.boolean(),
 	asn: z.int().nullable(),
+	/** `auto` when the numbering handed it out instead of a human. */
+	asnSource: asnSourceSchema,
 	physicalLocation: z.string().nullable(),
 	content: z.string().nullable(),
 	/** Free-text notes typed by a human, in light Markdown. */
