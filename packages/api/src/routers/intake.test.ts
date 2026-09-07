@@ -317,12 +317,15 @@ describe("intakeSource", () => {
 		expect(source.managed).toBe(true);
 		expect(source.managedKey).toBe("inbox");
 
+		// One call at a time: building the promises eagerly fires the three
+		// requests at once and leaves rejections unobserved while the first one
+		// is awaited, which made this test flaky.
 		for (const call of [
-			client.intakeSource.update({ id: source.id, name: "Renamed" }),
-			client.intakeSource.toggle({ id: source.id, enabled: false }),
-			client.intakeSource.delete({ id: source.id }),
+			() => client.intakeSource.update({ id: source.id, name: "Renamed" }),
+			() => client.intakeSource.toggle({ id: source.id, enabled: false }),
+			() => client.intakeSource.delete({ id: source.id }),
 		]) {
-			const error = await expectOrpcError(call, "FORBIDDEN");
+			const error = await expectOrpcError(call(), "FORBIDDEN");
 			expect(error.message).toBe(MANAGED_INTAKE_SOURCE_MESSAGE);
 		}
 
