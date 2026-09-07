@@ -89,7 +89,7 @@ function RootDocument() {
 					<Outlet />
 					{/* Top right: bottom-right toasts covered the sheet and dialog
 					    footers, i.e. the very buttons the next action needs. */}
-					<Toaster position="bottom-right" offset={{ bottom: 88, right: 16 }} />
+					<Toaster position="bottom-center" offset={{ bottom: 24 }} />
 				</ThemeProvider>
 				<Devtools />
 				<Scripts />
