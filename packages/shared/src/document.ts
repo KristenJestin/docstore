@@ -176,8 +176,13 @@ export function isManualField(
 	return manualFields.includes(field);
 }
 
+/** Longest note a document can carry, in characters. */
+export const NOTES_MAX_LENGTH = 20_000;
+
 export const updateDocumentInput = z.object({
 	title: z.string().trim().min(1).max(500).optional(),
+	/** Free text, light Markdown; `null` (or an empty string) clears it. */
+	notes: z.string().max(NOTES_MAX_LENGTH).nullish(),
 	documentDate: dateOnly.nullish(),
 	datePrecision: datePrecisionSchema.nullish(),
 	periodStart: dateOnly.nullish(),
@@ -198,7 +203,10 @@ export const documentDeletedScopeSchema = z.enum(DOCUMENT_DELETED_SCOPES);
 export type DocumentDeletedScope = z.infer<typeof documentDeletedScopeSchema>;
 
 export const listDocumentsInput = z.object({
-	/** French full-text search (`websearch_to_tsquery`). */
+	/**
+	 * French full-text search (`websearch_to_tsquery`) over the title, the OCR
+	 * text and the notes.
+	 */
 	query: z.string().trim().min(1).optional(),
 	status: documentStatusSchema.optional(),
 	partyId: z.string().min(1).optional(),
@@ -365,6 +373,8 @@ export const documentSchema = z.object({
 	asn: z.int().nullable(),
 	physicalLocation: z.string().nullable(),
 	content: z.string().nullable(),
+	/** Free-text notes typed by a human, in light Markdown. */
+	notes: z.string().nullable(),
 	categoryId: z.string().nullable(),
 	/**
 	 * Fields a human set by hand (see {@link MANUAL_DOCUMENT_FIELDS}): the

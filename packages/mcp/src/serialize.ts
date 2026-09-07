@@ -165,6 +165,8 @@ export const documentDetailJson = documentSummaryJson.extend({
 	validUntil: z.string().nullable(),
 	asn: z.number().nullable(),
 	physicalLocation: z.string().nullable(),
+	/** Free-text notes typed by a human, in light Markdown. */
+	notes: z.string().nullable(),
 	/** Fields a human set by hand: the ingestion never rewrites them. */
 	manualFields: z.array(z.string()),
 	source: z.string(),
@@ -219,6 +221,7 @@ export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 		validUntil: detail.validUntil,
 		asn: detail.asn,
 		physicalLocation: detail.physicalLocation,
+		notes: detail.notes,
 		manualFields: detail.manualFields,
 		source: detail.source,
 		processingError: detail.processingError,

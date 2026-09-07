@@ -230,7 +230,7 @@ export function ReviewSheet({
 										<ReviewAssignments document={detail} />
 									</CardContent>
 								</Card>
-								<DocumentMetaPanel document={detail} />
+								<DocumentMetaPanel document={detail} readOnlyNotes />
 							</>
 						) : (
 							<Skeleton className="h-96 w-full" />

@@ -113,6 +113,7 @@ const documentColumns = {
 	asn: document.asn,
 	physicalLocation: document.physicalLocation,
 	content: document.content,
+	notes: document.notes,
 	categoryId: document.categoryId,
 	categorySource: document.categorySource,
 	categoryConfidence: document.categoryConfidence,
@@ -939,6 +940,11 @@ export async function updateDocument(
 
 	const patch: Partial<typeof document.$inferInsert> = {};
 	if (input.title !== undefined) patch.title = input.title;
+	// Notes are never computed by the pipeline, so they stay out of
+	// `manualFields`; an empty string reads as "no notes".
+	if (input.notes !== undefined) {
+		patch.notes = input.notes?.trim() ? input.notes : null;
+	}
 	if (input.status !== undefined) patch.status = input.status;
 	if (input.sensitive !== undefined) patch.sensitive = input.sensitive;
 	if (input.documentDate !== undefined) {

@@ -119,11 +119,31 @@ test.describe("documents", () => {
 		await page.getByRole("option", { name: `Create tag "${tagName}"` }).click();
 		await expect(page.getByText(tagName).first()).toBeVisible();
 
+		// --- Free-text notes, in light Markdown --------------------------------
+		await page.getByRole("button", { name: "Edit the notes" }).click();
+		const notes = page.getByRole("textbox", { name: "Notes" });
+		await notes.fill("Ask about the **thermostat**.\n\n- Contract 4471");
+		// The field saves when it loses the focus, and goes back to reading mode.
+		await notes.blur();
+		await expect(page.getByText("Ask about the thermostat.")).toBeVisible({
+			timeout: 15_000,
+		});
+		await expect(
+			page.locator("strong", { hasText: "thermostat" }),
+		).toBeVisible();
+		await expect(page.getByRole("listitem")).toContainText(["Contract 4471"]);
+
 		// --- Full-text search ---------------------------------------------------
 		await page.getByRole("link", { name: "Documents" }).first().click();
-		await page
-			.getByRole("searchbox", { name: "Search a document" })
-			.fill("facture");
+		const search = page.getByRole("searchbox", { name: "Search a document" });
+
+		// The notes joined the index, next to the title and the OCR text.
+		await search.fill("thermostat");
+		await expect(
+			page.getByRole("button", { name: `Open ${newTitle}` }),
+		).toBeVisible({ timeout: 15_000 });
+
+		await search.fill("facture");
 		await expect(
 			page.getByRole("button", { name: `Open ${newTitle}` }),
 		).toBeVisible({ timeout: 15_000 });

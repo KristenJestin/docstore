@@ -127,7 +127,7 @@ export function registerDocumentTools(
 		{
 			title: "Document detail",
 			description:
-				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`).",
+				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`).",
 			inputSchema: idInput,
 			outputSchema: documentDetailJson.shape,
 			text: (output) => describeDocumentDetail(output),
@@ -277,7 +277,7 @@ export function registerDocumentTools(
 		{
 			title: "Update document metadata",
 			description:
-				"Title, document date and its precision (`day`/`month`/`year`), covered period, validity, sensitive flag, archive serial number (ASN) and physical location.",
+				"Title, free-text notes (light Markdown, indexed by the search), document date and its precision (`day`/`month`/`year`), covered period, validity, sensitive flag, archive serial number (ASN) and physical location.",
 			inputSchema: { ...idInput, patch: documentPatch },
 			outputSchema: documentDetailJson.shape,
 			text: (output) => `Document updated: ${describeDocument(output)}`,

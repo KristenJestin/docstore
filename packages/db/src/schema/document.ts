@@ -110,6 +110,12 @@ export const document = pgTable(
 		physicalLocation: text("physical_location"),
 		/** OCR text concatenated from every file of the document. */
 		content: text("content"),
+		/**
+		 * Free-text notes typed by a human (light Markdown). Never written by the
+		 * pipeline, and part of the full-text index alongside the title and the
+		 * OCR text.
+		 */
+		notes: text("notes"),
 		/** Intake channel: web upload, mailbox, watched folder… */
 		source: documentSourceEnum("source").notNull().default("upload"),
 		/**
@@ -136,7 +142,7 @@ export const document = pgTable(
 		 */
 		processingError: text("processing_error"),
 		searchVector: tsvector("search_vector").generatedAlwaysAs(
-			sql`to_tsvector('french', coalesce(title, '') || ' ' || coalesce(content, ''))`,
+			sql`to_tsvector('french', coalesce(title, '') || ' ' || coalesce(content, '') || ' ' || coalesce(notes, ''))`,
 		),
 		createdById: text("created_by_id")
 			.notNull()

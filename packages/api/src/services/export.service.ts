@@ -4,7 +4,7 @@ import {
 	customField,
 	documentFieldValue,
 } from "@docstore/db/schema/custom-field";
-import { documentFile } from "@docstore/db/schema/document";
+import { document, documentFile } from "@docstore/db/schema/document";
 import {
 	renderTitleTemplate,
 	TITLE_TEMPLATE_PLACEHOLDERS,
@@ -372,6 +372,16 @@ export async function buildMetadata(
 					.where(inArray(documentFieldValue.documentId, documentIds))
 			: [];
 
+	// Notes are not part of `DocumentListItem`: read straight from the table.
+	const noteRows =
+		documentIds.length > 0
+			? await db
+					.select({ id: document.id, notes: document.notes })
+					.from(document)
+					.where(inArray(document.id, documentIds))
+			: [];
+	const notesByDocument = new Map(noteRows.map((row) => [row.id, row.notes]));
+
 	const valuesByDocument = new Map<string, typeof fieldValues>();
 	for (const value of fieldValues) {
 		const bucket = valuesByDocument.get(value.documentId);
@@ -428,6 +438,7 @@ export async function buildMetadata(
 			documentDate: entry.document.documentDate,
 			datePrecision: entry.document.datePrecision,
 			sensitive: entry.document.sensitive,
+			notes: notesByDocument.get(entry.documentId) ?? null,
 			categoryId: entry.document.category?.id ?? null,
 			tagIds: entry.document.tags.map((tag) => tag.id),
 			parties: entry.document.parties.map((party) => ({

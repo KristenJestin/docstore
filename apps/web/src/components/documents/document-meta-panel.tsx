@@ -40,6 +40,7 @@ import {
 	CreateTypeFromReasonButton,
 	DocumentTypeCard,
 } from "@/components/document-types/document-type-card";
+import { DocumentNotesCard } from "@/components/documents/document-notes-card";
 import { DocumentDossiersCard } from "@/components/dossiers/document-dossiers-card";
 import {
 	shareRevocationWarning,
@@ -144,6 +145,8 @@ function NotApplicableHint() {
 
 export interface DocumentMetaPanelProps {
 	document: DocumentDetail;
+	/** Review sheet: the notes are shown but not editable from there. */
+	readOnlyNotes?: boolean;
 }
 
 /**
@@ -151,7 +154,10 @@ export interface DocumentMetaPanelProps {
  * filing, custom fields, physical archiving and files. Every control saves
  * immediately through the `document` router.
  */
-export function DocumentMetaPanel({ document }: DocumentMetaPanelProps) {
+export function DocumentMetaPanel({
+	document,
+	readOnlyNotes = false,
+}: DocumentMetaPanelProps) {
 	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const activeShareLinks = useActiveShareLinks();
@@ -411,6 +417,12 @@ export function DocumentMetaPanel({ document }: DocumentMetaPanelProps) {
 					<DocumentTypeCard document={document} />
 				</CardContent>
 			</Card>
+
+			<DocumentNotesCard
+				notes={document.notes}
+				readOnly={readOnlyNotes}
+				onSave={(notes) => applyPatch({ notes }, "Notes saved.")}
+			/>
 
 			<Card>
 				<CardHeader>

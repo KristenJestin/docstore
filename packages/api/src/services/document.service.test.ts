@@ -317,6 +317,42 @@ describe("document.service — update", () => {
 	});
 });
 
+describe("document.service — notes", () => {
+	test("saved, cleared, and never marked as a manual field", async () => {
+		const id = await seedDocument({ title: "Boiler contract" });
+
+		const written = await updateDocument(db, id, {
+			notes: "Serviced every **October**.\n\n- Contract number 4471",
+		});
+		expect(written.notes).toBe(
+			"Serviced every **October**.\n\n- Contract number 4471",
+		);
+		// Notes are never computed by the pipeline: nothing to protect.
+		expect(written.manualFields).not.toContain("notes");
+
+		const blanked = await updateDocument(db, id, { notes: "   " });
+		expect(blanked.notes).toBeNull();
+
+		const cleared = await updateDocument(db, id, { notes: null });
+		expect(cleared.notes).toBeNull();
+	});
+
+	test("the full-text search reaches into them", async () => {
+		const id = await seedDocument({
+			title: "Boiler contract",
+			content: "Annual maintenance.",
+		});
+		await seedDocument({ title: "Other document", content: "Nothing here." });
+		await updateDocument(db, id, { notes: "Ask about the thermostat." });
+
+		const found = await listDocuments(db, {
+			...listDefaults,
+			query: "thermostat",
+		});
+		expect(found.items.map((item) => item.id)).toEqual([id]);
+	});
+});
+
 describe("document.service — Party links", () => {
 	test("replaces, adds and removes links", async () => {
 		const id = await seedDocument({ title: "Invoice" });
