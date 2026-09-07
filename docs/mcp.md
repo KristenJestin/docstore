@@ -103,13 +103,13 @@ Every mutation requires the `write` scope.
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
-| `search_documents`         | Full-text search + category, tag, Party, status, date filters         |
+| `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters |
 | `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text |
 | `get_document_text`        | OCR text; hidden if sensitive and the key lacks `sensitive`           |
 | `list_review_queue`        | Documents "to review" with their reasons                              |
 | `approve_review`           | Approves a document (optional correction) and sets it back to `active` |
 | `reject_assignment`        | Rejects an automatic assignment (Party, tag, category, field)          |
-| `update_document`          | Title, dates and precision, period, validity, sensitive, ASN, place    |
+| `update_document`          | Title, notes, dates and precision, period, validity, sensitive, ASN, place |
 | `set_document_category`    | Assigns or removes the category                                        |
 | `set_document_tags`        | Replaces the whole set of tags                                         |
 | `link_party`               | Links a Party with a role (issuer, recipient, subject, mentioned)       |
@@ -138,6 +138,7 @@ Every mutation requires the `write` scope.
 | `get_document_type`        | Detail of a type: layouts with their extraction rules, and `present`/`missing`/`pending` timeline |
 | `list_missing_periods`     | Missing periods of one recurring type, or of all of them               |
 | `apply_document_type`      | Applies a type to documents (category, parties, tags, layout, extraction) |
+| `regenerate_titles`        | Rewrites the titles of a type from its template (`dryRun` previews them) |
 | `create_document_type_from_document` | Creates a type prefilled from a document and applies it to it |
 | `list_dossiers`            | Open Dossiers (or all) with their document count                       |
 | `create_dossier`           | Opens a Dossier (name, optional description)                           |
@@ -216,7 +217,7 @@ Prompts:
 - `review_queue()`: process the "to review" queue.
 
 `run_intake_source`, `create_upload_link`, `create_share_link`,
-`revoke_share_link`, `apply_document_type`,
+`revoke_share_link`, `apply_document_type`, `regenerate_titles`,
 `create_document_type_from_document`, `create_dossier`, `add_to_dossier`,
 `remove_from_dossier`, `close_dossier` and `assign_asn` require the `write`
 scope.

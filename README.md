@@ -31,12 +31,13 @@ public links, and exposes the whole library to an agent over MCP.
   end up in the same idempotent, resumable pg-boss job pipeline.
 - Text extraction uses `pdftotext` when the PDF already has a text layer and
   Tesseract (`fra`+`eng`) otherwise, keeping word-level hOCR boxes for
-  anchor-based extraction. Full-text search runs on a PostgreSQL `tsvector`.
+  anchor-based extraction. Full-text search runs on a PostgreSQL `tsvector`
+  covering the title, the extracted text and the free-text notes.
 - A document type owns its detection signature, its layouts and their
   extraction rules (`regex`, `anchor`, `zone`), a title template and a filing
   preset. Applying it classifies and fills the document in one go.
-- A monthly, quarterly or yearly type computes its own membership and flags the
-  periods that never arrived. Expiry dates raise reminders at D-90 / D-30 / D-7.
+- A weekly, monthly, quarterly, half-yearly or yearly type computes its own
+  membership and flags the periods that never arrived. Expiry dates raise reminders at D-90 / D-30 / D-7.
 - Anything below the confidence threshold (an unmatched issuer, a doubtful
   date, a possible duplicate) lands in the review queue with its reasons
   instead of being written to the document.

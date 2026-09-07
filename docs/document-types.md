@@ -17,8 +17,8 @@ template, the page layouts and their extraction rules.
 | Parties | `issuer_party_id`, `subject_party_id` | a `document_party` row per role |
 | Tags | `tag_ids[]` | one `document_tag` row per tag |
 | Sensitivity | `sensitive_default` | raises `document.sensitive` (never lowers it) |
-| Title | `title_template` | rewrites the title **while it still is the one derived from the filename** |
-| Detection | `detection`, `detection_confidence` | see §4 |
+| Title | `title_template` | rewrites the title **while it still is the one derived from the filename** (see §3) |
+| Detection | `detection`, `detection_confidence` | see §5 |
 | Recurrence | `periodicity`, `start_period`, `end_period`, `expected_day`, `grace_days` | see §2 |
 | Order | `priority`, `enabled` | detection order (ascending) |
 
@@ -33,7 +33,9 @@ category set by hand, and never clears an existing Party link.
 
 Filling in the recurrence block turns the type into what a Series used to be.
 
-- `periodicity`: `weekly`, `monthly`, `quarterly` or `yearly`.
+- `periodicity`: `weekly`, `monthly`, `quarterly`, `semiannual` or
+  `yearly`. A half-year runs from 1 January to 30 June, then from 1 July to 31
+  December.
 - `start_period` is snapped to the first day of its period (Monday for a week).
 - `end_period` is optional: an open recurrence keeps looking for the next
   period.
@@ -43,7 +45,7 @@ Filling in the recurrence block turns the type into what a Series used to be.
 - `grace_days` (15 by default) absorbs the usual lateness before a period is
   declared missing.
 
-Period keys read as `2026-W09`, `2026-03`, `2026-Q1`, `2026`.
+Period keys read as `2026-W09`, `2026-03`, `2026-Q1`, `2026-H1`, `2026`.
 
 Members are never stored. They are recomputed from:
 
@@ -73,7 +75,56 @@ period, periodStart }`, oldest first), so the interface can offer to widen
 type, plus the ones forced in by an override, minus the excluded ones and the
 ones sitting in the trash.
 
-## 3. Layouts
+## 3. Titles
+
+A type owns the name of its documents. `title_template` is rendered by the same
+engine as the `set_title` rule action, with two tokens only a type can fill:
+
+| Token | Renders |
+| ----- | ------- |
+| `{type}` | Name of the document type |
+| `{period}` | Period key of the recurrence: `2026-03`, `2026-Q1`, `2026-H1`, `2026`. Without a recurrence, the covered range |
+| `{period:MMMM yyyy}` | First day of the period in en-GB month names: "March 2026" |
+| `{period:yyyy-MM}` | Same, as `2026-03` |
+| `{date}`, `{date:YYYY-MM}`, `{date:YYYY}` | Document date |
+| `{issuer}`, `{subject}`, `{category}`, `{title}`, `{filename}`, `{ext}` | As in the rules |
+
+A placeholder with nothing to fill it becomes an empty string, and the orphaned
+separators are cleaned up afterwards. The period comes from the anchor date of
+the document — `period_start` falling back to `document_date` — snapped to the
+period of the recurrence, so a payslip dated 17 March 2026 renders
+`March 2026` on a monthly type and `January 2026` on a half-yearly one.
+
+A **new recurring** type starts with `{type} {period:MMMM yyyy}`, so its
+documents come out named after the period they cover ("EDF invoice March 2026").
+A one-off type keeps an empty template and never touches a title. Passing
+`titleTemplate` explicitly — `null` included — always wins over that default.
+
+Applying a type only rewrites the title **while it still is the one derived from
+the filename**, and never when `title` sits in `manual_fields`.
+
+### Rewriting titles after the fact
+
+Changing a template does not rename anything on its own:
+
+- `documentType.previewTitles({ id, limit })` renders the titles the template
+  would give the members of the type, most recent period first, without writing:
+  `{ documentId, currentTitle, title, manual }`. `title: null` means the
+  template renders nothing for that document. The interface shows five of them
+  in the confirmation of "Regenerate titles";
+- `documentType.regenerateTitles({ id, overwriteManual? })` writes them and
+  returns `{ updated, skipped }`. `skipped` covers three cases: a title in
+  `manual_fields` (unless `overwriteManual` is set), a template that renders
+  nothing, and a title already equal to what the template produces. The rewrite
+  never marks the title manual, so running it again stays idempotent;
+- `document.bulk({ action: { type: "regenerateTitle" } })` does the same for an
+  arbitrary selection, each document using the template of the type **it**
+  carries. A document without a type, or whose type has no template, is skipped.
+
+Both procedures answer `BAD_REQUEST` on a type without a template. The MCP tool
+`regenerate_titles` exposes the same thing, with `dryRun` for the preview.
+
+## 4. Layouts
 
 Every type always has at least one layout. `documentType.create` opens one
 named "Default" (`is_default = true`, no signature, no date range), and
@@ -124,7 +175,7 @@ and the rule runs when its layout is selected. There is no global rule and no
 
 Deleting a layout deletes its extraction rules with it (cascade).
 
-## 4. Detection and rules
+## 5. Detection and rules
 
 `detection` is the very same condition tree as the rule engine (SPEC §3), so it
 sees `content`, `filename`, `mail.from`, `detected_identifiers.*`, `category`,
@@ -158,7 +209,7 @@ applies to `rule.run({ ruleId, force? })` for a disabled automation;
 `documentType.list({ includeDisabled: false })` filters them out, and the MCP
 `list_document_types` defaults to the enabled ones only.
 
-## 5. Creating a type
+## 6. Creating a type
 
 - `documentType.create` creates one from scratch.
 - `documentType.createFromDocument({ documentId, name?, recurrence? })` is
@@ -177,7 +228,7 @@ Every one of these refuses a document sitting in the trash (`CONFLICT`,
 "Document is in the trash; restore it first."), as does
 `documentType.setDocumentOverride`.
 
-## 6. Migration from Series
+## 7. Migration from Series
 
 `0011_document-types` converts the existing data in place:
 
@@ -190,7 +241,7 @@ Every one of these refuses a document sitting in the trash (`CONFLICT`,
 - `series` and `document_series_override` are dropped;
 - the `series_periodicity` enum keeps its name and gains `weekly`.
 
-## 7. Migration of the extraction rules
+## 8. Migration of the extraction rules
 
 `0012_extraction-in-types` moves the extraction rules inside the types:
 
@@ -205,7 +256,7 @@ Every one of these refuses a document sitting in the trash (`CONFLICT`,
 - the `run_extraction` actions, and the `set_field` ones carrying an
   `extractionRuleId`, are stripped from the existing rules.
 
-## 8. Types vs automations
+## 9. Types vs automations
 
 A type is the entry point for classification: "the same document we keep
 receiving" gets its category, its parties, its tags, its title and its layout
