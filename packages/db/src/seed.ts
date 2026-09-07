@@ -11,7 +11,7 @@ import type {
 	RuleCondition,
 	RuleTrigger,
 } from "@docstore/shared/rule";
-import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "./index";
 import { category } from "./schema/category";
 import { customField } from "./schema/custom-field";
@@ -237,6 +237,51 @@ export const SEED_SETTINGS: { key: string; value: unknown }[] = [
 	{ key: "reminders.expiryLeadDays", value: [...DEFAULT_EXPIRY_LEAD_DAYS] },
 ];
 
+/* ------------------------------------------------------------------ */
+/* Seed marker                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Settings key stamped the first time the starter taxonomy is applied.
+ *
+ * Its presence — not the contents of the tables — is what tells the startup
+ * seed to keep quiet. Emptying the categories used to be read as "never
+ * seeded", so a user who deliberately deleted the defaults got them all back
+ * at the next restart.
+ */
+export const SEED_APPLIED_AT_KEY = "seed.appliedAt";
+
+/** Version of the shipped taxonomy, stored next to the marker. */
+export const SEED_VERSION_KEY = "seed.version";
+export const SEED_VERSION = 1;
+
+/** Whether the starter taxonomy has already been applied to this database. */
+export async function seedApplied(db: Db): Promise<boolean> {
+	const rows = await db
+		.select({ key: setting.key })
+		.from(setting)
+		.where(eq(setting.key, SEED_APPLIED_AT_KEY))
+		.limit(1);
+	return rows.length > 0;
+}
+
+/** Stamps the marker, or refreshes it when the seed is re-applied on purpose. */
+async function markSeedApplied(db: Db): Promise<void> {
+	const appliedAt = new Date().toISOString();
+	for (const [key, value] of [
+		[SEED_APPLIED_AT_KEY, appliedAt],
+		[SEED_VERSION_KEY, SEED_VERSION],
+	] as const) {
+		await db
+			.insert(setting)
+			.values({ key, value })
+			.onConflictDoUpdate({
+				target: setting.key,
+				set: { value, updatedAt: new Date() },
+			});
+	}
+}
+
 export interface SeedResult {
 	categoriesCreated: number;
 	customFieldsCreated: number;
@@ -303,8 +348,11 @@ async function upsertCategory(
 }
 
 /**
- * Inserts the missing parts of the starter taxonomy. Can be called several
- * times without side effects (no update, no duplicate).
+ * Inserts the missing parts of the starter taxonomy and stamps the seed marker.
+ * Can be called several times without side effects (no update, no duplicate).
+ *
+ * This is the **explicit** seed (`bun run db:seed`, `db:reset`): it always
+ * applies, whatever the marker says.
  */
 export async function seedTaxonomy(db: Db): Promise<SeedResult> {
 	const result: SeedResult = {
@@ -356,6 +404,9 @@ export async function seedTaxonomy(db: Db): Promise<SeedResult> {
 	await seedExtractionRules(db, layoutIdByTypeName, fieldIdBySlug, result);
 	await seedRules(db, result);
 	await seedSettings(db, result);
+	// Stamped last: a seed that threw halfway leaves no marker and will be
+	// retried at the next startup.
+	await markSeedApplied(db);
 
 	return result;
 }
@@ -581,6 +632,10 @@ async function seedRules(db: Db, result: SeedResult): Promise<void> {
  * Returns the number of automations repaired.
  */
 export async function repairSeedRules(db: Db): Promise<number> {
+	// Same rule as the seed itself: without the marker this store never got the
+	// shipped examples, so there is nothing of ours to put back.
+	if (!(await seedApplied(db))) return 0;
+
 	let repaired = 0;
 	for (const definition of SEED_RULES) {
 		const names = [definition.name];
@@ -618,15 +673,14 @@ export async function repairSeedRules(db: Db): Promise<number> {
 }
 
 /**
- * Bootstraps the database on first start: does nothing if categories already
- * exist (the user may have deliberately deleted everything… but in that case
- * the table is no longer empty as soon as they create one again).
+ * Bootstraps the database on first start, exactly once.
+ *
+ * The decision rests on the `seed.appliedAt` marker alone: a user who deletes
+ * the shipped categories has deleted them for good, and a restart does not
+ * hand them back. `bun run db:seed` still re-applies the taxonomy on demand.
  */
 export async function seedIfEmpty(db: Db): Promise<SeedResult | null> {
-	const rows = await db.select({ value: count() }).from(category);
-	if ((rows[0]?.value ?? 0) > 0) {
-		return null;
-	}
+	if (await seedApplied(db)) return null;
 	return seedTaxonomy(db);
 }
 

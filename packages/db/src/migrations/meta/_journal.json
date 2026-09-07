@@ -183,6 +183,13 @@
 			"when": 1788809651005,
 			"tag": "0025_drop-reminder-message",
 			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "7",
+			"when": 1788809680036,
+			"tag": "0026_seed-marker",
+			"breakpoints": true
 		}
 	]
 }

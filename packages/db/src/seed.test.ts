@@ -11,13 +11,18 @@ import { category } from "./schema/category";
 import { customField } from "./schema/custom-field";
 import { documentType, documentTypeLayout } from "./schema/document-type";
 import { extractionRule, rule } from "./schema/rule";
+import { setting } from "./schema/setting";
 import {
 	repairSeedRules,
+	SEED_APPLIED_AT_KEY,
 	SEED_CATEGORIES,
 	SEED_CUSTOM_FIELDS,
 	SEED_DOCUMENT_TYPES,
 	SEED_EXTRACTION_RULES,
 	SEED_RULES,
+	SEED_VERSION,
+	SEED_VERSION_KEY,
+	seedApplied,
 	seedIfEmpty,
 	seedTaxonomy,
 } from "./seed";
@@ -202,12 +207,46 @@ describe("sample document type and rules", () => {
 });
 
 describe("seedIfEmpty", () => {
-	test("bootstraps an empty database then does nothing more", async () => {
+	test("bootstraps a fresh database exactly once", async () => {
+		expect(await seedApplied(db)).toBe(false);
+
 		const first = await seedIfEmpty(db);
 		expect(first?.categoriesCreated).toBe(TOTAL_CATEGORIES);
 		expect(first?.rulesCreated).toBe(SEED_RULES.length);
+		expect(await seedApplied(db)).toBe(true);
 
 		expect(await seedIfEmpty(db)).toBeNull();
+		expect(await db.select().from(category)).toHaveLength(TOTAL_CATEGORIES);
+	});
+
+	test("does not hand the defaults back to someone who deleted them", async () => {
+		await seedIfEmpty(db);
+		// The whole point of the marker: the user cleared the shipped taxonomy on
+		// purpose, and every restart used to put it straight back.
+		await db.delete(category);
+		await db.delete(customField);
+
+		expect(await seedIfEmpty(db)).toBeNull();
+		expect(await db.select().from(category)).toHaveLength(0);
+	});
+
+	test("stamps the marker with the version of the taxonomy", async () => {
+		await seedIfEmpty(db);
+		const rows = await db.select().from(setting);
+		const marker = rows.find((row) => row.key === SEED_APPLIED_AT_KEY);
+		expect(typeof marker?.value).toBe("string");
+		expect(rows.find((row) => row.key === SEED_VERSION_KEY)?.value).toBe(
+			SEED_VERSION,
+		);
+	});
+
+	test("an explicit seed re-applies whatever the marker says", async () => {
+		await seedIfEmpty(db);
+		await db.delete(category);
+
+		// `bun run db:seed` and `db:reset` go straight through `seedTaxonomy`.
+		const again = await seedTaxonomy(db);
+		expect(again.categoriesCreated).toBe(TOTAL_CATEGORIES);
 		expect(await db.select().from(category)).toHaveLength(TOTAL_CATEGORIES);
 	});
 });
@@ -267,6 +306,11 @@ describe("repairSeedRules", () => {
 
 	test("is idempotent and does nothing on an intact seed", async () => {
 		await seedTaxonomy(db);
+		expect(await repairSeedRules(db)).toBe(0);
+	});
+
+	test("keeps quiet on a store that was never seeded", async () => {
+		// No marker: those automations are not ours to put back.
 		expect(await repairSeedRules(db)).toBe(0);
 	});
 });
