@@ -1,3 +1,5 @@
+import type { ContentLocale } from "@docstore/shared/common";
+import { UI_LOCALE } from "@docstore/shared/common";
 import type { DatePrecision } from "@docstore/shared/document";
 import type {
 	ExtractionResult,
@@ -80,6 +82,7 @@ export function titleContextOf(subject: RuleSubject) {
 export function operationFromExtraction(
 	outcome: ExtractionOutcome,
 	subject: RuleSubject,
+	locale: ContentLocale = UI_LOCALE,
 ): PlannedOperation {
 	const { rule, result } = outcome;
 	const failed: PlannedOperation = {
@@ -128,6 +131,7 @@ export function operationFromExtraction(
 				title: renderTitleTemplate(
 					String(result.value),
 					titleContextOf(subject),
+					locale,
 				),
 			};
 	}
@@ -150,12 +154,13 @@ export function planActions(
 	rule: RuleLike,
 	subject: RuleSubject,
 	extractions: ReadonlyMap<string, ExtractionOutcome>,
+	locale: ContentLocale = UI_LOCALE,
 ): PlannedOperation[] {
 	const operations: PlannedOperation[] = [];
 
 	const fromExtraction = (id: string): PlannedOperation | null => {
 		const outcome = extractions.get(id);
-		return outcome ? operationFromExtraction(outcome, subject) : null;
+		return outcome ? operationFromExtraction(outcome, subject, locale) : null;
 	};
 
 	for (const action of rule.actions) {
@@ -190,7 +195,11 @@ export function planActions(
 			case "set_title":
 				operations.push({
 					type: "set_title",
-					title: renderTitleTemplate(action.template, titleContextOf(subject)),
+					title: renderTitleTemplate(
+						action.template,
+						titleContextOf(subject),
+						locale,
+					),
 				});
 				break;
 			case "webhook":

@@ -79,11 +79,20 @@ export const MEMBERSHIP_TONES: Record<MembershipKind, BadgeTone> = {
  * Tokens offered by the title template of a document type. On top of the ones
  * the rules already know, a type fills `{type}` with its own name and gives
  * `{period}` the key of the period the document falls into.
+ *
+ * A spelled-out month comes in three chips: the plain token, which follows the
+ * content language, and one per language for a household that wants this one
+ * type named in English or in French whatever the setting says.
  */
 export const TYPE_TITLE_PLACEHOLDERS: { token: string; hint: string }[] = [
 	{ token: "{type}", hint: "Name of the document type" },
 	{ token: "{period}", hint: "Period key, 2026-03 or 2026-H1" },
-	{ token: "{period:MMMM yyyy}", hint: "Period, March 2026" },
+	{
+		token: "{period:MMMM yyyy}",
+		hint: "Period in the content language, March 2026",
+	},
+	{ token: "{period:MMMM yyyy|en-GB}", hint: "Period in English, March 2026" },
+	{ token: "{period:MMMM yyyy|fr-FR}", hint: "Period in French, mars 2026" },
 	{ token: "{period:yyyy-MM}", hint: "Period, 2026-03" },
 	{ token: "{date}", hint: "Document date, 2026-03-17" },
 	{ token: "{date:YYYY-MM}", hint: "Document date, month only" },

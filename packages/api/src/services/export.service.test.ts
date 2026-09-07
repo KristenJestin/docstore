@@ -30,6 +30,7 @@ import {
 	previewExport,
 	sanitizeSegment,
 } from "./export.service";
+import { setSetting } from "./settings.service";
 
 /**
  * Tree export (SPEC §8 iteration 7). Storage is faked: what matters here is the
@@ -95,6 +96,8 @@ async function seedCategory(name: string): Promise<string> {
 interface SeedOptions {
 	title: string;
 	documentDate?: string;
+	periodStart?: string;
+	periodEnd?: string;
 	categoryId?: string;
 	issuerId?: string;
 	sensitive?: boolean;
@@ -111,6 +114,8 @@ async function seedDocument(options: SeedOptions): Promise<string> {
 			createdById: owner.id,
 			documentDate: options.documentDate ?? null,
 			datePrecision: options.documentDate ? "day" : null,
+			periodStart: options.periodStart ?? null,
+			periodEnd: options.periodEnd ?? null,
 			categoryId: options.categoryId ?? null,
 			sensitive: options.sensitive ?? false,
 		})
@@ -353,6 +358,62 @@ describe("buildManifestCsv", () => {
 		const plan = await buildExportPlan(db, input());
 		const csv = buildManifestCsv(plan.entries);
 		expect(csv).toContain('"Bill, ""special"""');
+	});
+
+	test("writes the document date in the content language", async () => {
+		await seedDocument({ title: "Bill", documentDate: "2026-01-15" });
+		const plan = await buildExportPlan(db, input());
+		expect(buildManifestCsv(plan.entries, "en-GB")).toContain("15 Jan 2026");
+		expect(buildManifestCsv(plan.entries, "fr-FR")).toContain("15 janv. 2026");
+	});
+});
+
+describe("export — content language", () => {
+	beforeEach(async () => {
+		await seedDocument({
+			title: "Payslip",
+			periodStart: "2026-01-01",
+			periodEnd: "2026-01-31",
+		});
+	});
+
+	test("file names use the month names of the content language", async () => {
+		// Default: English, like the interface.
+		const english = await buildExportPlan(
+			db,
+			input({ template: "{period:MMMM yyyy} - {title}" }),
+		);
+		expect(english.entries[0]?.path).toBe("January 2026 - Payslip.pdf");
+
+		await setSetting(db, { key: "content.locale", value: "fr-FR" });
+		const french = await buildExportPlan(
+			db,
+			input({ template: "{period:MMMM yyyy} - {title}" }),
+		);
+		expect(french.entries[0]?.path).toBe("janvier 2026 - Payslip.pdf");
+	});
+
+	test("{period:MMM} shortens the month in both languages", async () => {
+		const english = await buildExportPlan(
+			db,
+			input({ template: "{period:MMM} {title}" }),
+		);
+		expect(english.entries[0]?.path).toBe("Jan Payslip.pdf");
+
+		await setSetting(db, { key: "content.locale", value: "fr-FR" });
+		const french = await buildExportPlan(
+			db,
+			input({ template: "{period:MMM} {title}" }),
+		);
+		expect(french.entries[0]?.path).toBe("janv Payslip.pdf");
+	});
+
+	test("a token that pins its language ignores the setting", async () => {
+		const plan = await buildExportPlan(
+			db,
+			input({ template: "{period:MMMM yyyy|fr-FR} - {title}" }),
+		);
+		expect(plan.entries[0]?.path).toBe("janvier 2026 - Payslip.pdf");
 	});
 });
 

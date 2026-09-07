@@ -148,3 +148,146 @@ describe("document type placeholders", () => {
 		).toBe("Payslip");
 	});
 });
+
+describe("content language", () => {
+	const recurring = {
+		type: "Payslip",
+		periodStart: "2026-01-01",
+		periodEnd: "2026-01-31",
+		periodKey: "2026-01",
+	};
+
+	test("month names follow the content language", () => {
+		expect(renderTitleTemplate("{period:MMMM yyyy}", recurring, "en-GB")).toBe(
+			"January 2026",
+		);
+		expect(renderTitleTemplate("{period:MMMM yyyy}", recurring, "fr-FR")).toBe(
+			"janvier 2026",
+		);
+		expect(renderTitleTemplate("{period:MMMM}", recurring, "fr-FR")).toBe(
+			"janvier",
+		);
+	});
+
+	test("{period:MMM} is the short month, in both languages", () => {
+		expect(renderTitleTemplate("{period:MMM}", recurring, "en-GB")).toBe("Jan");
+		expect(renderTitleTemplate("{period:MMM}", recurring, "fr-FR")).toBe(
+			"janv",
+		);
+		expect(renderTitleTemplate("{period:MMM yyyy}", recurring, "fr-FR")).toBe(
+			"janv 2026",
+		);
+	});
+
+	test("the numeric formats say the same thing in every language", () => {
+		for (const locale of ["en-GB", "fr-FR"] as const) {
+			expect(renderTitleTemplate("{period:yyyy-MM}", recurring, locale)).toBe(
+				"2026-01",
+			);
+			expect(renderTitleTemplate("{period:yyyy}", recurring, locale)).toBe(
+				"2026",
+			);
+			expect(
+				renderTitleTemplate(
+					"{date:YYYY-MM-DD}",
+					{ date: "2026-01-15" },
+					locale,
+				),
+			).toBe("2026-01-15");
+		}
+	});
+
+	test("the whole template of a French recurring type", () => {
+		expect(
+			renderTitleTemplate("{type} {period:MMMM yyyy}", recurring, "fr-FR"),
+		).toBe("Payslip janvier 2026");
+	});
+
+	test("without a locale the interface language is used", () => {
+		expect(renderTitleTemplate("{period:MMMM yyyy}", recurring)).toBe(
+			"January 2026",
+		);
+	});
+});
+
+describe("per-token language", () => {
+	const recurring = {
+		type: "Payslip",
+		date: "2026-01-15",
+		periodStart: "2026-01-01",
+		periodEnd: "2026-01-31",
+		periodKey: "2026-01",
+	};
+
+	test("a token can pin its own language, whatever the setting says", () => {
+		expect(
+			renderTitleTemplate("{period:MMMM yyyy|fr-FR}", recurring, "en-GB"),
+		).toBe("janvier 2026");
+		expect(
+			renderTitleTemplate("{period:MMMM yyyy|en-GB}", recurring, "fr-FR"),
+		).toBe("January 2026");
+		expect(renderTitleTemplate("{period:MMM|fr-FR}", recurring, "en-GB")).toBe(
+			"janv",
+		);
+	});
+
+	test("{date} takes a spelled-out month and a language too", () => {
+		expect(renderTitleTemplate("{date:MMMM yyyy}", recurring, "fr-FR")).toBe(
+			"janvier 2026",
+		);
+		expect(
+			renderTitleTemplate("{date:MMMM yyyy|fr-FR}", recurring, "en-GB"),
+		).toBe("janvier 2026");
+		// The numeric formats keep saying exactly what they always said.
+		expect(
+			renderTitleTemplate("{date:YYYY-MM|fr-FR}", recurring, "en-GB"),
+		).toBe("2026-01");
+		expect(renderTitleTemplate("{date:YYYY-MM-DD}", recurring, "fr-FR")).toBe(
+			"2026-01-15",
+		);
+	});
+
+	test("only the pinned token changes language", () => {
+		expect(
+			renderTitleTemplate(
+				"{period:MMMM yyyy} - {period:MMMM yyyy|fr-FR}",
+				recurring,
+				"en-GB",
+			),
+		).toBe("January 2026 - janvier 2026");
+	});
+
+	test("the language is matched whatever its casing", () => {
+		expect(
+			renderTitleTemplate("{period:MMMM yyyy|FR-fr}", recurring, "en-GB"),
+		).toBe("janvier 2026");
+		expect(
+			renderTitleTemplate("{period:MMMM yyyy | fr-FR}", recurring, "en-GB"),
+		).toBe("janvier 2026");
+	});
+
+	test("a language nobody speaks is not a language: the format falls back", () => {
+		// `MMMM yyyy|de-DE` is read as one unknown format, so `{period}` renders
+		// the period key rather than inventing German.
+		expect(
+			renderTitleTemplate("{period:MMMM yyyy|de-DE}", recurring, "en-GB"),
+		).toBe("2026-01");
+		expect(
+			renderTitleTemplate("{date:MMMM yyyy|de-DE}", recurring, "en-GB"),
+		).toBe("2026-01-15");
+	});
+
+	test("a numeric format ignores the language it was given", () => {
+		for (const locale of ["en-GB", "fr-FR"] as const) {
+			expect(
+				renderTitleTemplate("{period:yyyy-MM|fr-FR}", recurring, locale),
+			).toBe("2026-01");
+		}
+	});
+
+	test("a pinned language still counts as a known placeholder", () => {
+		expect(
+			unknownTemplatePlaceholders("{period:MMMM yyyy|fr-FR} {nope}"),
+		).toEqual(["nope"]);
+	});
+});

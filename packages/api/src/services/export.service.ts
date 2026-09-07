@@ -10,6 +10,8 @@ import {
 	TITLE_TEMPLATE_PLACEHOLDERS,
 	unknownTemplatePlaceholders,
 } from "@docstore/rules";
+import type { ContentLocale } from "@docstore/shared/common";
+import { formatContentDate, UI_LOCALE } from "@docstore/shared/common";
 import type { DocumentListItem } from "@docstore/shared/document";
 import type {
 	ExportDocumentsInput,
@@ -21,6 +23,7 @@ import { ORPCError } from "@orpc/server";
 import { asc, eq, inArray } from "drizzle-orm";
 import { Zip, ZipDeflate, ZipPassThrough } from "fflate";
 import { listDocuments } from "./document.service";
+import { getContentLocale } from "./settings.service";
 
 /**
  * Tree export (SPEC §8 iteration 7).
@@ -219,6 +222,9 @@ export async function buildExportPlan(
 	input: ExportDocumentsInput,
 ): Promise<ExportPlan> {
 	assertKnownTemplate(input.template);
+	// File names are content, not interface: `{period:MMMM yyyy}` reads
+	// "janvier 2026" in a French archive.
+	const locale = await getContentLocale(db);
 	const { items, truncated } = await selectDocuments(db, input);
 	if (items.length === 0) return { entries: [], bytes: 0, truncated };
 
@@ -252,6 +258,23 @@ export async function buildExportPlan(
 		}
 	}
 
+	// `{period}` is not part of `DocumentListItem`: read straight from the table
+	// so a template can file an archive by period.
+	const periodRows = await db
+		.select({
+			id: document.id,
+			periodStart: document.periodStart,
+			periodEnd: document.periodEnd,
+		})
+		.from(document)
+		.where(
+			inArray(
+				document.id,
+				items.map((item) => item.id),
+			),
+		);
+	const periodById = new Map(periodRows.map((row) => [row.id, row]));
+
 	const taken = new Set<string>();
 	const entries: ExportEntry[] = [];
 	let bytes = 0;
@@ -262,15 +285,21 @@ export async function buildExportPlan(
 		if (!file) continue;
 
 		const extension = extensionOf(file.filename);
-		const rendered = renderTitleTemplate(input.template, {
-			date: item.documentDate,
-			issuer: issuerOf(item),
-			category: item.category?.name ?? null,
-			title: item.title,
-			// Without its extension: the export appends the real one once, below.
-			filename: stripExtension(file.filename, extension),
-			ext: extension ? extension.slice(1) : null,
-		});
+		const rendered = renderTitleTemplate(
+			input.template,
+			{
+				date: item.documentDate,
+				issuer: issuerOf(item),
+				category: item.category?.name ?? null,
+				title: item.title,
+				// Without its extension: the export appends the real one once, below.
+				filename: stripExtension(file.filename, extension),
+				ext: extension ? extension.slice(1) : null,
+				periodStart: periodById.get(item.id)?.periodStart ?? null,
+				periodEnd: periodById.get(item.id)?.periodEnd ?? null,
+			},
+			locale,
+		);
 		const folder = layoutFolder(item, input.layout);
 		const base = sanitizeSegment(rendered, item.id);
 		const path = dedupe(taken, folder ? `${folder}/${base}` : base, extension);
@@ -316,7 +345,15 @@ function csvCell(value: string | number | null): string {
 	return /[",\n;]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export function buildManifestCsv(entries: ExportEntry[]): string {
+/**
+ * `manifest.csv` is the human half of the archive: it is opened in a
+ * spreadsheet, so its dates are written in the content language.
+ * `metadata.json` keeps the raw ISO dates for whoever reads the archive back.
+ */
+export function buildManifestCsv(
+	entries: ExportEntry[],
+	locale: ContentLocale = UI_LOCALE,
+): string {
 	const header = [
 		"path",
 		"documentId",
@@ -333,7 +370,11 @@ export function buildManifestCsv(entries: ExportEntry[]): string {
 			csvCell(entry.path),
 			csvCell(entry.documentId),
 			csvCell(entry.document.title),
-			csvCell(entry.document.documentDate),
+			csvCell(
+				entry.document.documentDate
+					? formatContentDate(entry.document.documentDate, locale)
+					: null,
+			),
 			csvCell(issuerOf(entry.document)),
 			csvCell(entry.document.category?.name ?? null),
 			csvCell(entry.document.tags.map((tag) => tag.name).join("; ")),
@@ -426,6 +467,7 @@ export async function buildMetadata(
 
 	return {
 		exportedAt: new Date().toISOString(),
+		locale: await getContentLocale(db),
 		template: input.template,
 		layout: input.layout,
 		includeSensitive: input.includeSensitive,
@@ -545,7 +587,12 @@ export async function exportDocuments(
 
 						const manifest = new ZipDeflate("manifest.csv", { level: 6 });
 						zip.add(manifest);
-						manifest.push(encoder.encode(buildManifestCsv(plan.entries)), true);
+						manifest.push(
+							encoder.encode(
+								buildManifestCsv(plan.entries, await getContentLocale(ctx.db)),
+							),
+							true,
+						);
 					}
 
 					zip.end();

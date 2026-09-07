@@ -85,19 +85,61 @@ export function slugify(value: string): string {
 		.replace(/-+$/g, "");
 }
 
+/* ------------------------------------------------------------------ */
+/* Content language                                                     */
+/* ------------------------------------------------------------------ */
+
 /**
- * Formats a `YYYY-MM-DD` date as en-GB (`8 Oct 2026`), used in user-facing
- * messages (reminders…). Returns the input unchanged if it cannot be parsed.
+ * Language of the text the application **generates**: titles built from a
+ * template, exported file names, dates written inside an export or a reminder
+ * payload.
  *
- * @example formatDateEnGb("2026-10-08") // "8 Oct 2026"
+ * It is not the language of the interface, which stays English whatever this
+ * says (see AGENTS.md, "Every user-visible string is in English").
  */
-export function formatDateEnGb(isoDate: string): string {
+export const CONTENT_LOCALES = ["en-GB", "fr-FR"] as const;
+export const contentLocaleSchema = z.enum(CONTENT_LOCALES);
+export type ContentLocale = z.infer<typeof contentLocaleSchema>;
+
+/**
+ * English until told otherwise: the same language as the interface, so a fresh
+ * install generates text that matches what it says on screen.
+ */
+export const DEFAULT_CONTENT_LOCALE: ContentLocale = "en-GB";
+
+/**
+ * Locale of everything the user reads *in the application*: the screens, the
+ * API messages and the MCP answers. Always English.
+ */
+export const UI_LOCALE: ContentLocale = "en-GB";
+
+/**
+ * Formats a `YYYY-MM-DD` date in the given content language. Returns the input
+ * unchanged if it cannot be parsed.
+ *
+ * @example formatContentDate("2026-10-08", "en-GB") // "8 Oct 2026"
+ * @example formatContentDate("2026-10-08", "fr-FR") // "8 oct. 2026"
+ */
+export function formatContentDate(
+	isoDate: string,
+	locale: ContentLocale,
+): string {
 	const date = new Date(`${isoDate}T00:00:00Z`);
 	if (Number.isNaN(date.getTime())) return isoDate;
-	return new Intl.DateTimeFormat("en-GB", {
+	return new Intl.DateTimeFormat(locale, {
 		day: "numeric",
 		month: "short",
 		year: "numeric",
 		timeZone: "UTC",
 	}).format(date);
+}
+
+/**
+ * Formats a `YYYY-MM-DD` date as en-GB (`8 Oct 2026`): the interface and every
+ * message the application phrases in English.
+ *
+ * @example formatDateEnGb("2026-10-08") // "8 Oct 2026"
+ */
+export function formatDateEnGb(isoDate: string): string {
+	return formatContentDate(isoDate, UI_LOCALE);
 }

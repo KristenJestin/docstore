@@ -1,9 +1,13 @@
 import type {
 	AsnAutoAssignMode,
+	ContentLocale,
 	SettingKey,
 	Settings,
 } from "@docstore/shared/settings";
-import { ASN_AUTO_ASSIGN_MODES } from "@docstore/shared/settings";
+import {
+	ASN_AUTO_ASSIGN_MODES,
+	CONTENT_LOCALES,
+} from "@docstore/shared/settings";
 import {
 	Select,
 	SelectContent,
@@ -44,6 +48,13 @@ const SETTING_LABELS: Record<SettingKey, string> = {
 	"review.requireIssuer": "Issuer required",
 	"reminders.expiryLeadDays": "Expiry reminders",
 	"asn.autoAssign": "Automatic ASN",
+	"content.locale": "Content language",
+};
+
+/** Wording of the content languages, in the language they stand for. */
+const CONTENT_LOCALE_LABELS: Record<ContentLocale, string> = {
+	"fr-FR": "French (France)",
+	"en-GB": "English (United Kingdom)",
 };
 
 /** Wording of the three automatic numbering modes. */
@@ -181,6 +192,45 @@ export function GeneralSettings() {
 									void save("review.requireIssuer", checked)
 								}
 							/>
+						}
+					/>
+				</div>
+			</SettingsPanel>
+
+			<SettingsPanel
+				title="Content language"
+				description="The language the application writes in when it generates something. The interface itself stays in English."
+			>
+				<div className="divide-y divide-border">
+					<SettingsRow
+						label="Content language"
+						htmlFor={`${fieldId}-content-locale`}
+						description="Used for generated titles, file names and dates inside your documents; the interface stays in English."
+						control={
+							<Select
+								// Without `items` the trigger shows the raw value until the
+								// popup has been opened once: the labels live in the items,
+								// which are only mounted with the popup.
+								items={CONTENT_LOCALE_LABELS}
+								value={data["content.locale"]}
+								onValueChange={(value) =>
+									void save("content.locale", value as ContentLocale)
+								}
+							>
+								<SelectTrigger
+									id={`${fieldId}-content-locale`}
+									className="w-56"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{CONTENT_LOCALES.map((locale) => (
+										<SelectItem key={locale} value={locale}>
+											{CONTENT_LOCALE_LABELS[locale]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						}
 					/>
 				</div>

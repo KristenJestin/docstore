@@ -401,6 +401,7 @@ describe("settings", () => {
 			"review.requireIssuer": true,
 			"reminders.expiryLeadDays": [90, 30, 7],
 			"asn.autoAssign": "never",
+			"content.locale": "en-GB",
 		});
 
 		const updated = await client.settings.set({

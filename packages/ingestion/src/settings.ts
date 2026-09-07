@@ -1,5 +1,6 @@
 import type { Db } from "@docstore/db";
 import { setting } from "@docstore/db/schema/setting";
+import type { ContentLocale } from "@docstore/shared/common";
 import { DEFAULT_EXPIRY_LEAD_DAYS } from "@docstore/shared/reminder";
 import type {
 	ReviewSettings,
@@ -69,6 +70,16 @@ export async function getExpiryLeadDays(db: Db): Promise<number[]> {
 	const all = await getAllSettings(db);
 	const value = all["reminders.expiryLeadDays"];
 	return value.length > 0 ? value : [...DEFAULT_EXPIRY_LEAD_DAYS];
+}
+
+/**
+ * Language of the text the application generates (`content.locale`): title
+ * templates, exported file names, dates written inside an export or a reminder
+ * payload. Never the language of the interface.
+ */
+export async function getContentLocale(db: Db): Promise<ContentLocale> {
+	const all = await getAllSettings(db);
+	return all["content.locale"];
 }
 
 /** Typed view of the Review queue settings. */

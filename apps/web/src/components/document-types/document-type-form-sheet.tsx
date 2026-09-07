@@ -1,4 +1,6 @@
 import { renderTitleTemplate } from "@docstore/rules/title";
+import type { ContentLocale } from "@docstore/shared/common";
+import { DEFAULT_CONTENT_LOCALE } from "@docstore/shared/common";
 import type {
 	DocumentTypeDto,
 	DocumentTypeItem,
@@ -30,7 +32,7 @@ import {
 } from "@docstore/ui/components/sheet";
 import { Switch } from "@docstore/ui/components/switch";
 import { Textarea } from "@docstore/ui/components/textarea";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -73,26 +75,30 @@ function todayIso(): string {
 
 /**
  * Title the template would render, on a made-up document filed today. The
- * engine is the very same one the API runs, so what the field shows is what
- * the documents will get.
+ * engine is the very same one the API runs — content language included — so
+ * what the field shows is what the documents will get.
  */
-function titleExample(draft: DocumentTypeDraft): string {
+function titleExample(draft: DocumentTypeDraft, locale: ContentLocale): string {
 	const periodStart = toPeriodStart(todayIso(), draft.periodicity);
-	return renderTitleTemplate(draft.titleTemplate, {
-		type: draft.name.trim() || "Document type",
-		date: todayIso(),
-		issuer: "Nordwind Digital",
-		subject: "Camille Report",
-		category: "Invoice",
-		title: "Scan 2026-03-17",
-		filename: "scan-2026-03-17.pdf",
-		ext: "pdf",
-		periodStart,
-		periodEnd: null,
-		periodKey: draft.recurring
-			? periodKeyOf(draft.periodicity, periodStart)
-			: null,
-	});
+	return renderTitleTemplate(
+		draft.titleTemplate,
+		{
+			type: draft.name.trim() || "Document type",
+			date: todayIso(),
+			issuer: "Nordwind Digital",
+			subject: "Camille Report",
+			category: "Invoice",
+			title: "Scan 2026-03-17",
+			filename: "scan-2026-03-17.pdf",
+			ext: "pdf",
+			periodStart,
+			periodEnd: null,
+			periodKey: draft.recurring
+				? periodKeyOf(draft.periodicity, periodStart)
+				: null,
+		},
+		locale,
+	);
 }
 
 /**
@@ -196,6 +202,12 @@ export function DocumentTypeFormSheet({
 }: DocumentTypeFormSheetProps) {
 	const isEdit = Boolean(documentType);
 	const ids = useId();
+	const queryClient = useQueryClient();
+	// The preview renders a **title**, which is content: it follows
+	// `content.locale` even though the form around it is English.
+	const settings = useQuery(orpc.settings.get.queryOptions({ input: {} }));
+	const contentLocale =
+		settings.data?.["content.locale"] ?? DEFAULT_CONTENT_LOCALE;
 
 	const [draft, setDraft] = useState<DocumentTypeDraft>(() => ({
 		...emptyDocumentTypeDraft(),
@@ -277,6 +289,9 @@ export function DocumentTypeFormSheet({
 			const saved = documentType
 				? await update.mutateAsync({ id: documentType.id, ...payload })
 				: await create.mutateAsync(payload);
+			await queryClient.invalidateQueries({
+				queryKey: orpc.documentType.key(),
+			});
 			toast.success(
 				isEdit
 					? "Document type updated."
@@ -408,7 +423,9 @@ export function DocumentTypeFormSheet({
 								draft.titleTemplate.trim() ? (
 									<span className="inline-flex flex-wrap items-center gap-1">
 										Example:
-										<span className="font-mono">{titleExample(draft)}</span>
+										<span className="font-mono">
+											{titleExample(draft, contentLocale)}
+										</span>
 									</span>
 								) : (
 									"Leave empty to keep the title the document arrived with."

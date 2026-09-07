@@ -1,5 +1,9 @@
 import type { Db } from "@docstore/db";
-import { getAllSettings, writeSetting } from "@docstore/ingestion";
+import {
+	getAllSettings,
+	getContentLocale,
+	writeSetting,
+} from "@docstore/ingestion";
 import type {
 	ServerInfo,
 	SetSettingInput,
@@ -19,6 +23,14 @@ import {
 export function getSettings(db: Db): Promise<Settings> {
 	return getAllSettings(db);
 }
+
+/**
+ * Language the application writes its generated text in (`content.locale`):
+ * title templates, exported file names, dates carried by a reminder payload.
+ * The services that produce content read it from here rather than assuming
+ * English.
+ */
+export { getContentLocale };
 
 export async function setSetting(
 	db: Db,

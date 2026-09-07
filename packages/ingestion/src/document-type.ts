@@ -44,6 +44,7 @@ import { DocumentTypeNotFoundError } from "./errors";
 import { titleFromFilename } from "./media";
 import { applyOperations } from "./rules";
 import { revokeShareLinksForSensitive, setSensitive } from "./sensitive";
+import { getContentLocale } from "./settings";
 import type { DocumentSubject } from "./subject";
 import { buildSubject, loadExtractionInput, primaryFile } from "./subject";
 
@@ -563,6 +564,10 @@ export async function applyDocumentType(
 	// the category the type has just set.
 	const refreshed = (await buildSubject(db, documentId)) ?? prepared;
 
+	// Titles and templated values land in the document: they are content, so
+	// they follow `content.locale` and not the English interface.
+	const locale = await getContentLocale(db);
+
 	if (
 		type.titleTemplate &&
 		// A title someone typed is theirs, even when it happens to look like the
@@ -573,6 +578,7 @@ export async function applyDocumentType(
 		const title = renderTitleTemplate(
 			type.titleTemplate,
 			typeTitleContext(type, refreshed.subject),
+			locale,
 		);
 		if (title.trim().length > 0) {
 			await db
@@ -601,7 +607,11 @@ export async function applyDocumentType(
 		.map((result) => {
 			const row = byId.get(result.extractionRuleId);
 			return row
-				? operationFromExtraction(toOutcome(row, result), refreshed.subject)
+				? operationFromExtraction(
+						toOutcome(row, result),
+						refreshed.subject,
+						locale,
+					)
 				: null;
 		})
 		.filter((operation) => operation !== null);

@@ -77,6 +77,28 @@ test.describe("settings", () => {
 		await expect(page).toHaveURL(/\/settings\/general$/);
 		await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
+		// --- General: the content language is a saved-on-change select --------
+		const contentLanguage = page.getByRole("combobox", {
+			name: "Content language",
+		});
+		await expect(contentLanguage).toBeVisible();
+
+		await contentLanguage.click();
+		await page.getByRole("option", { name: "French (France)" }).click();
+		// Saved on its own, like every other control of this screen.
+		await expect(page.getByText("Content language saved.")).toBeVisible();
+
+		await page.reload();
+		await expect(contentLanguage).toContainText("French (France)");
+
+		// Back to the shipped default, so the run leaves the household as it
+		// found it.
+		await contentLanguage.click();
+		await page
+			.getByRole("option", { name: "English (United Kingdom)" })
+			.click();
+		await expect(contentLanguage).toContainText("English (United Kingdom)");
+
 		// --- Categories: a root, a child, then a rename -----------------------
 		const rootName = runName("root");
 		const childName = runName("child");

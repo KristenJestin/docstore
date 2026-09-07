@@ -42,6 +42,7 @@ import { applyDocumentType } from "./document-type";
 import { DocumentTypeNotFoundError } from "./errors";
 import { manualFieldsOf } from "./manual-fields";
 import { revokeShareLinksForSensitive, setSensitive } from "./sensitive";
+import { getContentLocale } from "./settings";
 import type { DocumentSubject } from "./subject";
 import { buildSubject, categoryChainIds, loadExtractionInput } from "./subject";
 import { emitRuleWebhook } from "./webhook";
@@ -548,6 +549,9 @@ export async function applyRules(
 
 	const rules = options.rules ?? (await loadRules(db, options));
 	const threshold = options.confidenceThreshold ?? 1;
+	// A `set_title` action writes into the document: content, so it follows
+	// `content.locale` and not the English interface.
+	const locale = await getContentLocale(db);
 	const results: AppliedRuleResult[] = [];
 	const reviewReasons: ReviewReason[] = [];
 	let matchedCount = 0;
@@ -606,7 +610,12 @@ export async function applyRules(
 			}
 		}
 
-		const operations = planActions(ruleLike, prepared.subject, extractionCache);
+		const operations = planActions(
+			ruleLike,
+			prepared.subject,
+			extractionCache,
+			locale,
+		);
 
 		const outcome = options.dryRun
 			? { applied: operations, reasons: [] as ReviewReason[] }

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+	CONTENT_LOCALES,
+	contentLocaleSchema,
+	DEFAULT_CONTENT_LOCALE,
+} from "./common";
 import { DEFAULT_EXPIRY_LEAD_DAYS } from "./reminder";
 
 /**
@@ -14,6 +19,7 @@ export const SETTING_KEYS = [
 	"review.requireIssuer",
 	"reminders.expiryLeadDays",
 	"asn.autoAssign",
+	"content.locale",
 ] as const;
 export const settingKeySchema = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof settingKeySchema>;
@@ -96,7 +102,18 @@ export const SETTING_DEFINITIONS: Record<SettingKey, SettingDefinition> = {
 		description:
 			"Hands out the next archive serial number on its own: never, on every document, or only on the scanned ones.",
 	},
+	"content.locale": {
+		schema: contentLocaleSchema,
+		defaultValue: DEFAULT_CONTENT_LOCALE,
+		label: "Content language",
+		description:
+			"Used for generated titles, file names and dates inside your documents; the interface stays in English.",
+	},
 };
+
+export type { ContentLocale } from "./common";
+/** Re-exported so the settings screen can list the choices. */
+export { CONTENT_LOCALES, contentLocaleSchema, DEFAULT_CONTENT_LOCALE };
 
 /** Review queue settings, all resolved with their defaults. */
 export const reviewSettingsSchema = z.object({
@@ -118,6 +135,7 @@ export const settingsSchema = z.object({
 	"review.requireIssuer": z.boolean(),
 	"reminders.expiryLeadDays": z.array(z.int().min(0)),
 	"asn.autoAssign": asnAutoAssignSchema,
+	"content.locale": contentLocaleSchema,
 });
 export type Settings = z.infer<typeof settingsSchema>;
 

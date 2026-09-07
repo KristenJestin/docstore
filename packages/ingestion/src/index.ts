@@ -180,6 +180,7 @@ export {
 } from "./sensitive";
 export {
 	getAllSettings,
+	getContentLocale,
 	getExpiryLeadDays,
 	getReviewSettings,
 	getSetting,

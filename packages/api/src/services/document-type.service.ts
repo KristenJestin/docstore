@@ -20,6 +20,7 @@ import {
 	clearDocumentType,
 	detectDocumentTypes,
 	extractionRulesFor,
+	getContentLocale,
 	layoutExtractionRules,
 	loadLayouts,
 	runExtractionRules,
@@ -1516,6 +1517,7 @@ export async function previewDocumentType(
 						{ name: spec.name, periodicity: spec.periodicity },
 						prepared.subject,
 					),
+					await getContentLocale(db),
 				)
 			: null,
 		layout: selection.layoutId
@@ -1555,6 +1557,9 @@ async function titleOutcomeFor(
 	const rendered = renderTitleTemplate(
 		type.titleTemplate,
 		typeTitleContext(type, prepared.subject),
+		// A stored title is content: it follows `content.locale`, not the
+		// English interface.
+		await getContentLocale(db),
 	);
 	return {
 		documentId,

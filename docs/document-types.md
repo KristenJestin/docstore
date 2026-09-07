@@ -105,9 +105,11 @@ engine as the `set_title` rule action, with two tokens only a type can fill:
 | ----- | ------- |
 | `{type}` | Name of the document type |
 | `{period}` | Period key of the recurrence: `2026-03`, `2026-Q1`, `2026-H1`, `2026`. Without a recurrence, the covered range |
-| `{period:MMMM yyyy}` | First day of the period in en-GB month names: "March 2026" |
+| `{period:MMMM yyyy}` | First day of the period, month spelled out: "March 2026", "mars 2026" |
+| `{period:MMMM}`, `{period:MMM}` | Month alone, spelled out or shortened: "March" / "Mar", "mars" / "mars" |
+| `{period:MMMM yyyy|fr-FR}` | Same, in a language chosen for this token alone: "mars 2026" |
 | `{period:yyyy-MM}` | Same, as `2026-03` |
-| `{date}`, `{date:YYYY-MM}`, `{date:YYYY}` | Document date |
+| `{date}`, `{date:YYYY-MM}`, `{date:YYYY}`, `{date:MMMM yyyy}` | Document date |
 | `{issuer}`, `{subject}`, `{category}`, `{title}`, `{filename}`, `{ext}` | As in the rules |
 
 A placeholder with nothing to fill it becomes an empty string, and the orphaned
@@ -115,6 +117,18 @@ separators are cleaned up afterwards. The period comes from the anchor date of
 the document — `period_start` falling back to `document_date` — snapped to the
 period of the recurrence, so a payslip dated 17 March 2026 renders
 `March 2026` on a monthly type and `January 2026` on a half-yearly one.
+
+Month names are written in the **content language** (`content.locale`,
+Settings → General): `en-GB` by default, `fr-FR` for a French household, which
+names the same payslip "mars 2026". The setting covers everything the
+application generates — titles, exported file names, the dates in
+`manifest.csv` and in a `reminder.due` payload — and nothing the interface
+itself says, which stays in English.
+
+A single token can override it, with the language after a pipe:
+`{period:MMMM yyyy|fr-FR}` always reads "mars 2026" and `{date:MMMM|en-GB}`
+always reads "March", whatever the setting says. An unrecognised language is
+ignored and the token falls back to the setting.
 
 A **new recurring** type starts with `{type} {period:MMMM yyyy}`, so its
 documents come out named after the period they cover ("EDF invoice March 2026").
