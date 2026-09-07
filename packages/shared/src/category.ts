@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { assignmentSourceSchema, hexColorSchema, slugSchema } from "./common";
+import {
+	assignmentSourceSchema,
+	hexColorSchema,
+	iconNameSchema,
+	slugSchema,
+} from "./common";
 
 /** Maximum tree depth: root = 1 (SPEC §2 "Category"). */
 export const CATEGORY_MAX_DEPTH = 3;
@@ -63,7 +68,7 @@ export const categoryNodeSchema: z.ZodType<CategoryNode> = z.object({
 export const createCategoryInput = z.object({
 	parentId: z.string().min(1).nullish(),
 	name: z.string().trim().min(1).max(100),
-	icon: z.string().trim().min(1).max(60).nullish(),
+	icon: iconNameSchema.nullish(),
 	color: hexColorSchema.nullish(),
 });
 export type CreateCategoryInput = z.infer<typeof createCategoryInput>;
@@ -72,7 +77,7 @@ export const updateCategoryInput = z.object({
 	id: z.string().min(1),
 	name: z.string().trim().min(1).max(100).optional(),
 	slug: slugSchema.optional(),
-	icon: z.string().trim().min(1).max(60).nullish(),
+	icon: iconNameSchema.nullish(),
 	color: hexColorSchema.nullish(),
 });
 export type UpdateCategoryInput = z.infer<typeof updateCategoryInput>;

@@ -53,6 +53,22 @@ export const slugSchema = z
 	});
 
 /**
+ * Lucide icon name in kebab-case (`receipt`, `file-signature`…), stored as-is
+ * by categories and document types. Loose on purpose (no `slugSchema`
+ * grouping/edge rules): Lucide names are machine-generated, so the only real
+ * invariant is the character set.
+ */
+export const iconNameSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(60)
+	.regex(/^[a-z0-9-]+$/, {
+		message:
+			"Icon must be a lowercase Lucide icon name (letters, digits and hyphens).",
+	});
+
+/**
  * Turns a label into a slug: no accents, lowercase, hyphens.
  *
  * @example slugify("Payslip") // "payslip"

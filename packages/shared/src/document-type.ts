@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateOnlySchema } from "./common";
+import { dateOnlySchema, iconNameSchema } from "./common";
 import { extractionResultSchema } from "./extraction";
 import {
 	periodicitySchema,
@@ -158,7 +158,7 @@ export type RecurrenceInput = z.infer<typeof recurrenceInput>;
 export const createDocumentTypeInput = z.object({
 	name: z.string().trim().min(1).max(200),
 	description: z.string().trim().max(2000).nullish(),
-	icon: z.string().trim().max(60).nullish(),
+	icon: iconNameSchema.nullish(),
 	color: z.string().trim().max(30).nullish(),
 	categoryId: z.string().min(1).nullish(),
 	issuerPartyId: z.string().min(1).nullish(),

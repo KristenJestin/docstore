@@ -42,7 +42,7 @@ import { toastApiError } from "@/lib/api-error";
 import { countLabel } from "@/lib/plural";
 import { orpc } from "@/utils/orpc";
 import { SettingsPanel, SettingsStack } from "./settings-panel";
-import { CategoryIcon, ColorPicker, IconPicker } from "./taxonomy-pickers";
+import { ColorPicker, IconPicker, TaxonomyIcon } from "./taxonomy-pickers";
 
 /** Left padding of a row, one entry per tree level (root = 1). */
 const DEPTH_CLASSES = ["pl-4", "pl-10", "pl-16"] as const;
@@ -367,7 +367,7 @@ function CategoryRow({
 				className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted ring-1 ring-border"
 				style={node.color ? { color: node.color } : undefined}
 			>
-				<CategoryIcon name={node.icon} />
+				<TaxonomyIcon name={node.icon} />
 			</span>
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-sm">{node.name}</p>

@@ -12,7 +12,7 @@ import {
 } from "@docstore/ui/components/tooltip";
 import { cn } from "@docstore/ui/lib/utils";
 
-import { CategoryIcon } from "@/components/settings/taxonomy-pickers";
+import { TaxonomyIcon } from "@/components/settings/taxonomy-pickers";
 
 import {
 	LAYOUT_REASON_LABELS,
@@ -72,7 +72,7 @@ export function DocumentTypeMark({
 			)}
 			style={color ? { color } : undefined}
 		>
-			<CategoryIcon
+			<TaxonomyIcon
 				name={icon}
 				className={size === "sm" ? "size-3.5" : "size-4"}
 			/>
