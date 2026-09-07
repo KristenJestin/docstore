@@ -174,6 +174,10 @@ bun run dev
 `DATABASE_URL`, `DATABASE_URL_TEST`, `BETTER_AUTH_SECRET` and `APP_SECRET`
 (32 characters minimum, `openssl rand -base64 32`).
 
+The root `package.json` pins `esbuild` via Bun's `overrides` to a patched
+version, because `drizzle-kit`'s legacy `@esbuild-kit/esm-loader` dependency
+(dev-only, unmaintained) otherwise drags in a vulnerable one transitively.
+
 `bun run dev` creates the database if needed, applies the migrations, seeds the
 starter taxonomy, picks a free port for the API and hands the web app to
 portless:

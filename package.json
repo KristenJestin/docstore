@@ -28,6 +28,9 @@
 		}
 	},
 	"type": "module",
+	"overrides": {
+		"esbuild": "^0.25.0"
+	},
 	"scripts": {
 		"dev": "bun run scripts/dev.ts",
 		"wt": "bun run scripts/worktree.ts add",
