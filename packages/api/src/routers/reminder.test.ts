@@ -20,6 +20,7 @@ import {
 	periodStartOf,
 	todayIso,
 } from "@docstore/shared/recurrence";
+import { eq } from "drizzle-orm";
 import {
 	createTestClient,
 	createTestUser,
@@ -109,7 +110,23 @@ describe("reminder.generate — expiry", () => {
 		expect(reminders[0]?.status).toBe("pending");
 	});
 
-	test("formats the due date as en-GB in the message", async () => {
+	test("stores the facts, not a sentence", async () => {
+		await seedDocument("Passport", { validUntil: "2027-06-30" });
+		await client.reminder.generate({});
+
+		const reminders = await client.reminder.list({});
+		expect(reminders.map((item) => [item.dueDate, item.daysBefore])).toEqual([
+			["2027-04-01", 90],
+			["2027-05-31", 30],
+			["2027-06-23", 7],
+		]);
+		// The column is gone: the row carries the lead time it stands for.
+		expect(reminders.every((item) => item.documentTitle === "Passport")).toBe(
+			true,
+		);
+	});
+
+	test("still exposes a message, derived and in English", async () => {
 		await seedDocument("Passport (en-GB)", { validUntil: "2027-06-30" });
 		await client.reminder.generate({});
 
@@ -119,6 +136,29 @@ describe("reminder.generate — expiry", () => {
 			'"Passport (en-GB)" expires on 30 Jun 2027 (reminder at D-7).',
 		);
 		expect(onDueDate?.message).not.toContain("2027-06-30");
+	});
+
+	test("the message follows the document title without a regeneration", async () => {
+		const id = await seedDocument("Old name", { validUntil: "2027-06-30" });
+		await client.reminder.generate({});
+		await db
+			.update(document)
+			.set({ title: "New name" })
+			.where(eq(document.id, id));
+
+		const reminders = await client.reminder.list({});
+		expect(reminders[0]?.message).toContain('"New name"');
+	});
+
+	test("the content language never leaks into what the API says", async () => {
+		await seedDocument("Passport", { validUntil: "2027-06-30" });
+		await client.settings.set({ key: "content.locale", value: "fr-FR" });
+		await client.reminder.generate({});
+
+		// `content.locale` drives generated content, not the interface: the API
+		// answers in English whatever the archive is written in.
+		const reminders = await client.reminder.list({});
+		expect(reminders[0]?.message).toContain("expires on");
 	});
 
 	test("is idempotent", async () => {

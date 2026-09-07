@@ -169,6 +169,20 @@
 			"when": 1788807374062,
 			"tag": "0023_document-type-paper-original",
 			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "7",
+			"when": 1788809640414,
+			"tag": "0024_reminder-days-before",
+			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "7",
+			"when": 1788809651005,
+			"tag": "0025_drop-reminder-message",
+			"breakpoints": true
 		}
 	]
 }

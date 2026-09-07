@@ -4,7 +4,6 @@ import {
 	reminderCountSchema,
 	reminderIdInput,
 	reminderItemSchema,
-	reminderSchema,
 	snoozeReminderInput,
 } from "@docstore/shared/reminder";
 import { z } from "zod";
@@ -62,7 +61,7 @@ export const reminderRouter = {
 			summary: "Snooze a reminder until a date",
 		})
 		.input(snoozeReminderInput)
-		.output(reminderSchema)
+		.output(reminderItemSchema)
 		.handler(({ input, context }) => snoozeReminder(context.db, input)),
 
 	dismiss: writeProcedure
@@ -73,7 +72,7 @@ export const reminderRouter = {
 			summary: "Dismiss a reminder (it will not be recreated)",
 		})
 		.input(reminderIdInput)
-		.output(reminderSchema)
+		.output(reminderItemSchema)
 		.handler(({ input, context }) => dismissReminder(context.db, input.id)),
 
 	done: writeProcedure
@@ -84,6 +83,6 @@ export const reminderRouter = {
 			summary: "Mark a reminder as done",
 		})
 		.input(reminderIdInput)
-		.output(reminderSchema)
+		.output(reminderItemSchema)
 		.handler(({ input, context }) => completeReminder(context.db, input.id)),
 };

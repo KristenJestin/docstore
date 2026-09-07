@@ -18,11 +18,12 @@ import { listExtractionRules } from "@docstore/api/services/extraction-rule.serv
 import { addRelation } from "@docstore/api/services/relation.service";
 import { listReminders } from "@docstore/api/services/reminder.service";
 import { listSavedSearches } from "@docstore/api/services/saved-search.service";
-import { dateOnlySchema } from "@docstore/shared/common";
+import { dateOnlySchema, UI_LOCALE } from "@docstore/shared/common";
 import { periodicitySchema } from "@docstore/shared/recurrence";
 import { documentRelationKindSchema } from "@docstore/shared/relation";
 import {
 	reminderKindSchema,
+	reminderMessage,
 	reminderStatusSchema,
 } from "@docstore/shared/reminder";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -92,11 +93,17 @@ const dossierJson = z.object({
 	documentCount: z.number(),
 });
 
+/**
+ * A reminder is handed over as facts; `message` is the English sentence
+ * `reminderMessage` derives from them, kept so a client has something to show
+ * without rebuilding it.
+ */
 const reminderJson = z.object({
 	id: z.string(),
 	kind: z.string(),
 	status: z.string(),
 	dueDate: z.string(),
+	daysBefore: z.number().nullable(),
 	message: z.string(),
 	documentId: z.string().nullable(),
 	documentTitle: z.string().nullable(),
@@ -671,7 +678,8 @@ export function registerCollectionTools(
 					kind: row.kind,
 					status: row.status,
 					dueDate: row.dueDate,
-					message: row.message,
+					daysBefore: row.daysBefore,
+					message: reminderMessage(row, UI_LOCALE),
 					documentId: row.documentId,
 					documentTitle: row.documentTitle,
 					documentTypeId: row.documentTypeId,

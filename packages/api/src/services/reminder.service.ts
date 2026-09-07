@@ -3,18 +3,20 @@ import { document } from "@docstore/db/schema/document";
 import { documentType } from "@docstore/db/schema/document-type";
 import type { Reminder } from "@docstore/db/schema/reminder";
 import { reminder } from "@docstore/db/schema/reminder";
-import { getExpiryLeadDays } from "@docstore/ingestion";
-import { formatDateEnGb } from "@docstore/shared/common";
+import { getContentLocale, getExpiryLeadDays } from "@docstore/ingestion";
+import { UI_LOCALE } from "@docstore/shared/common";
 import { addDays, periodKeyOf, todayIso } from "@docstore/shared/recurrence";
 import type {
 	GenerateRemindersResult,
 	ListRemindersInput,
 	ReminderCount,
-	ReminderDto,
 	ReminderItem,
 	SnoozeReminderInput,
 } from "@docstore/shared/reminder";
-import { REMINDER_COUNT_WINDOW_DAYS } from "@docstore/shared/reminder";
+import {
+	REMINDER_COUNT_WINDOW_DAYS,
+	reminderMessage,
+} from "@docstore/shared/reminder";
 import { ORPCError } from "@orpc/server";
 import type { SQL } from "drizzle-orm";
 import {
@@ -39,6 +41,11 @@ import {
  * state then reconciles it with the database. User decisions (`done`,
  * `dismissed`) survive the recomputation; reminders that no longer apply are
  * removed.
+ *
+ * A reminder stores facts, never a sentence. The wording is derived by
+ * `reminderMessage` (`@docstore/shared/reminder`): English for what the user
+ * reads in the application, the content language for what leaves it in a
+ * webhook payload.
  */
 
 export interface GenerateRemindersOptions {
@@ -52,12 +59,21 @@ export interface GenerateRemindersOptions {
 	onDueCreated?: (reminders: DueReminder[]) => Promise<void>;
 }
 
-/** Reminder that was created and is already due, as passed to `onDueCreated`. */
+/**
+ * Reminder that was created and is already due, as passed to `onDueCreated`.
+ *
+ * It leaves the application in a webhook payload, so its `message` is written
+ * in the **content** language while the facts stay machine-readable.
+ */
 export interface DueReminder {
 	kind: "expiry" | "period_gap";
 	documentId: string | null;
+	documentTitle: string | null;
 	documentTypeId: string | null;
+	documentTypeName: string | null;
+	period: string | null;
 	dueDate: string;
+	daysBefore: number | null;
 	message: string;
 }
 
@@ -67,8 +83,23 @@ type DesiredReminder = {
 	documentTypeId: string | null;
 	period: string | null;
 	dueDate: string;
-	message: string;
+	daysBefore: number | null;
+	/** Only for the payload wording: never written to the row. */
+	documentTitle: string | null;
+	documentTypeName: string | null;
+	periodKey: string | null;
 };
+
+/** Columns of `reminder`, without the labels carried alongside for wording. */
+function reminderRow(item: DesiredReminder) {
+	const {
+		documentTitle: _title,
+		documentTypeName: _type,
+		periodKey: _key,
+		...row
+	} = item;
+	return row;
+}
 
 /** Identity key, aligned with the unique index `reminder_identity_uidx`. */
 function identityKey(item: {
@@ -114,10 +145,10 @@ async function expiryReminders(
 				documentTypeId: null,
 				period: null,
 				dueDate: addDays(row.validUntil, -lead),
-				message:
-					lead === 0
-						? `"${row.title}" expires on ${formatDateEnGb(row.validUntil)}.`
-						: `"${row.title}" expires on ${formatDateEnGb(row.validUntil)} (reminder at D-${lead}).`,
+				daysBefore: lead,
+				documentTitle: row.title,
+				documentTypeName: null,
+				periodKey: null,
 			});
 		}
 	}
@@ -140,7 +171,10 @@ async function periodGapReminders(
 				documentTypeId: row.id,
 				period: entry.periodStart,
 				dueDate: entry.dueDate,
-				message: `Document type "${row.name}": no document for the period ${entry.period}.`,
+				daysBefore: null,
+				documentTitle: null,
+				documentTypeName: row.name,
+				periodKey: entry.period,
 			});
 		}
 	}
@@ -181,14 +215,21 @@ export async function generateReminders(
 	// Reminders just created whose due date has already arrived: this is the only
 	// moment where we know they are new, hence notifiable without duplicates.
 	if (options.onDueCreated) {
-		const due = inserted
+		// The payload leaves the application: its wording follows the content
+		// language, unlike everything the user reads inside it.
+		const locale = await getContentLocale(db);
+		const due: DueReminder[] = inserted
 			.filter((item) => item.dueDate <= today)
-			.map(({ kind, documentId, documentTypeId, dueDate, message }) => ({
-				kind,
-				documentId,
-				documentTypeId,
-				dueDate,
-				message,
+			.map((item) => ({
+				kind: item.kind,
+				documentId: item.documentId,
+				documentTitle: item.documentTitle,
+				documentTypeId: item.documentTypeId,
+				documentTypeName: item.documentTypeName,
+				period: item.period,
+				dueDate: item.dueDate,
+				daysBefore: item.daysBefore,
+				message: reminderMessage(item, locale),
 			}));
 		if (due.length > 0) {
 			try {
@@ -214,9 +255,9 @@ export async function generateReminders(
 /**
  * Reconciles a set of desired reminders against what currently exists for the
  * same identity keys: obsolete ones are removed, missing ones inserted, and an
- * existing one whose message changed (or whose expired snooze wakes it back up)
- * is updated. A reminder already `done` or `dismissed` is left alone unless it
- * becomes obsolete.
+ * existing one whose lead time changed (or whose expired snooze wakes it back
+ * up) is updated. A reminder already `done` or `dismissed` is left alone unless
+ * it becomes obsolete.
  */
 async function reconcileReminders(
 	db: Db,
@@ -237,7 +278,8 @@ async function reconcileReminders(
 		.filter((row) => !desiredByKey.has(identityKey(row)))
 		.map((row) => row.id);
 	const toInsert: DesiredReminder[] = [];
-	const toUpdate: { id: string; message: string; wake: boolean }[] = [];
+	const toUpdate: { id: string; daysBefore: number | null; wake: boolean }[] =
+		[];
 
 	for (const [key, item] of desiredByKey) {
 		const current = existingByKey.get(key);
@@ -248,8 +290,8 @@ async function reconcileReminders(
 		const wake =
 			current.status === "snoozed" &&
 			(current.snoozedUntil === null || current.snoozedUntil <= today);
-		if (current.message !== item.message || wake) {
-			toUpdate.push({ id: current.id, message: item.message, wake });
+		if (current.daysBefore !== item.daysBefore || wake) {
+			toUpdate.push({ id: current.id, daysBefore: item.daysBefore, wake });
 		}
 	}
 
@@ -258,15 +300,22 @@ async function reconcileReminders(
 			await tx.delete(reminder).where(inArray(reminder.id, obsolete));
 		}
 		if (toInsert.length > 0) {
-			await tx.insert(reminder).values(toInsert).onConflictDoNothing();
+			await tx
+				.insert(reminder)
+				.values(toInsert.map(reminderRow))
+				.onConflictDoNothing();
 		}
 		for (const item of toUpdate) {
 			await tx
 				.update(reminder)
 				.set(
 					item.wake
-						? { message: item.message, status: "pending", snoozedUntil: null }
-						: { message: item.message },
+						? {
+								daysBefore: item.daysBefore,
+								status: "pending",
+								snoozedUntil: null,
+							}
+						: { daysBefore: item.daysBefore },
 				)
 				.where(eq(reminder.id, item.id));
 		}
@@ -305,6 +354,62 @@ export async function generateRemindersForDocument(
 	await reconcileReminders(db, desired, existing, today);
 }
 
+/**
+ * Every column of a reminder plus the labels the wording needs: the title of
+ * the document and the name of the document type, which live in their own
+ * tables so a rename shows up straight away.
+ */
+const reminderColumns = {
+	id: reminder.id,
+	kind: reminder.kind,
+	documentId: reminder.documentId,
+	documentTypeId: reminder.documentTypeId,
+	dueDate: reminder.dueDate,
+	period: reminder.period,
+	daysBefore: reminder.daysBefore,
+	status: reminder.status,
+	snoozedUntil: reminder.snoozedUntil,
+	createdAt: reminder.createdAt,
+	updatedAt: reminder.updatedAt,
+	documentTitle: document.title,
+	documentTypeName: documentType.name,
+	typePeriodicity: documentType.periodicity,
+};
+
+/** Base query: the reminder and the two labels its wording needs. */
+function reminderQuery(db: Db) {
+	return db
+		.select(reminderColumns)
+		.from(reminder)
+		.leftJoin(document, eq(document.id, reminder.documentId))
+		.leftJoin(documentType, eq(documentType.id, reminder.documentTypeId));
+}
+
+type ReminderRow = Awaited<ReturnType<typeof reminderQuery>>[number];
+
+/**
+ * Turns a joined row into the object the API hands out: the readable period
+ * key, then the sentence derived from the facts.
+ *
+ * The message is English — it is read inside the application, whose language
+ * never changes. What leaves the application (the `reminder.due` payload) is
+ * phrased with the content language instead.
+ */
+function toReminderItem({
+	typePeriodicity,
+	...row
+}: ReminderRow): ReminderItem {
+	const periodKey =
+		row.period && typePeriodicity
+			? periodKeyOf(typePeriodicity, row.period)
+			: null;
+	return {
+		...row,
+		periodKey,
+		message: reminderMessage({ ...row, periodKey }, UI_LOCALE),
+	};
+}
+
 export async function listReminders(
 	db: Db,
 	input: ListRemindersInput,
@@ -317,37 +422,12 @@ export async function listReminders(
 	// today): the default keeps every pending reminder, future ones included.
 	if (!input.upcoming) conditions.push(lte(reminder.dueDate, todayIso()));
 
-	const rows = await db
-		.select({
-			id: reminder.id,
-			kind: reminder.kind,
-			documentId: reminder.documentId,
-			documentTypeId: reminder.documentTypeId,
-			dueDate: reminder.dueDate,
-			period: reminder.period,
-			status: reminder.status,
-			snoozedUntil: reminder.snoozedUntil,
-			message: reminder.message,
-			createdAt: reminder.createdAt,
-			updatedAt: reminder.updatedAt,
-			documentTitle: document.title,
-			documentTypeName: documentType.name,
-			typePeriodicity: documentType.periodicity,
-		})
-		.from(reminder)
-		.leftJoin(document, eq(document.id, reminder.documentId))
-		.leftJoin(documentType, eq(documentType.id, reminder.documentTypeId))
+	const rows = await reminderQuery(db)
 		.where(conditions.length > 0 ? and(...conditions) : undefined)
 		.orderBy(asc(reminder.dueDate), asc(reminder.id))
 		.limit(input.limit);
 
-	return rows.map(({ typePeriodicity, ...row }) => ({
-		...row,
-		periodKey:
-			row.period && typePeriodicity
-				? periodKeyOf(typePeriodicity, row.period)
-				: null,
-	}));
+	return rows.map(toReminderItem);
 }
 
 /** `pending` reminders whose due date falls within the next 30 days. */
@@ -360,39 +440,50 @@ export async function countReminders(db: Db): Promise<ReminderCount> {
 	return { count: rows[0]?.value ?? 0 };
 }
 
+/**
+ * Applies a status change then reads the row back through the joins: the
+ * caller gets the same object `listReminders` hands out, message included.
+ */
 async function setReminderStatus(
 	db: Db,
 	id: string,
 	patch: Partial<typeof reminder.$inferInsert>,
-): Promise<ReminderDto> {
-	const rows = await db
+): Promise<ReminderItem> {
+	const updated = await db
 		.update(reminder)
 		.set(patch)
 		.where(eq(reminder.id, id))
-		.returning();
+		.returning({ id: reminder.id });
+	if (!updated[0]) {
+		throw new ORPCError("NOT_FOUND", {
+			message: `Reminder "${id}" not found.`,
+		});
+	}
+
+	const rows = await reminderQuery(db).where(eq(reminder.id, id)).limit(1);
 	const row = rows[0];
 	if (!row) {
 		throw new ORPCError("NOT_FOUND", {
 			message: `Reminder "${id}" not found.`,
 		});
 	}
-	return row;
+	return toReminderItem(row);
 }
 
 export function snoozeReminder(
 	db: Db,
 	input: SnoozeReminderInput,
-): Promise<ReminderDto> {
+): Promise<ReminderItem> {
 	return setReminderStatus(db, input.id, {
 		status: "snoozed",
 		snoozedUntil: input.until,
 	});
 }
 
-export function dismissReminder(db: Db, id: string): Promise<ReminderDto> {
+export function dismissReminder(db: Db, id: string): Promise<ReminderItem> {
 	return setReminderStatus(db, id, { status: "dismissed", snoozedUntil: null });
 }
 
-export function completeReminder(db: Db, id: string): Promise<ReminderDto> {
+export function completeReminder(db: Db, id: string): Promise<ReminderItem> {
 	return setReminderStatus(db, id, { status: "done", snoozedUntil: null });
 }

@@ -1,7 +1,9 @@
+import { UI_LOCALE } from "@docstore/shared/common";
 import type { ReminderItem, ReminderKind } from "@docstore/shared/reminder";
 import {
 	REMINDER_KIND_LABELS,
 	REMINDER_KINDS,
+	reminderMessage,
 } from "@docstore/shared/reminder";
 import type { BadgeTone } from "@docstore/ui/components/badge";
 import { Badge } from "@docstore/ui/components/badge";
@@ -38,6 +40,15 @@ const KIND_HEADINGS: Record<ReminderKind, string> = {
 	period_gap: "Missing documents",
 	review_pending: "Waiting for review",
 };
+
+/**
+ * Sentence describing a reminder. The reminder itself only carries facts: the
+ * wording is derived here, in the language of the interface — always English,
+ * whatever the content language says.
+ */
+function messageOf(reminder: ReminderItem): string {
+	return reminderMessage(reminder, UI_LOCALE);
+}
 
 export interface ReminderListProps {
 	items: ReminderItem[] | undefined;
@@ -114,7 +125,7 @@ export function ReminderList({ items, isLoading = false }: ReminderListProps) {
 														params={{ documentId: reminder.documentId }}
 														className="hover:underline"
 													>
-														{reminder.documentTitle ?? reminder.message}
+														{reminder.documentTitle ?? messageOf(reminder)}
 													</Link>
 												) : reminder.documentTypeId ? (
 													<Link
@@ -123,14 +134,14 @@ export function ReminderList({ items, isLoading = false }: ReminderListProps) {
 														search={{}}
 														className="hover:underline"
 													>
-														{reminder.documentTypeName ?? reminder.message}
+														{reminder.documentTypeName ?? messageOf(reminder)}
 													</Link>
 												) : (
-													reminder.message
+													messageOf(reminder)
 												)}
 											</p>
 											<p className="truncate text-muted-foreground text-xs">
-												{reminder.message}
+												{messageOf(reminder)}
 											</p>
 										</div>
 

@@ -3,6 +3,7 @@ import { relations, sql } from "drizzle-orm";
 import {
 	date,
 	index,
+	integer,
 	pgEnum,
 	pgTable,
 	text,
@@ -24,6 +25,10 @@ export const reminderStatusEnum = pgEnum("reminder_status", REMINDER_STATUSES);
  * itself, a plain index would let duplicates through. `due_date` is part of the
  * key: a single expiring document produces several reminders (D-90, D-30, D-7)
  * that only differ by their due date.
+ *
+ * The row holds **facts** only. The sentence a human reads is derived from them
+ * by `reminderMessage` (`@docstore/shared/reminder`) in whichever language the
+ * reader needs, so it is never stored.
  */
 export const reminder = pgTable(
 	"reminder",
@@ -41,9 +46,13 @@ export const reminder = pgTable(
 		dueDate: date("due_date").notNull(),
 		/** First day of the period concerned (`period_gap`). */
 		period: date("period"),
+		/**
+		 * Days of notice an `expiry` reminder stands for (90, 30, 7…): the
+		 * document expires on `due_date` + `days_before`. Null on other kinds.
+		 */
+		daysBefore: integer("days_before"),
 		status: reminderStatusEnum("status").notNull().default("pending"),
 		snoozedUntil: date("snoozed_until"),
-		message: text("message").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()
