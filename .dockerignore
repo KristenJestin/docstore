@@ -1,25 +1,52 @@
-**/.classpath
-**/.dockerignore
-**/.env
-**/.git
-**/.gitignore
-**/.project
-**/.settings
-**/.toolstarget
-**/.vs
-**/.vscode
-**/*.*proj.user
-**/*.dbmdl
-**/*.jfm
-**/azds.yaml
-**/bin
-**/charts
-**/docker-compose*
-**/Dockerfile*
+# Dependencies and install artifacts (reinstalled inside the image)
+node_modules
 **/node_modules
-**/npm-debug.log
-**/obj
-**/secrets.dev.yaml
-**/values.dev.yaml
-LICENSE
-README.md
+
+# Build outputs (rebuilt inside the image)
+dist
+**/dist
+build
+**/build
+.output
+**/.output
+.nitro
+**/.nitro
+*.tsbuildinfo
+
+# Tooling caches
+.turbo
+**/.turbo
+.nx
+.cache
+coverage
+.nyc_output
+test-results
+playwright-report
+blob-report
+
+# Secrets and local configuration
+.env
+**/.env
+.env.*
+!**/.env.example
+!docker/.env.example
+
+# Git and editors
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+*.swp
+*~
+.DS_Store
+
+# Misc
+*.log
+logs
+.evlog
+tmp
+temp
+*.tgz
+local.db
+local.db-*

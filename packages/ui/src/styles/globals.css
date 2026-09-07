@@ -1,0 +1,383 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@source "../../../apps/**/*.{ts,tsx}";
+@source "../**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark, .dark *));
+
+/*
+ * "Premium" visual direction (docs/DESIGN.md): prototype B recoloured with the
+ * docstore v1 palette — night blue + bright yellow. Dark by default.
+ *
+ * Only exception to the "Tailwind scale values only" rule: the neutral ramp
+ * uses the explicit oklch values of the "manual adjustment (03:15)" table — same
+ * lightness as prototype B, chroma raised to ~0.018 at hue 265 so the surfaces
+ * read as barely blue instead of the far too blue Tailwind slate. Accent
+ * colours (yellow, badge tones) still come from the Tailwind scale, and no
+ * `dark:` colour class is ever used: everything goes through these variables.
+ */
+:root {
+	--background: oklch(0.985 0.004 265);
+	--foreground: oklch(0.215 0.015 265);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.215 0.015 265);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.215 0.015 265);
+
+	/* Yellow is the only accent: buttons, focus, active navigation. */
+	--primary: var(--color-yellow-400);
+	--primary-foreground: oklch(0.17 0.02 265);
+	--primary-hover: var(--color-yellow-300);
+
+	--secondary: oklch(0.964 0.006 265);
+	--secondary-foreground: oklch(0.215 0.015 265);
+	--muted: oklch(0.964 0.006 265);
+	--muted-foreground: oklch(0.53 0.02 265);
+
+	/* Neutral hover surface (rows, ghost buttons, popover items). */
+	--accent: oklch(0.951 0.01 265);
+	--accent-foreground: oklch(0.215 0.015 265);
+
+	/* Selection and active navigation: translucent yellow + dark ink. */
+	--selection: color-mix(in oklab, var(--color-yellow-400) 14%, transparent);
+	--selection-foreground: oklch(0.215 0.015 265);
+
+	--destructive: var(--color-red-600);
+	--destructive-foreground: oklch(0.985 0.004 265);
+
+	--border: oklch(0.912 0.008 265);
+	--input: oklch(0.912 0.008 265);
+	--ring: var(--color-yellow-400);
+	--radius: 0.625rem;
+
+	/* Badge tones: success / warning / info / danger. */
+	--tone-neutral: oklch(0.964 0.006 265);
+	--tone-neutral-foreground: oklch(0.446 0.022 265);
+	--tone-success: color-mix(
+		in oklab,
+		var(--color-emerald-600) 12%,
+		transparent
+	);
+	--tone-success-foreground: var(--color-emerald-600);
+	--tone-warning: color-mix(in oklab, var(--color-amber-600) 14%, transparent);
+	--tone-warning-foreground: var(--color-amber-600);
+	--tone-info: color-mix(in oklab, var(--color-sky-600) 12%, transparent);
+	--tone-info-foreground: var(--color-sky-600);
+	--tone-danger: color-mix(in oklab, var(--color-red-600) 10%, transparent);
+	--tone-danger-foreground: var(--color-red-600);
+
+	/* Relief: soft shadows and the light inner sheen of prototype B. */
+	--shadow-a: color-mix(in oklab, oklch(0.215 0.015 265) 6%, transparent);
+	--shadow-b: color-mix(in oklab, oklch(0.215 0.015 265) 10%, transparent);
+	--shadow-c: color-mix(in oklab, oklch(0.215 0.015 265) 14%, transparent);
+	--sheen: color-mix(in oklab, var(--color-white) 60%, transparent);
+
+	--sidebar: oklch(0.964 0.006 265);
+	--sidebar-foreground: oklch(0.215 0.015 265);
+	--sidebar-primary: var(--color-yellow-400);
+	--sidebar-primary-foreground: oklch(0.17 0.02 265);
+	--sidebar-accent: var(--selection);
+	--sidebar-accent-foreground: var(--selection-foreground);
+	--sidebar-border: oklch(0.912 0.008 265);
+	--sidebar-ring: var(--color-yellow-400);
+
+	--chart-1: var(--color-yellow-400);
+	--chart-2: var(--color-sky-600);
+	--chart-3: var(--color-emerald-600);
+	--chart-4: var(--color-amber-600);
+	--chart-5: var(--color-red-600);
+
+	color-scheme: light;
+}
+
+.dark {
+	--background: oklch(0.178 0.018 265);
+	--foreground: oklch(0.965 0.005 265);
+	--card: oklch(0.215 0.018 265);
+	--card-foreground: oklch(0.965 0.005 265);
+	--popover: oklch(0.215 0.018 265);
+	--popover-foreground: oklch(0.965 0.005 265);
+
+	--primary: var(--color-yellow-400);
+	--primary-foreground: oklch(0.17 0.02 265);
+	--primary-hover: var(--color-yellow-300);
+
+	--secondary: oklch(0.246 0.018 265);
+	--secondary-foreground: oklch(0.965 0.005 265);
+	--muted: oklch(0.246 0.018 265);
+	--muted-foreground: oklch(0.678 0.02 265);
+
+	--accent: oklch(0.268 0.02 265);
+	--accent-foreground: oklch(0.965 0.005 265);
+
+	/* Selection and active navigation: translucent yellow + yellow text. */
+	--selection: color-mix(in oklab, var(--color-yellow-400) 12%, transparent);
+	--selection-foreground: var(--color-yellow-400);
+
+	--destructive: var(--color-red-500);
+	--destructive-foreground: oklch(0.17 0.02 265);
+
+	--border: oklch(0.293 0.02 265);
+	--input: oklch(0.293 0.02 265);
+	--ring: var(--color-yellow-400);
+
+	--tone-neutral: oklch(0.246 0.018 265);
+	--tone-neutral-foreground: oklch(0.869 0.018 265);
+	--tone-success: color-mix(
+		in oklab,
+		var(--color-emerald-400) 14%,
+		transparent
+	);
+	--tone-success-foreground: var(--color-emerald-400);
+	--tone-warning: color-mix(in oklab, var(--color-amber-400) 14%, transparent);
+	--tone-warning-foreground: var(--color-amber-400);
+	--tone-info: color-mix(in oklab, var(--color-sky-400) 14%, transparent);
+	--tone-info-foreground: var(--color-sky-400);
+	--tone-danger: color-mix(in oklab, var(--color-red-500) 16%, transparent);
+	--tone-danger-foreground: var(--color-red-400);
+
+	--shadow-a: color-mix(in oklab, var(--color-black) 30%, transparent);
+	--shadow-b: color-mix(in oklab, var(--color-black) 38%, transparent);
+	--shadow-c: color-mix(in oklab, var(--color-black) 45%, transparent);
+	--sheen: color-mix(in oklab, var(--color-white) 6%, transparent);
+
+	--sidebar: oklch(0.215 0.018 265);
+	--sidebar-foreground: oklch(0.965 0.005 265);
+	--sidebar-primary: var(--color-yellow-400);
+	--sidebar-primary-foreground: oklch(0.17 0.02 265);
+	--sidebar-accent: var(--selection);
+	--sidebar-accent-foreground: var(--selection-foreground);
+	--sidebar-border: oklch(0.293 0.02 265);
+	--sidebar-ring: var(--color-yellow-400);
+
+	--chart-1: var(--color-yellow-400);
+	--chart-2: var(--color-sky-400);
+	--chart-3: var(--color-emerald-400);
+	--chart-4: var(--color-amber-400);
+	--chart-5: var(--color-red-400);
+
+	color-scheme: dark;
+}
+
+@theme inline {
+	--font-sans:
+		"Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui,
+		sans-serif;
+	--font-mono:
+		"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+	/* Prototype B "premium" curve, exposed as the `ease-premium` utility. */
+	--ease-premium: cubic-bezier(0.32, 0.72, 0, 1);
+
+	/*
+	 * Height of the sticky top bar of the shell (`h-16`). Exposed in the spacing
+	 * namespace so every "stick under the header" offset is `top-header` and
+	 * never an arbitrary `top-[64px]`: `AppShell` sets the bar height with
+	 * `h-header`, table headers, tabs and sub-navigations offset themselves with
+	 * `top-header`, and the preview column uses `h-below-header`.
+	 */
+	--spacing-header: 4rem;
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary-hover: var(--primary-hover);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-selection: var(--selection);
+	--color-selection-foreground: var(--selection-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--color-tone-neutral: var(--tone-neutral);
+	--color-tone-neutral-foreground: var(--tone-neutral-foreground);
+	--color-tone-danger: var(--tone-danger);
+	--color-tone-danger-foreground: var(--tone-danger-foreground);
+	--color-tone-info: var(--tone-info);
+	--color-tone-info-foreground: var(--tone-info-foreground);
+	--color-tone-success: var(--tone-success);
+	--color-tone-success-foreground: var(--tone-success-foreground);
+	--color-tone-warning: var(--tone-warning);
+	--color-tone-warning-foreground: var(--tone-warning-foreground);
+
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+
+	--shadow-soft: 0 1px 1px var(--shadow-a), 0 4px 12px -8px var(--shadow-b);
+	--shadow-lift: 0 1px 1px var(--shadow-a), 0 18px 40px -24px var(--shadow-c);
+	--shadow-btn: 0 1px 2px var(--shadow-b), inset 0 1px 0 var(--sheen);
+
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+	--radius-4xl: calc(var(--radius) + 16px);
+}
+
+/*
+ * Prototype B "double rim": a matte shell wrapping a slightly raised core.
+ * Used by `Card` and by the framed blocks of the application shell.
+ */
+@utility shell {
+	border-radius: var(--radius-2xl);
+	background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+	padding: --spacing(1);
+	box-shadow: 0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+/* Section label: mono, spaced small caps. */
+@utility mono-label {
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--muted-foreground);
+}
+
+/*
+ * Grid of the dense lists (`DataList`). Column widths live here so components
+ * never need arbitrary values.
+ */
+@utility data-row {
+	display: grid;
+	grid-template-columns: var(--data-row-columns, 1fr);
+	align-items: center;
+}
+
+/*
+ * Full height minus the sticky top bar: the preview column of the document
+ * page and of the review sheet, which scroll on their own while the metadata
+ * column keeps scrolling the page.
+ */
+@utility h-below-header {
+	height: calc(100svh - var(--spacing-header));
+}
+
+@utility max-h-below-header {
+	max-height: calc(100svh - var(--spacing-header));
+}
+
+/*
+ * Motion (UI-2). Durations stay in the 150–250 ms band of `docs/DESIGN.md` and
+ * every one of them is disabled by `prefers-reduced-motion` (see the base
+ * layer below).
+ */
+@keyframes row-in {
+	from {
+		opacity: 0;
+		transform: translateY(--spacing(1));
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/** Subtle fade-up of a list row appearing. */
+@utility row-in {
+	animation: row-in 200ms var(--ease-premium) both;
+}
+
+@keyframes bar-in {
+	from {
+		opacity: 0;
+		transform: translateY(--spacing(4)) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/** Slide + fade of the floating bulk actions bar. */
+@utility bar-in {
+	animation: bar-in 220ms var(--ease-premium) both;
+}
+
+@keyframes bar-out {
+	from {
+		opacity: 1;
+		transform: none;
+	}
+	to {
+		opacity: 0;
+		transform: translateY(--spacing(4)) scale(0.98);
+	}
+}
+
+@utility bar-out {
+	animation: bar-out 160ms var(--ease-premium) both;
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	html {
+		@apply bg-background font-sans;
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+	}
+	body {
+		@apply bg-background font-sans text-foreground antialiased;
+		line-height: 1.55;
+	}
+	::selection {
+		background: var(--selection);
+		color: var(--selection-foreground);
+	}
+	::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	::-webkit-scrollbar-thumb {
+		background: var(--border);
+		border-radius: 9999px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	/*
+	 * Accessibility: everything the interface animates (Base UI transitions,
+	 * the row / bar keyframes above, the hover transitions) collapses to an
+	 * instant change when the system asks for reduced motion.
+	 */
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 1ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 1ms !important;
+			scroll-behavior: auto !important;
+		}
+	}
+}

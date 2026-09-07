@@ -1,0 +1,1 @@
+ALTER TABLE "document" ADD COLUMN "manual_fields" text[] DEFAULT '{}'::text[] NOT NULL;

@@ -1,0 +1,41 @@
+{
+	"name": "@docstore/db",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"db:push": "drizzle-kit push",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate:deploy": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio",
+		"db:migrate": "drizzle-kit migrate",
+		"db:seed": "bun run ./src/seed.ts",
+		"db:start": "docker compose up -d",
+		"db:watch": "docker compose up",
+		"db:stop": "docker compose stop",
+		"db:down": "docker compose down",
+		"check-types": "tsc --noEmit",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@docstore/env": "workspace:*",
+		"@docstore/shared": "workspace:*",
+		"dotenv": "catalog:",
+		"drizzle-orm": "^0.45.2",
+		"nanoid": "^5.1.6",
+		"pg": "^8.22.0",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@docstore/config": "workspace:*",
+		"@types/pg": "^8.20.0",
+		"drizzle-kit": "^0.31.10",
+		"typescript": "catalog:"
+	}
+}

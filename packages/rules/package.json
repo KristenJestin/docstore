@@ -1,0 +1,23 @@
+{
+	"name": "@docstore/rules",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@docstore/shared": "workspace:*",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@docstore/config": "workspace:*",
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	}
+}

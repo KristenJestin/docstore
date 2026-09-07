@@ -1,0 +1,39 @@
+{
+	"name": "server",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"build": "tsdown --no-dts",
+		"check-types": "tsc -b",
+		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
+		"dev": "bun run --hot src/index.ts",
+		"start": "bun run dist/index.mjs",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@docstore/api": "workspace:*",
+		"@docstore/auth": "workspace:*",
+		"@docstore/db": "workspace:*",
+		"@docstore/env": "workspace:*",
+		"@docstore/ingestion": "workspace:*",
+		"@docstore/mcp": "workspace:*",
+		"@docstore/shared": "workspace:*",
+		"@docstore/storage": "workspace:*",
+		"@hono/mcp": "^0.3.2",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"better-auth": "catalog:",
+		"dotenv": "catalog:",
+		"hono": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@docstore/config": "workspace:*",
+		"@types/bun": "catalog:",
+		"drizzle-orm": "^0.45.2",
+		"fflate": "^0.8.3",
+		"tsdown": "^0.22.14",
+		"typescript": "catalog:"
+	}
+}

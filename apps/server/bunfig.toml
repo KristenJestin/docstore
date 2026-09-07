@@ -1,0 +1,4 @@
+# `tsc -b` emits into dist/: without this root, `bun test` would also run the
+# compiled tests (dist/src/*.test.js), i.e. the same suite twice.
+[test]
+root = "src"

@@ -1,0 +1,40 @@
+# docstore reverse proxy: front-end and API on the same origin.
+#
+# SITE_ADDRESS is computed by the compose file from DOMAIN:
+#   - DOMAIN empty       -> ":80"        (plain HTTP, development / LAN)
+#   - DOMAIN=example.com -> "example.com" (HTTPS + automatic Let's Encrypt)
+
+{
+	admin off
+	# Rendered by the compose file: `email address@example.com` when ACME_EMAIL
+	# is set, an empty line otherwise (the `email` directive rejects an empty
+	# argument).
+	{$CADDY_EMAIL_DIRECTIVE}
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# Everything that belongs to the Hono/oRPC server.
+	# `/api*` covers `/api/auth/*`, `/api-reference`, the public routes
+	# (`/api/u/*`, `/api/s/*`) and `/api/export`. The bare `/u/*` and `/s/*`
+	# paths are SPA pages and stay on the front-end.
+	@api path /rpc* /api* /files* /health /mcp* /parties/*/logo
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	# The rest (SSR + assets) goes to the front-end.
+	handle {
+		reverse_proxy web:3001
+	}
+
+	request_body {
+		max_size {$MAX_UPLOAD_SIZE:100MB}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

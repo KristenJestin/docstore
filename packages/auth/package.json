@@ -1,0 +1,24 @@
+{
+	"name": "@docstore/auth",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@docstore/db": "workspace:*",
+		"@docstore/env": "workspace:*",
+		"better-auth": "catalog:",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@docstore/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

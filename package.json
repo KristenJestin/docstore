@@ -1,0 +1,77 @@
+{
+	"name": "docstore",
+	"private": true,
+	"workspaces": {
+		"packages": [
+			"apps/*",
+			"packages/*"
+		],
+		"catalog": {
+			"dotenv": "^17.4.2",
+			"zod": "^4.4.3",
+			"typescript": "^6.0.3",
+			"@types/bun": "^1.4.0",
+			"hono": "^4.12.32",
+			"@orpc/server": "^1.14.12",
+			"@orpc/openapi": "^1.14.12",
+			"@orpc/zod": "^1.14.12",
+			"better-auth": "1.7.1",
+			"lucide-react": "^1.27.0",
+			"next-themes": "^0.4.6",
+			"react": "^19.2.8",
+			"react-dom": "^19.2.8",
+			"sonner": "^2.0.7",
+			"tailwindcss": "^4.3.3",
+			"@orpc/client": "^1.14.12",
+			"@types/react": "^19.2.17",
+			"@types/react-dom": "^19.2.3"
+		}
+	},
+	"type": "module",
+	"scripts": {
+		"dev": "bun run scripts/dev.ts",
+		"wt": "bun run scripts/worktree.ts add",
+		"wt:remove": "bun run scripts/worktree.ts remove",
+		"db:reset": "bun run scripts/db-reset.ts",
+		"db:demo": "bun run scripts/demo.ts",
+		"build": "turbo run build",
+		"check-types": "turbo run check-types",
+		"test": "turbo run test",
+		"test:e2e": "turbo run test:e2e -F web --",
+		"dev:web": "turbo run dev -F web --",
+		"dev:server": "turbo run dev -F server --",
+		"db:push": "turbo run db:push -F @docstore/db --",
+		"db:studio": "turbo run db:studio -F @docstore/db --",
+		"db:generate": "turbo run db:generate -F @docstore/db --",
+		"db:migrate": "turbo run db:migrate -F @docstore/db --",
+		"db:start": "turbo run db:start -F @docstore/db --",
+		"db:watch": "turbo run db:watch -F @docstore/db --",
+		"db:stop": "turbo run db:stop -F @docstore/db --",
+		"db:down": "turbo run db:down -F @docstore/db --",
+		"docker:build": "docker compose -f docker/docker-compose.yml build",
+		"docker:up": "docker compose -f docker/docker-compose.yml up -d",
+		"docker:down": "docker compose -f docker/docker-compose.yml down",
+		"check": "biome check --write ."
+	},
+	"dependencies": {
+		"@docstore/env": "workspace:*",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.11",
+		"@docstore/api": "workspace:*",
+		"@docstore/auth": "workspace:*",
+		"@docstore/config": "workspace:*",
+		"@docstore/db": "workspace:*",
+		"@docstore/ingestion": "workspace:*",
+		"@docstore/shared": "workspace:*",
+		"@docstore/storage": "workspace:*",
+		"@types/bun": "catalog:",
+		"lefthook": "^2.1.12",
+		"pdf-lib": "^1.17.1",
+		"turbo": "^2.10.12",
+		"typescript": "catalog:"
+	},
+	"packageManager": "bun@1.3.13"
+}

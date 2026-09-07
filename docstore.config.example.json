@@ -1,0 +1,42 @@
+{
+	"intakeSources": [
+		{
+			"key": "inbox",
+			"name": "Server inbox",
+			"type": "folder",
+			"enabled": true,
+			"config": {
+				"path": "/data/inbox",
+				"recursive": true,
+				"pollSeconds": 30,
+				"afterImport": "move",
+				"moveTo": "/data/inbox/imported",
+				"filePattern": "\\.(pdf|jpe?g|png|tiff?|webp|heic)$"
+			},
+			"defaults": {
+				"sensitive": false
+			}
+		},
+		{
+			"key": "billing-mail",
+			"name": "Billing mailbox",
+			"type": "mail",
+			"enabled": true,
+			"config": {
+				"host": "imap.example.test",
+				"port": 993,
+				"secure": true,
+				"username": "billing@example.test",
+				"password": "${MAIL_PASSWORD}",
+				"mailbox": "INBOX",
+				"pollSeconds": 300,
+				"onlyUnseen": true,
+				"from": "invoice@",
+				"afterImport": "move",
+				"moveTo": "docstore/processed",
+				"attachmentsOnly": true
+			},
+			"defaults": {}
+		}
+	]
+}

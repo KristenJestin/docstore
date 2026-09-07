@@ -1,0 +1,26 @@
+/* Self-hosted fonts (no Google CDN in production). */
+@import "@fontsource-variable/plus-jakarta-sans/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+
+@import "@docstore/ui/globals.css";
+
+/*
+ * Both TanStack devtools are docked bottom right (the sidebar footer owns the
+ * bottom left corner). Their toggles are drawn by the libraries themselves with
+ * generated class names, so the router one is lifted from here, by its stable
+ * `aria-label`, to sit on top of the query one instead of over it.
+ */
+button[aria-label="Open TanStack Router Devtools"] {
+	bottom: calc(var(--spacing) * 14);
+}
+
+/*
+ * A modal marks everything behind it inert (`data-base-ui-inert`). The devtools
+ * live outside the dialog, in the very corner a sheet or dialog puts its
+ * footer buttons in: honour the inert state so their toggle never swallows the
+ * click meant for "Save".
+ */
+.tsqd-parent-container[data-base-ui-inert],
+footer[data-base-ui-inert] {
+	pointer-events: none;
+}

@@ -1,0 +1,468 @@
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	test,
+} from "bun:test";
+import { category } from "@docstore/db/schema/category";
+import {
+	customField,
+	documentFieldValue,
+} from "@docstore/db/schema/custom-field";
+import { document, documentParty } from "@docstore/db/schema/document";
+import { documentType } from "@docstore/db/schema/document-type";
+import { party } from "@docstore/db/schema/party";
+import type { TestDb } from "@docstore/db/test-utils";
+import { createTestDb, truncateAll } from "@docstore/db/test-utils";
+import { eq } from "drizzle-orm";
+import { analyzeDocument, computeReviewReasons } from "./analyze";
+import { writeSetting } from "./settings";
+import { insertTestUser } from "./test-utils";
+
+let db: TestDb;
+let userId: string;
+
+beforeAll(async () => {
+	db = await createTestDb();
+});
+
+afterAll(async () => {
+	await db.$client.end();
+});
+
+beforeEach(async () => {
+	await truncateAll(db);
+	userId = await insertTestUser(db);
+});
+
+async function insertDocument(
+	overrides: Partial<typeof document.$inferInsert> = {},
+): Promise<string> {
+	const rows = await db
+		.insert(document)
+		.values({
+			title: "Untitled",
+			status: "active",
+			createdById: userId,
+			...overrides,
+		})
+		.returning({ id: document.id });
+	const id = rows[0]?.id;
+	if (!id) throw new Error("document not inserted");
+	return id;
+}
+
+async function loadDocument(id: string) {
+	const rows = await db.select().from(document).where(eq(document.id, id));
+	const row = rows[0];
+	if (!row) throw new Error("missing document");
+	return row;
+}
+
+describe("analyzeDocument — review reasons wording", () => {
+	test("the missing issuer reason has no stray capital", async () => {
+		await writeSetting(db, "review.requireIssuer", true);
+		const id = await insertDocument({ content: "Nothing relevant here." });
+
+		const reasons = await analyzeDocument(db, id);
+		const reason = reasons.find((item) => item.code === "missingIssuer");
+		expect(reason?.message).toBe("No issuer could be identified.");
+	});
+
+	test("a possible duplicate cites the other document's title, not its id", async () => {
+		const otherId = await insertDocument({
+			title: "EDF invoice — March",
+			documentDate: "2026-03-01",
+		});
+		const id = await insertDocument({
+			title: "EDF invoice — March",
+			documentDate: "2026-03-01",
+		});
+
+		const reasons = await analyzeDocument(db, id);
+		const reason = reasons.find((item) => item.code === "possibleDuplicate");
+		expect(reason?.message).toBe(
+			"A document already has this title and date: “EDF invoice — March”.",
+		);
+		expect(reason?.ref).toBe(otherId);
+		expect(reason?.message).not.toContain(otherId);
+	});
+});
+
+describe("analyzeDocument — recurringCandidate", () => {
+	let partyId: string;
+	let categoryId: string;
+
+	async function seedCouple(): Promise<void> {
+		const parties = await db
+			.insert(party)
+			.values({ type: "company", name: "EDF" })
+			.returning({ id: party.id });
+		partyId = parties[0]?.id ?? "";
+		const categories = await db
+			.insert(category)
+			.values({ name: "Invoice", slug: "invoice" })
+			.returning({ id: category.id });
+		categoryId = categories[0]?.id ?? "";
+	}
+
+	/** Document issued by `partyId`, filed under `categoryId`, on `period`. */
+	async function seedInvoice(period: string): Promise<string> {
+		const id = await insertDocument({
+			title: `EDF invoice ${period}`,
+			categoryId,
+			periodStart: period,
+			documentDate: period,
+			datePrecision: "month",
+		});
+		await db
+			.insert(documentParty)
+			.values({ documentId: id, partyId, role: "issuer", source: "rule" });
+		return id;
+	}
+
+	beforeEach(seedCouple);
+
+	test("a single document is not a recurrence", async () => {
+		const id = await seedInvoice("2024-01-01");
+		const reasons = await analyzeDocument(db, id);
+		expect(reasons.map((reason) => reason.code)).not.toContain(
+			"recurringCandidate",
+		);
+	});
+
+	test("two documents on distinct periods raise the reason", async () => {
+		const january = await seedInvoice("2024-01-01");
+		const february = await seedInvoice("2024-02-01");
+
+		const reasons = await analyzeDocument(db, february);
+		const reason = reasons.find((item) => item.code === "recurringCandidate");
+		expect(reason?.message).toBe(
+			"Looks like a recurring document: 2 documents from EDF in Invoice (monthly). Create a document type?",
+		);
+		expect(reason?.ref).toBe(partyId);
+		expect(reason?.meta).toMatchObject({
+			partyId,
+			categoryId,
+			periodicity: "monthly",
+			startPeriod: "2024-01-01",
+			endPeriod: "2024-02-01",
+		});
+		const documentIds = reason?.meta?.documentIds as string[] | undefined;
+		expect(documentIds?.sort()).toEqual([january, february].sort());
+	});
+
+	test("two documents on the same period are not a recurrence", async () => {
+		await seedInvoice("2024-01-01");
+		const second = await seedInvoice("2024-01-01");
+		const reasons = await analyzeDocument(db, second);
+		expect(reasons.map((reason) => reason.code)).not.toContain(
+			"recurringCandidate",
+		);
+	});
+
+	test("the periodicity follows the observed gaps", async () => {
+		await seedInvoice("2022-05-01");
+		await seedInvoice("2023-05-01");
+		const last = await seedInvoice("2024-05-01");
+
+		const reasons = await analyzeDocument(db, last);
+		const reason = reasons.find((item) => item.code === "recurringCandidate");
+		expect(reason?.message).toContain("(yearly)");
+		expect(reason?.meta).toMatchObject({
+			periodicity: "yearly",
+			startPeriod: "2022-01-01",
+			endPeriod: "2024-01-01",
+		});
+	});
+
+	test("stays quiet when a document type already covers the couple", async () => {
+		await seedInvoice("2024-01-01");
+		const february = await seedInvoice("2024-02-01");
+		await db.insert(documentType).values({
+			name: "EDF — Invoice",
+			issuerPartyId: partyId,
+			categoryId,
+			periodicity: "monthly",
+			startPeriod: "2024-01-01",
+		});
+
+		const reasons = await analyzeDocument(db, february);
+		expect(reasons.map((reason) => reason.code)).not.toContain(
+			"recurringCandidate",
+		);
+	});
+
+	test("it never sends the document to review on its own", async () => {
+		await seedInvoice("2024-01-01");
+		const february = await seedInvoice("2024-02-01");
+		await db
+			.update(document)
+			.set({ status: "review" })
+			.where(eq(document.id, february));
+
+		const reasons = await analyzeDocument(db, february);
+		expect(reasons.map((reason) => reason.code)).toEqual([
+			"recurringCandidate",
+		]);
+
+		// `computeReviewReasons` keeps the reason but releases the document.
+		expect(await computeReviewReasons(db, february)).toHaveLength(1);
+		expect((await loadDocument(february)).status).toBe("active");
+	});
+
+	test("computeReviewReasons drops it once a type covers the couple", async () => {
+		await seedInvoice("2024-01-01");
+		const february = await seedInvoice("2024-02-01");
+		await analyzeDocument(db, february);
+		expect(await computeReviewReasons(db, february)).toHaveLength(1);
+
+		await db.insert(documentType).values({
+			name: "EDF — Invoice",
+			issuerPartyId: partyId,
+			categoryId,
+			periodicity: "monthly",
+			startPeriod: "2024-01-01",
+		});
+		expect(await computeReviewReasons(db, february)).toEqual([]);
+		expect((await loadDocument(february)).reviewReasons).toEqual([]);
+	});
+});
+
+describe("computeReviewReasons", () => {
+	test("drops `missingCategory` once a category is set", async () => {
+		const categories = await db
+			.insert(category)
+			.values({ name: "Invoice", slug: "invoice" })
+			.returning({ id: category.id });
+		const categoryId = categories[0]?.id;
+		if (!categoryId) throw new Error("category not inserted");
+
+		const id = await insertDocument({
+			status: "review",
+			reviewReasons: [{ code: "missingCategory", message: "…" }],
+		});
+
+		expect(await computeReviewReasons(db, id)).toEqual([
+			{ code: "missingCategory", message: "…" },
+		]);
+
+		await db.update(document).set({ categoryId }).where(eq(document.id, id));
+		expect(await computeReviewReasons(db, id)).toEqual([]);
+
+		const doc = await loadDocument(id);
+		expect(doc.status).toBe("active");
+	});
+
+	test("drops `missingIssuer` once an issuer party is linked", async () => {
+		const parties = await db
+			.insert(party)
+			.values({ type: "company", name: "EDF" })
+			.returning({ id: party.id });
+		const partyId = parties[0]?.id;
+		if (!partyId) throw new Error("party not inserted");
+
+		const id = await insertDocument({
+			status: "review",
+			reviewReasons: [{ code: "missingIssuer", message: "…", field: "issuer" }],
+		});
+		expect(await computeReviewReasons(db, id)).toHaveLength(1);
+
+		await db
+			.insert(documentParty)
+			.values({ documentId: id, partyId, role: "issuer", source: "rule" });
+		expect(await computeReviewReasons(db, id)).toEqual([]);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
+
+	test("drops a `lowConfidence` category reason once the confidence clears the threshold", async () => {
+		const categories = await db
+			.insert(category)
+			.values({ name: "Invoice", slug: "invoice" })
+			.returning({ id: category.id });
+		const categoryId = categories[0]?.id;
+		if (!categoryId) throw new Error("category not inserted");
+
+		const id = await insertDocument({
+			status: "review",
+			categoryId,
+			categorySource: "rule",
+			categoryConfidence: 0.4,
+			reviewReasons: [
+				{
+					code: "lowConfidence",
+					message: "…",
+					field: "category",
+					confidence: 0.4,
+				},
+			],
+		});
+		expect(await computeReviewReasons(db, id)).toHaveLength(1);
+
+		await db
+			.update(document)
+			.set({ categoryConfidence: 0.95 })
+			.where(eq(document.id, id));
+		expect(await computeReviewReasons(db, id)).toEqual([]);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
+
+	test("drops a `lowConfidence` custom field reason once it is corrected manually", async () => {
+		const fields = await db
+			.insert(customField)
+			.values({ name: "Total amount", slug: "total-amount", type: "number" })
+			.returning({ id: customField.id });
+		const fieldId = fields[0]?.id;
+		if (!fieldId) throw new Error("custom field not inserted");
+
+		const id = await insertDocument({
+			status: "review",
+			reviewReasons: [
+				{
+					code: "lowConfidence",
+					message: "…",
+					field: fieldId,
+					confidence: 0.3,
+				},
+			],
+		});
+		await db.insert(documentFieldValue).values({
+			documentId: id,
+			fieldId,
+			value: { kind: "number", number: 12 },
+			source: "rule",
+			confidence: 0.3,
+		});
+		expect(await computeReviewReasons(db, id)).toHaveLength(1);
+
+		// A manual correction clears the confidence column.
+		await db
+			.update(documentFieldValue)
+			.set({ source: "manual", confidence: null })
+			.where(eq(documentFieldValue.documentId, id));
+		expect(await computeReviewReasons(db, id)).toEqual([]);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
+
+	test("keeps other pending reasons: the document stays in review", async () => {
+		const id = await insertDocument({
+			status: "review",
+			reviewReasons: [
+				{ code: "missingCategory", message: "…" },
+				{ code: "missingIssuer", message: "…", field: "issuer" },
+			],
+		});
+
+		const parties = await db
+			.insert(party)
+			.values({ type: "company", name: "EDF" })
+			.returning({ id: party.id });
+		await db.insert(documentParty).values({
+			documentId: id,
+			partyId: parties[0]?.id ?? "",
+			role: "issuer",
+			source: "rule",
+		});
+
+		const reasons = await computeReviewReasons(db, id);
+		expect(reasons.map((reason) => reason.code)).toEqual(["missingCategory"]);
+		expect((await loadDocument(id)).status).toBe("review");
+	});
+
+	test("returns an empty array for an unknown document", async () => {
+		expect(await computeReviewReasons(db, "doc_missing")).toEqual([]);
+	});
+});
+
+describe("analyzeDocument — payslip dates", () => {
+	const PAYSLIP = [
+		"BULLETIN DE PAIE",
+		"Période du 01/08/2026 au 31/08/2026",
+		"NET À PAYER 2 145,30",
+		"Payé le 05/09/2026",
+	].join("\n");
+
+	test("fills the period and prefers the payment date for the document date", async () => {
+		const id = await insertDocument({ content: PAYSLIP });
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.periodStart).toBe("2026-08-01");
+		expect(doc.periodEnd).toBe("2026-08-31");
+		// Not 2026-08-01, which is only the first day of the covered period.
+		expect(doc.documentDate).toBe("2026-09-05");
+	});
+
+	test("reads the English wording as well", async () => {
+		const id = await insertDocument({
+			content: "Pay period from 2026-08-01 to 2026-08-31\nIssued on 05/09/2026",
+		});
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.periodStart).toBe("2026-08-01");
+		expect(doc.periodEnd).toBe("2026-08-31");
+		expect(doc.documentDate).toBe("2026-09-05");
+	});
+
+	test("without a payment date, the period start is not taken either", async () => {
+		const id = await insertDocument({
+			content: "Période du 01/08/2026 au 31/08/2026\nÉdition 12/09/2026",
+		});
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.periodStart).toBe("2026-08-01");
+		expect(doc.documentDate).toBe("2026-09-12");
+	});
+
+	test("a period entered by hand is left alone", async () => {
+		const id = await insertDocument({
+			content: PAYSLIP,
+			periodStart: "2026-07-01",
+			periodEnd: "2026-07-31",
+			// What `document.update` records when someone edits the period.
+			manualFields: ["periodStart", "periodEnd"],
+		});
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.periodStart).toBe("2026-07-01");
+		expect(doc.periodEnd).toBe("2026-07-31");
+	});
+
+	/**
+	 * The mirror case: without a marker, the value on the row came from an
+	 * earlier pass of this very module, and a second pass is allowed to correct
+	 * it — this is what `document.reprocess` is for.
+	 */
+	test("a period nobody edited is recomputed", async () => {
+		const id = await insertDocument({
+			content: PAYSLIP,
+			periodStart: "2026-07-01",
+			periodEnd: "2026-07-31",
+		});
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.periodStart).toBe("2026-08-01");
+		expect(doc.periodEnd).toBe("2026-08-31");
+	});
+
+	test("a date entered by hand survives the analysis", async () => {
+		const id = await insertDocument({
+			content: PAYSLIP,
+			documentDate: "2026-12-24",
+			datePrecision: "day",
+			manualFields: ["documentDate", "datePrecision"],
+		});
+		await analyzeDocument(db, id);
+
+		const doc = await loadDocument(id);
+		expect(doc.documentDate).toBe("2026-12-24");
+		// The period carries no marker: it is filled all the same.
+		expect(doc.periodStart).toBe("2026-08-01");
+	});
+});

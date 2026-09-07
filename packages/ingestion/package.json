@@ -1,0 +1,32 @@
+{
+	"name": "@docstore/ingestion",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@docstore/db": "workspace:*",
+		"@docstore/ocr": "workspace:*",
+		"@docstore/rules": "workspace:*",
+		"@docstore/shared": "workspace:*",
+		"@docstore/storage": "workspace:*",
+		"drizzle-orm": "^0.45.2",
+		"imapflow": "^1.0.212",
+		"mailparser": "^3.7.4",
+		"pg-boss": "^10.3.2"
+	},
+	"devDependencies": {
+		"@docstore/config": "workspace:*",
+		"@types/bun": "catalog:",
+		"@types/mailparser": "^3.4.6",
+		"dotenv": "catalog:",
+		"typescript": "catalog:"
+	}
+}
