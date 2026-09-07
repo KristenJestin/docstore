@@ -6,7 +6,8 @@ import { ensureFreshFixtureDocument } from "./helpers/fixture-document";
 
 /**
  * Document types (SPEC §9): creating one from a document, turning it into a
- * recurrence, giving it a layout and applying it to a selection.
+ * recurrence, giving it a layout, applying it to a selection, laying a
+ * half-yearly timeline out and rewriting the titles from the template.
  */
 test.describe("document types", () => {
 	test.slow();
@@ -152,5 +153,120 @@ test.describe("document types", () => {
 		await expect(page.getByRole("link", { name: typeName })).toBeVisible({
 			timeout: 20_000,
 		});
+	});
+
+	test("a semiannual type lays its timeline out in halves", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Semiannual User");
+
+		const typeName = runName("semiannual type");
+
+		await page.getByRole("link", { name: "Document types" }).first().click();
+		await page
+			.getByRole("button", { name: "New document type" })
+			.first()
+			.click();
+		const sheet = page.getByRole("dialog");
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(typeName);
+		await sheet.getByRole("switch", { name: "Recurring document" }).click();
+
+		// --- Periodicity: semiannual -------------------------------------------
+		await sheet.getByRole("combobox", { name: "Periodicity" }).click();
+		await page.getByRole("option", { name: "Semiannual" }).click();
+
+		// The quarter selector becomes a half-year one.
+		const firstHalf = sheet
+			.getByRole("button", { name: "Half-year 1" })
+			.first();
+		await expect(firstHalf).toBeVisible();
+		const year = sheet.getByRole("textbox", { name: "First period year" });
+		await year.fill("2024");
+		await year.press("Enter");
+		await firstHalf.click();
+		await expect(sheet.getByText("H1 2024").first()).toBeVisible();
+
+		await sheet.getByRole("button", { name: "Create document type" }).click();
+		await expect(sheet).toBeHidden();
+
+		// --- The timeline is keyed by half-year --------------------------------
+		await page.getByRole("link", { name: typeName }).click();
+		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
+		await expect(page.getByText("Semiannual").first()).toBeVisible();
+
+		const timeline = page.getByTestId("recurrence-timeline");
+		await expect(timeline).toBeVisible({ timeout: 15_000 });
+		await expect(timeline.getByText("2024-H1", { exact: true })).toBeVisible();
+		await expect(timeline.getByText("2024-H2", { exact: true })).toBeVisible();
+	});
+
+	test("regenerate the titles of a type from its template", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Title Rewrite User");
+
+		const documentId = await ensureFreshFixtureDocument(page);
+		await page.goto(`/documents/${documentId}`);
+
+		// --- A date, so the document belongs to a period -----------------------
+		const documentDate = page.getByRole("textbox", { name: "Document date" });
+		await expect(documentDate).toBeVisible({ timeout: 20_000 });
+		await documentDate.fill("2024-03-17");
+		await documentDate.press("Enter");
+		await expect(documentDate).toHaveValue("17 Mar 2024");
+
+		// --- "Create type from this document" ----------------------------------
+		const typePicker = page.getByRole("combobox", { name: "Document type" });
+		await expect(typePicker).toBeVisible({ timeout: 20_000 });
+		await typePicker.fill("Create");
+		await page
+			.getByRole("option", { name: "Create type from this document" })
+			.click();
+		await expect(page).toHaveURL(/\/types\/dty_/, { timeout: 30_000 });
+
+		// The header only settles once `documentType.get` resolved: clicking
+		// "Edit" before that lands on a button React is about to remount.
+		await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+		// --- Recurring: the default title template comes with the switch -------
+		const typeName = runName("titled type");
+		await page.getByRole("button", { name: "Edit" }).first().click();
+		const sheet = page.getByRole("dialog");
+		await expect(
+			sheet.getByRole("heading", { name: "Edit document type" }),
+		).toBeVisible();
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(typeName);
+		await sheet.getByRole("switch", { name: "Recurring document" }).click();
+
+		const template = sheet.getByRole("textbox", { name: "Title template" });
+		await expect(template).toHaveValue("{type} {period:MMMM yyyy}");
+		await sheet.getByRole("button", { name: "Save" }).click();
+		await expect(sheet).toBeHidden();
+
+		// --- "Regenerate titles" shows a preview, then rewrites ----------------
+		await page
+			.getByRole("button", { name: "Regenerate titles", exact: true })
+			.click();
+		const confirm = page.getByRole("alertdialog");
+		await expect(confirm.getByText(`${typeName} March 2024`)).toBeVisible({
+			timeout: 15_000,
+		});
+		await confirm
+			.getByRole("button", { name: "Regenerate titles", exact: true })
+			.click();
+		await expect(page.getByText(/1 title rewritten/)).toBeVisible({
+			timeout: 20_000,
+		});
+
+		await page.goto(`/documents/${documentId}`);
+		// The title of a document is an inline editor, not a heading.
+		await expect(page.getByRole("button", { name: "Edit title" })).toHaveText(
+			`${typeName} March 2024`,
+			{ timeout: 20_000 },
+		);
 	});
 });

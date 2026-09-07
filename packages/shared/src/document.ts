@@ -497,6 +497,12 @@ export const documentBulkActionSchema = z.discriminatedUnion("type", [
 		tagIds: z.array(z.string().min(1)).min(1),
 	}),
 	z.object({ type: z.literal("setSensitive"), sensitive: z.boolean() }),
+	/**
+	 * Rewrites the title of each document from the title template of the type it
+	 * carries. Documents without a type, or whose type has no template, are left
+	 * alone, as are titles set by hand.
+	 */
+	z.object({ type: z.literal("regenerateTitle") }),
 	z.object({ type: z.literal("trash") }),
 	z.object({ type: z.literal("restore") }),
 	z.object({

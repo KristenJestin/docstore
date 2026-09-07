@@ -1,9 +1,15 @@
+import { renderTitleTemplate } from "@docstore/rules/title";
 import type {
 	DocumentTypeDto,
 	DocumentTypeItem,
 } from "@docstore/shared/document-type";
+import { DEFAULT_RECURRING_TITLE_TEMPLATE } from "@docstore/shared/document-type";
 import type { Periodicity } from "@docstore/shared/recurrence";
-import { DEFAULT_GRACE_DAYS, PERIODICITIES } from "@docstore/shared/recurrence";
+import {
+	DEFAULT_GRACE_DAYS,
+	PERIODICITIES,
+	periodKeyOf,
+} from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
 import { Button } from "@docstore/ui/components/button";
 import { Input } from "@docstore/ui/components/input";
@@ -47,7 +53,11 @@ import { TitleTemplateInput } from "@/components/title-template-input";
 import { toastApiError } from "@/lib/api-error";
 import { orpc } from "@/utils/orpc";
 
-import { PERIODICITY_ICONS, PERIODICITY_TITLES } from "./document-type-labels";
+import {
+	PERIODICITY_ICONS,
+	PERIODICITY_TITLES,
+	TYPE_TITLE_PLACEHOLDERS,
+} from "./document-type-labels";
 import { PeriodHint, PeriodPicker, toPeriodStart } from "./period-picker";
 
 const PERIODICITY_ITEMS = iconLabelItems(
@@ -59,6 +69,30 @@ const PERIODICITY_ITEMS = iconLabelItems(
 /** `YYYY-MM-DD` of today, in UTC. */
 function todayIso(): string {
 	return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Title the template would render, on a made-up document filed today. The
+ * engine is the very same one the API runs, so what the field shows is what
+ * the documents will get.
+ */
+function titleExample(draft: DocumentTypeDraft): string {
+	const periodStart = toPeriodStart(todayIso(), draft.periodicity);
+	return renderTitleTemplate(draft.titleTemplate, {
+		type: draft.name.trim() || "Document type",
+		date: todayIso(),
+		issuer: "Nordwind Digital",
+		subject: "Camille Report",
+		category: "Invoice",
+		title: "Scan 2026-03-17",
+		filename: "scan-2026-03-17.pdf",
+		ext: "pdf",
+		periodStart,
+		periodEnd: null,
+		periodKey: draft.recurring
+			? periodKeyOf(draft.periodicity, periodStart)
+			: null,
+	});
 }
 
 /**
@@ -369,11 +403,22 @@ export function DocumentTypeFormSheet({
 						<FormField
 							label="Title template"
 							htmlFor={`${ids}-title`}
-							hint="Applied while the title still is the one derived from the file name."
+							hint={
+								draft.titleTemplate.trim() ? (
+									<span className="inline-flex flex-wrap items-center gap-1">
+										Example:
+										<span className="font-mono">{titleExample(draft)}</span>
+									</span>
+								) : (
+									"Leave empty to keep the title the document arrived with."
+								)
+							}
 						>
 							<TitleTemplateInput
 								id={`${ids}-title`}
 								value={draft.titleTemplate}
+								placeholder={DEFAULT_RECURRING_TITLE_TEMPLATE}
+								placeholders={TYPE_TITLE_PLACEHOLDERS}
 								onValueChange={(titleTemplate) => patch({ titleTemplate })}
 							/>
 						</FormField>
@@ -440,7 +485,18 @@ export function DocumentTypeFormSheet({
 							<Switch
 								aria-label="Recurring document"
 								checked={draft.recurring}
-								onCheckedChange={(recurring) => patch({ recurring })}
+								onCheckedChange={(recurring) =>
+									patch({
+										recurring,
+										// A recurring type names its documents after their
+										// period: the default template comes with the switch,
+										// and an emptied field stays empty.
+										titleTemplate:
+											recurring && draft.titleTemplate.trim().length === 0
+												? DEFAULT_RECURRING_TITLE_TEMPLATE
+												: draft.titleTemplate,
+									})
+								}
 							/>
 						</div>
 

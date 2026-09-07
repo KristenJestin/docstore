@@ -36,6 +36,7 @@ import { DocumentTypeFormSheet } from "@/components/document-types/document-type
 import { DocumentTypeLayouts } from "@/components/document-types/document-type-layouts";
 import { OutOfRangeNotice } from "@/components/document-types/out-of-range-notice";
 import { RecurrenceTimeline } from "@/components/document-types/recurrence-timeline";
+import { RegenerateTitlesButton } from "@/components/document-types/regenerate-titles-button";
 import { DocumentRow } from "@/components/documents/document-row";
 import { EmptyState } from "@/components/empty-state";
 import { MonoLabel } from "@/components/mono-label";
@@ -207,6 +208,7 @@ function DocumentTypeDetailPage() {
 					</div>
 
 					<div className="flex flex-wrap items-center gap-2">
+						<RegenerateTitlesButton detail={detail} />
 						<Button
 							variant="outline"
 							size="sm"

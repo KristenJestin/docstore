@@ -176,6 +176,138 @@ describe("documentType.create", () => {
 	});
 });
 
+describe("documentType — titles", () => {
+	/** Monthly type whose documents are named after their period. */
+	function titledInput(name = "EDF invoice") {
+		return {
+			...monthlyInput(),
+			name,
+			titleTemplate: "{type} {period:MMMM yyyy}",
+		};
+	}
+
+	test("a new recurring type starts with the default template", async () => {
+		const recurring = await client.documentType.create(monthlyInput());
+		expect(recurring.titleTemplate).toBe("{type} {period:MMMM yyyy}");
+
+		// A one-off type leaves the titles alone.
+		const oneOff = await client.documentType.create({ name: "Passport" });
+		expect(oneOff.titleTemplate).toBeNull();
+
+		// An explicit `null` is obeyed, recurrence or not.
+		const bare = await client.documentType.create({
+			...monthlyInput(),
+			name: "Bare",
+			titleTemplate: null,
+		});
+		expect(bare.titleTemplate).toBeNull();
+	});
+
+	test("previewTitles shows what regenerateTitles would write", async () => {
+		const january = await seedPeriodDocument("2024-01-01", {
+			title: "scan-001",
+		});
+		const february = await seedPeriodDocument("2024-02-01", {
+			title: "scan-002",
+		});
+		const created = await client.documentType.create(titledInput());
+
+		const preview = await client.documentType.previewTitles({
+			id: created.id,
+			limit: 5,
+		});
+		// Most recent period first.
+		expect(preview.map((item) => item.title)).toEqual([
+			"EDF invoice February 2024",
+			"EDF invoice January 2024",
+		]);
+		expect(preview.every((item) => item.manual)).toBe(false);
+		// Nothing was written.
+		expect((await client.document.get({ id: january })).title).toBe("scan-001");
+
+		expect(
+			await client.documentType.regenerateTitles({ id: created.id }),
+		).toEqual({ updated: 2, skipped: 0 });
+		expect((await client.document.get({ id: january })).title).toBe(
+			"EDF invoice January 2024",
+		);
+		expect((await client.document.get({ id: february })).title).toBe(
+			"EDF invoice February 2024",
+		);
+
+		// Titles already matching the template are left alone the second time.
+		expect(
+			await client.documentType.regenerateTitles({ id: created.id }),
+		).toEqual({ updated: 0, skipped: 2 });
+	});
+
+	test("a title set by hand survives unless `overwriteManual`", async () => {
+		const id = await seedPeriodDocument("2024-01-01", { title: "scan-001" });
+		const created = await client.documentType.create(titledInput());
+		await client.document.update({ id, title: "The one I typed" });
+
+		const preview = await client.documentType.previewTitles({ id: created.id });
+		expect(preview[0]?.manual).toBe(true);
+
+		expect(
+			await client.documentType.regenerateTitles({ id: created.id }),
+		).toEqual({ updated: 0, skipped: 1 });
+		expect((await client.document.get({ id })).title).toBe("The one I typed");
+
+		expect(
+			await client.documentType.regenerateTitles({
+				id: created.id,
+				overwriteManual: true,
+			}),
+		).toEqual({ updated: 1, skipped: 0 });
+		expect((await client.document.get({ id })).title).toBe(
+			"EDF invoice January 2024",
+		);
+	});
+
+	test("BAD_REQUEST when the type has no template", async () => {
+		const created = await client.documentType.create({
+			...monthlyInput(),
+			titleTemplate: null,
+		});
+		await expectOrpcError(
+			client.documentType.regenerateTitles({ id: created.id }),
+			"BAD_REQUEST",
+		);
+		await expectOrpcError(
+			client.documentType.previewTitles({ id: created.id }),
+			"BAD_REQUEST",
+		);
+	});
+
+	test("the bulk action uses the template of the type each document carries", async () => {
+		const withType = await seedPeriodDocument("2024-01-01", {
+			title: "scan-001",
+		});
+		const untyped = await seedPeriodDocument("2024-02-01", {
+			title: "scan-002",
+			partyId: null,
+			categoryId: null,
+		});
+		const created = await client.documentType.create(titledInput());
+		await db
+			.update(document)
+			.set({ documentTypeId: created.id })
+			.where(eq(document.id, withType));
+
+		const result = await client.document.bulk({
+			ids: [withType, untyped],
+			action: { type: "regenerateTitle" },
+		});
+		expect(result.updated).toBe(1);
+		expect((await client.document.get({ id: withType })).title).toBe(
+			"EDF invoice January 2024",
+		);
+		// No type, no template: the title is left as it is.
+		expect((await client.document.get({ id: untyped })).title).toBe("scan-002");
+	});
+});
+
 describe("documentType — missing periods", () => {
 	test("monthly recurrence of 6 months with 2 gaps", async () => {
 		for (const month of [

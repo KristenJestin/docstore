@@ -13,6 +13,7 @@ import {
 	LockIcon,
 	TagIcon,
 	Trash2Icon,
+	TypeIcon,
 	Undo2Icon,
 	XIcon,
 } from "lucide-react";
@@ -120,6 +121,18 @@ export function BulkActionsBar({
 		}
 	};
 
+	const onRegenerateTitle = async () => {
+		const ok = await confirm({
+			title: `Regenerate the title of ${countLabel(ids.length, "document")}?`,
+			description:
+				"Each document is renamed from the title template of the type it carries. Documents without a type, and titles set by hand, are left alone.",
+			confirmLabel: "Regenerate title",
+		});
+		if (ok) {
+			await run({ type: "regenerateTitle" }, "Titles regenerated");
+		}
+	};
+
 	const onTrash = async () => {
 		const ok = await confirm({
 			title: `Move ${countLabel(ids.length, "document")} to the trash?`,
@@ -214,6 +227,11 @@ export function BulkActionsBar({
 							</div>
 						</PopoverContent>
 					</Popover>
+
+					<Button variant="secondary" size="sm" onClick={onRegenerateTitle}>
+						<TypeIcon />
+						Regenerate title
+					</Button>
 
 					<Button variant="secondary" size="sm" onClick={onSensitive}>
 						<LockIcon />

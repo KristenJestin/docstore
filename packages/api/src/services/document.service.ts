@@ -86,6 +86,7 @@ import {
 	applyDocumentType as applyDocumentTypeToDocuments,
 	documentTypeForDocument,
 	documentTypeMemberDocumentIds,
+	regenerateTitlesForDocuments,
 } from "./document-type.service";
 import { listDossiersForDocument } from "./dossier.service";
 import {
@@ -1492,6 +1493,13 @@ export async function bulkDocuments(
 	}
 	if (action.type === "addParty") {
 		await requireParties(db, [action.partyId]);
+	}
+	if (action.type === "regenerateTitle") {
+		// Rendering a template needs the subject of each document: like
+		// `setDocumentType`, this runs document by document, outside a
+		// transaction.
+		const outcome = await regenerateTitlesForDocuments(db, found);
+		return { updated: outcome.updated };
 	}
 	if (action.type === "setDocumentType") {
 		// Applying a type runs the extraction rules document by document: it does

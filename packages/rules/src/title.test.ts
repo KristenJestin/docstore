@@ -96,3 +96,55 @@ describe("unknownTemplatePlaceholders", () => {
 		}
 	});
 });
+
+describe("document type placeholders", () => {
+	const recurring = {
+		...context,
+		type: "EDF electricity bill",
+		periodStart: "2026-03-01",
+		periodEnd: "2026-03-31",
+		periodKey: "2026-03",
+	};
+
+	test("{type} carries the name of the document type", () => {
+		expect(renderTitleTemplate("{type}", recurring)).toBe(
+			"EDF electricity bill",
+		);
+		// Outside a document type there is no name to fill in.
+		expect(renderTitleTemplate("{type} {issuer}", context)).toBe(
+			"Nordwind Digital",
+		);
+	});
+
+	test("{period} is the period key as soon as the caller knows it", () => {
+		expect(renderTitleTemplate("{period}", recurring)).toBe("2026-03");
+		expect(
+			renderTitleTemplate("{period}", {
+				...recurring,
+				periodStart: "2026-01-01",
+				periodEnd: "2026-06-30",
+				periodKey: "2026-H1",
+			}),
+		).toBe("2026-H1");
+	});
+
+	test("the period formats read in en-GB", () => {
+		expect(renderTitleTemplate("{period:MMMM yyyy}", recurring)).toBe(
+			"March 2026",
+		);
+		expect(renderTitleTemplate("{period:yyyy-MM}", recurring)).toBe("2026-03");
+		expect(renderTitleTemplate("{period:yyyy}", recurring)).toBe("2026");
+	});
+
+	test("the default template of a recurring type", () => {
+		expect(renderTitleTemplate("{type} {period:MMMM yyyy}", recurring)).toBe(
+			"EDF electricity bill March 2026",
+		);
+	});
+
+	test("a formatted period without a period start renders nothing", () => {
+		expect(
+			renderTitleTemplate("{type} {period:MMMM yyyy}", { type: "Payslip" }),
+		).toBe("Payslip");
+	});
+});

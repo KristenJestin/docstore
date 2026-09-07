@@ -43,6 +43,13 @@ export const LAYOUT_TRIAL_THRESHOLD = 0.5;
 /** Number of distinctive tokens seeded into a layout signature. */
 export const LAYOUT_SIGNATURE_TOKENS = 5;
 
+/**
+ * Title template a **new recurring** type starts with (see the "Titles"
+ * section of `docs/document-types.md`). A one-off type keeps an empty
+ * template: its documents keep the title they arrived with.
+ */
+export const DEFAULT_RECURRING_TITLE_TEMPLATE = "{type} {period:MMMM yyyy}";
+
 /* ------------------------------------------------------------------ */
 /* DTOs                                                                 */
 /* ------------------------------------------------------------------ */
@@ -288,6 +295,49 @@ export function documentTypeCoversCouple(
 		(criteria.categoryId === null || criteria.categoryId === categoryId)
 	);
 }
+
+/* ------------------------------------------------------------------ */
+/* Titles                                                               */
+/* ------------------------------------------------------------------ */
+
+export const previewDocumentTypeTitlesInput = z.object({
+	id: z.string().min(1),
+	limit: z.int().min(1).max(50).default(5),
+});
+export type PreviewDocumentTypeTitlesInput = z.infer<
+	typeof previewDocumentTypeTitlesInput
+>;
+
+export const documentTypeTitlePreviewSchema = z.object({
+	documentId: z.string(),
+	currentTitle: z.string(),
+	/** `null` when the template renders nothing for this document. */
+	title: z.string().nullable(),
+	/** `true` when the title was set by hand: kept unless `overwriteManual`. */
+	manual: z.boolean(),
+});
+export type DocumentTypeTitlePreview = z.infer<
+	typeof documentTypeTitlePreviewSchema
+>;
+
+export const regenerateDocumentTypeTitlesInput = z.object({
+	id: z.string().min(1),
+	/** `true` also rewrites the titles someone typed by hand. */
+	overwriteManual: z.boolean().default(false),
+});
+export type RegenerateDocumentTypeTitlesInput = z.infer<
+	typeof regenerateDocumentTypeTitlesInput
+>;
+
+export const regenerateTitlesResultSchema = z.object({
+	/** Documents whose title was actually rewritten. */
+	updated: z.int().min(0),
+	/** Titles left alone: manual, unchanged, or rendered empty. */
+	skipped: z.int().min(0),
+});
+export type RegenerateTitlesResult = z.infer<
+	typeof regenerateTitlesResultSchema
+>;
 
 /* ------------------------------------------------------------------ */
 /* Layouts                                                              */

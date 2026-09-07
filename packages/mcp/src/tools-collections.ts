@@ -3,6 +3,8 @@ import {
 	createDocumentTypeFromDocument,
 	getDocumentType,
 	listDocumentTypes,
+	previewDocumentTypeTitles,
+	regenerateDocumentTypeTitles,
 } from "@docstore/api/services/document-type.service";
 import {
 	addDossierDocuments,
@@ -296,6 +298,67 @@ export function registerCollectionTools(
 				});
 			}
 			return { items };
+		},
+	);
+
+	defineTool(
+		server,
+		"regenerate_titles",
+		{
+			title: "Regenerate the titles of a document type",
+			description:
+				"Rewrites the title of every document of a type from its title template ({type}, {period}, {period:MMMM yyyy}, {date}, {issuer}, {category}, {title}). Titles set by hand are kept unless `overwriteManual` is set. With `dryRun`, nothing is written and the first titles are returned instead.",
+			inputSchema: {
+				documentTypeId: z.string().min(1),
+				overwriteManual: mcpBoolean
+					.optional()
+					.describe("Also rewrite the titles someone typed by hand."),
+				dryRun: mcpBoolean
+					.optional()
+					.describe(
+						"Preview the first titles without writing (default: false).",
+					),
+			},
+			outputSchema: {
+				updated: z.number(),
+				skipped: z.number(),
+				preview: z.array(
+					z.object({
+						documentId: z.string(),
+						currentTitle: z.string(),
+						title: z.string().nullable(),
+						manual: z.boolean(),
+					}),
+				),
+			},
+			text: (output) =>
+				output.preview.length > 0 && output.updated === 0
+					? `Preview:\n${output.preview
+							.map(
+								(item) =>
+									`- ${item.documentId}: "${item.currentTitle}" -> ${
+										item.title === null
+											? "(template renders nothing)"
+											: `"${item.title}"`
+									}${item.manual ? " (manual, kept)" : ""}`,
+							)
+							.join("\n")}`
+					: `${output.updated} title(s) rewritten, ${output.skipped} left alone.`,
+		},
+		async (input) => {
+			if (input.dryRun) {
+				const preview = await previewDocumentTypeTitles(context.db, {
+					id: input.documentTypeId,
+					limit: 10,
+				});
+				return { updated: 0, skipped: 0, preview };
+			}
+			requireWrite(context);
+			const result = await regenerateDocumentTypeTitles(context.db, {
+				id: input.documentTypeId,
+				overwriteManual: input.overwriteManual ?? false,
+			});
+			return { ...result, preview: [] };
 		},
 	);
 

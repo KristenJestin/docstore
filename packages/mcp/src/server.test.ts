@@ -218,6 +218,7 @@ describe("handshake", () => {
 				"list_saved_searches",
 				"list_share_links",
 				"list_tags",
+				"regenerate_titles",
 				"reject_assignment",
 				"remove_from_dossier",
 				"reprocess_document",

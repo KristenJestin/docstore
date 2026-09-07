@@ -11,7 +11,11 @@ import {
 import type { ExtractionRuleRow } from "@docstore/db/schema/rule";
 import { extractionRule } from "@docstore/db/schema/rule";
 import { documentTag } from "@docstore/db/schema/tag";
-import type { ExtractionOutcome, RuleSubject } from "@docstore/rules";
+import type {
+	ExtractionOutcome,
+	RuleSubject,
+	TitleTemplateContext,
+} from "@docstore/rules";
 import {
 	evaluateCondition,
 	operationFromExtraction,
@@ -30,6 +34,7 @@ import {
 	LAYOUT_SIGNATURE_TOKENS,
 	LAYOUT_TRIAL_THRESHOLD,
 } from "@docstore/shared/document-type";
+import { periodKeyOf, periodStartOf } from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { computeReviewReasons } from "./analyze";
@@ -436,6 +441,34 @@ export interface ApplyDocumentTypeOutcome {
 	reviewReasons: ReviewReason[];
 }
 
+/**
+ * Rendering context of a title template, seen through a document type: on top
+ * of what the rule engine knows it fills `{type}` with the name of the type
+ * and `{period}` with the key of the period the document falls into.
+ *
+ * A recurring type also re-anchors `periodStart` on the period itself — the
+ * anchor date is `period_start` falling back to `document_date`, exactly as
+ * the timeline computes it — so `{period:MMMM yyyy}` reads the month of the
+ * period even when the document only carries a date.
+ */
+export function typeTitleContext(
+	type: Pick<DocumentTypeRow, "name" | "periodicity">,
+	subject: RuleSubject,
+): TitleTemplateContext {
+	const anchor = subject.periodStart ?? subject.documentDate ?? null;
+	const recurring = type.periodicity && anchor ? type.periodicity : null;
+	return {
+		...titleContextOf(subject),
+		type: type.name,
+		...(recurring && anchor
+			? {
+					periodStart: periodStartOf(recurring, anchor),
+					periodKey: periodKeyOf(recurring, anchor),
+				}
+			: { periodKey: null }),
+	};
+}
+
 /** `true` when the title still is the one derived from the filename. */
 async function titleIsDerived(
 	db: Db,
@@ -538,7 +571,7 @@ export async function applyDocumentType(
 	) {
 		const title = renderTitleTemplate(
 			type.titleTemplate,
-			titleContextOf(refreshed.subject),
+			typeTitleContext(type, refreshed.subject),
 		);
 		if (title.trim().length > 0) {
 			await db

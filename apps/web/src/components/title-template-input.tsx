@@ -10,6 +10,8 @@ export interface TitleTemplateInputProps {
 	id?: string;
 	placeholder?: string;
 	className?: string;
+	/** Chips offered under the field; the rule tokens by default. */
+	placeholders?: { token: string; hint: string }[];
 }
 
 /**
@@ -24,6 +26,7 @@ export function TitleTemplateInput({
 	id,
 	placeholder = "{issuer} — {date:YYYY-MM}",
 	className,
+	placeholders = TITLE_PLACEHOLDERS,
 }: TitleTemplateInputProps) {
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>
@@ -35,7 +38,7 @@ export function TitleTemplateInput({
 				onChange={(event) => onValueChange(event.target.value)}
 			/>
 			<div className="flex flex-wrap gap-1">
-				{TITLE_PLACEHOLDERS.map((token) => (
+				{placeholders.map((token) => (
 					<Button
 						key={token.token}
 						type="button"

@@ -27,6 +27,7 @@ export {
 	runExtractionRules,
 	selectLayout,
 	signatureFromText,
+	typeTitleContext,
 } from "./document-type";
 export {
 	DocumentTypeNotFoundError,

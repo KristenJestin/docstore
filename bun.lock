@@ -63,6 +63,7 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@docstore/api": "workspace:*",
         "@docstore/env": "workspace:*",
+        "@docstore/rules": "workspace:*",
         "@docstore/shared": "workspace:*",
         "@docstore/ui": "workspace:*",
         "@fontsource-variable/jetbrains-mono": "^5.3.0",

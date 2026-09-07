@@ -25,12 +25,10 @@ import {
 	runExtractionRules,
 	selectLayout,
 	signatureFromText,
+	typeTitleContext,
 } from "@docstore/ingestion";
-import {
-	evaluateCondition,
-	renderTitleTemplate,
-	titleContextOf,
-} from "@docstore/rules";
+import { evaluateCondition, renderTitleTemplate } from "@docstore/rules";
+import { isManualField } from "@docstore/shared/document";
 import type {
 	AddDocumentTypeLayoutInput,
 	ApplyDocumentTypeInput,
@@ -49,10 +47,14 @@ import type {
 	DocumentTypeMembership,
 	DocumentTypeOutOfRange,
 	DocumentTypeSuggestion,
+	DocumentTypeTitlePreview,
 	ListDocumentTypesInput,
 	PreviewDocumentTypeInput,
 	PreviewDocumentTypeResult,
+	PreviewDocumentTypeTitlesInput,
 	RecurrenceInput,
+	RegenerateDocumentTypeTitlesInput,
+	RegenerateTitlesResult,
 	ReorderDocumentTypeLayoutsInput,
 	ReorderDocumentTypesInput,
 	SetDocumentTypeOverrideInput,
@@ -63,6 +65,7 @@ import type {
 	UpdateDocumentTypeLayoutInput,
 } from "@docstore/shared/document-type";
 import {
+	DEFAULT_RECURRING_TITLE_TEMPLATE,
 	documentTypeCoversCouple,
 	suggestedDocumentTypeName,
 } from "@docstore/shared/document-type";
@@ -698,7 +701,15 @@ export async function createDocumentType(
 			subjectPartyId: input.subjectPartyId ?? null,
 			tagIds: input.tagIds,
 			sensitiveDefault: input.sensitiveDefault,
-			titleTemplate: input.titleTemplate ?? null,
+			// A recurring type gets a template out of the box, so its documents
+			// come out named after their period; a caller that passed one (even
+			// `null`, to say "leave the titles alone") is always obeyed.
+			titleTemplate:
+				input.titleTemplate !== undefined
+					? (input.titleTemplate ?? null)
+					: input.recurrence
+						? DEFAULT_RECURRING_TITLE_TEMPLATE
+						: null,
 			detection: input.detection ?? null,
 			...(input.detectionConfidence !== undefined
 				? { detectionConfidence: input.detectionConfidence }
@@ -1464,7 +1475,10 @@ export async function previewDocumentType(
 		title: spec.titleTemplate
 			? renderTitleTemplate(
 					spec.titleTemplate,
-					titleContextOf(prepared.subject),
+					typeTitleContext(
+						{ name: spec.name, periodicity: spec.periodicity },
+						prepared.subject,
+					),
 				)
 			: null,
 		layout: selection.layoutId
@@ -1478,6 +1492,171 @@ export async function previewDocumentType(
 		period:
 			spec.periodicity && anchor ? periodKeyOf(spec.periodicity, anchor) : null,
 	};
+}
+
+/* ------------------------------------------------------------------ */
+/* Titles                                                               */
+/* ------------------------------------------------------------------ */
+
+/** What the template of a type would make of the title of one document. */
+interface TitleOutcome {
+	documentId: string;
+	currentTitle: string;
+	/** `null` when the template renders nothing usable. */
+	title: string | null;
+	manual: boolean;
+}
+
+async function titleOutcomeFor(
+	db: Db,
+	documentId: string,
+	type: Pick<DocumentTypeRow, "name" | "periodicity" | "titleTemplate">,
+): Promise<TitleOutcome | null> {
+	if (!type.titleTemplate) return null;
+	const prepared = await buildSubject(db, documentId);
+	if (!prepared) return null;
+	const rendered = renderTitleTemplate(
+		type.titleTemplate,
+		typeTitleContext(type, prepared.subject),
+	);
+	return {
+		documentId,
+		currentTitle: prepared.document.title,
+		title: rendered.trim().length > 0 ? rendered : null,
+		manual: isManualField(prepared.document.manualFields, "title"),
+	};
+}
+
+/** Both procedures refuse a type that would render nothing at all. */
+function requireTitleTemplate(row: DocumentTypeRow): void {
+	if (!row.titleTemplate) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: `The document type "${row.name}" has no title template.`,
+		});
+	}
+}
+
+/** Members of a type, most recent period first. */
+async function membersNewestFirst(
+	db: Db,
+	row: DocumentTypeRow,
+): Promise<DocumentTypeMember[]> {
+	const members = await documentTypeMembers(db, row);
+	return members.sort((a, b) => b.anchor.localeCompare(a.anchor));
+}
+
+/**
+ * Titles the template of a type would produce, without writing anything: what
+ * the confirmation dialog shows before the rewrite.
+ */
+export async function previewDocumentTypeTitles(
+	db: Db,
+	input: PreviewDocumentTypeTitlesInput,
+): Promise<DocumentTypeTitlePreview[]> {
+	const row = await requireDocumentType(db, input.id);
+	requireTitleTemplate(row);
+
+	const members = (await membersNewestFirst(db, row)).slice(0, input.limit);
+	const previews: DocumentTypeTitlePreview[] = [];
+	for (const member of members) {
+		const outcome = await titleOutcomeFor(db, member.documentId, row);
+		if (!outcome) continue;
+		previews.push({
+			documentId: outcome.documentId,
+			currentTitle: outcome.currentTitle,
+			title: outcome.title,
+			manual: outcome.manual,
+		});
+	}
+	return previews;
+}
+
+/** Writes the rendered titles; `skipped` covers manual, empty and unchanged. */
+async function writeTitles(
+	db: Db,
+	outcomes: (TitleOutcome | null)[],
+	overwriteManual: boolean,
+): Promise<RegenerateTitlesResult> {
+	let updated = 0;
+	let skipped = 0;
+	for (const outcome of outcomes) {
+		if (
+			outcome === null ||
+			outcome.title === null ||
+			(outcome.manual && !overwriteManual) ||
+			outcome.title === outcome.currentTitle
+		) {
+			skipped += 1;
+			continue;
+		}
+		// The rewrite does not mark the title manual: the next run must be free
+		// to follow the template again.
+		await db
+			.update(document)
+			.set({ title: outcome.title })
+			.where(eq(document.id, outcome.documentId));
+		updated += 1;
+	}
+	return { updated, skipped };
+}
+
+/**
+ * Rewrites the titles of the members of a type from its template. A title
+ * someone typed by hand is kept unless `overwriteManual` says otherwise.
+ */
+export async function regenerateDocumentTypeTitles(
+	db: Db,
+	input: RegenerateDocumentTypeTitlesInput,
+): Promise<RegenerateTitlesResult> {
+	const row = await requireDocumentType(db, input.id);
+	requireTitleTemplate(row);
+
+	const members = await membersNewestFirst(db, row);
+	const outcomes: (TitleOutcome | null)[] = [];
+	for (const member of members) {
+		outcomes.push(await titleOutcomeFor(db, member.documentId, row));
+	}
+	return writeTitles(db, outcomes, input.overwriteManual);
+}
+
+/**
+ * Same rewrite for an arbitrary selection: every document uses the template of
+ * the type **it** carries. A document without a type, or whose type has no
+ * template, is skipped.
+ */
+export async function regenerateTitlesForDocuments(
+	db: Db,
+	documentIds: string[],
+	options: { overwriteManual?: boolean } = {},
+): Promise<RegenerateTitlesResult> {
+	const ids = [...new Set(documentIds)];
+	if (ids.length === 0) return { updated: 0, skipped: 0 };
+
+	const rows = await db
+		.select({ id: document.id, documentTypeId: document.documentTypeId })
+		.from(document)
+		.where(inArray(document.id, ids));
+
+	const typeIds = [
+		...new Set(
+			rows.map((row) => row.documentTypeId).filter((id) => id !== null),
+		),
+	];
+	const types =
+		typeIds.length > 0
+			? await db
+					.select()
+					.from(documentType)
+					.where(inArray(documentType.id, typeIds))
+			: [];
+	const byId = new Map(types.map((row) => [row.id, row]));
+
+	const outcomes: (TitleOutcome | null)[] = [];
+	for (const row of rows) {
+		const type = row.documentTypeId ? byId.get(row.documentTypeId) : undefined;
+		outcomes.push(type ? await titleOutcomeFor(db, row.id, type) : null);
+	}
+	return writeTitles(db, outcomes, options.overwriteManual ?? false);
 }
 
 /* ------------------------------------------------------------------ */

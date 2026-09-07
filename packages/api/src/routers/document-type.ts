@@ -14,9 +14,13 @@ import {
 	documentTypeLayoutSchema,
 	documentTypeSchema,
 	documentTypeSuggestionSchema,
+	documentTypeTitlePreviewSchema,
 	listDocumentTypesInput,
 	previewDocumentTypeInput,
 	previewDocumentTypeResultSchema,
+	previewDocumentTypeTitlesInput,
+	regenerateDocumentTypeTitlesInput,
+	regenerateTitlesResultSchema,
 	removeDocumentTypeLayoutInput,
 	reorderDocumentTypeLayoutsInput,
 	reorderDocumentTypesInput,
@@ -43,6 +47,8 @@ import {
 	getDocumentType,
 	listDocumentTypes,
 	previewDocumentType,
+	previewDocumentTypeTitles,
+	regenerateDocumentTypeTitles,
 	removeLayout,
 	reorderDocumentTypes,
 	reorderLayouts,
@@ -239,6 +245,33 @@ export const documentTypeRouter = {
 		.input(previewDocumentTypeInput)
 		.output(previewDocumentTypeResultSchema)
 		.handler(({ input, context }) => previewDocumentType(context.db, input)),
+
+	previewTitles: protectedProcedure
+		.route({
+			method: "GET",
+			path: "/document-types/{id}/title-preview",
+			tags: TAGS,
+			summary: "Titles the template of the type would give its documents",
+		})
+		.input(previewDocumentTypeTitlesInput)
+		.output(z.array(documentTypeTitlePreviewSchema))
+		.handler(({ input, context }) =>
+			previewDocumentTypeTitles(context.db, input),
+		),
+
+	regenerateTitles: writeProcedure
+		.route({
+			method: "POST",
+			path: "/document-types/{id}/regenerate-titles",
+			tags: TAGS,
+			summary:
+				"Rewrite the titles of the documents of a type from its template",
+		})
+		.input(regenerateDocumentTypeTitlesInput)
+		.output(regenerateTitlesResultSchema)
+		.handler(({ input, context }) =>
+			regenerateDocumentTypeTitles(context.db, input),
+		),
 
 	addLayout: writeProcedure
 		.route({
