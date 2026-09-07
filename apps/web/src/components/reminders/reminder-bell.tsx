@@ -4,14 +4,18 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BellIcon } from "lucide-react";
 
-import { orpc } from "@/utils/orpc";
+import { counterPollOptions, orpc } from "@/utils/orpc";
 
 /**
  * Bell of the top bar: number of pending reminders due within 30 days
- * (`reminder.count`), linking to `/reminders`.
+ * (`reminder.count`), linking to `/reminders`. Polled like the sidebar
+ * counters so a reminder that comes due shows up without a reload.
  */
 export function ReminderBell() {
-	const count = useQuery(orpc.reminder.count.queryOptions({ input: {} }));
+	const count = useQuery({
+		...orpc.reminder.count.queryOptions({ input: {} }),
+		...counterPollOptions,
+	});
 	const value = count.data?.count ?? 0;
 
 	return (

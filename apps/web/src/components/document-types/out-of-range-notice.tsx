@@ -2,7 +2,7 @@ import type { DocumentTypeDetail } from "@docstore/shared/document-type";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
 import { Card, CardContent, CardHeader } from "@docstore/ui/components/card";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { CalendarArrowUpIcon, MinusIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +25,6 @@ export interface OutOfRangeNoticeProps {
  * the document from it.
  */
 export function OutOfRangeNotice({ detail }: OutOfRangeNoticeProps) {
-	const queryClient = useQueryClient();
 	const update = useMutation(orpc.documentType.update.mutationOptions());
 	const setOverride = useMutation(
 		orpc.documentType.setDocumentOverride.mutationOptions(),
@@ -37,12 +36,6 @@ export function OutOfRangeNotice({ detail }: OutOfRangeNoticeProps) {
 
 	const periodicity = detail.periodicity;
 	const busy = update.isPending || setOverride.isPending;
-
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-		]);
 
 	/** Moves `startPeriod` down to the period of the document. */
 	const extendTo = async (periodStart: string, period: string) => {
@@ -59,7 +52,6 @@ export function OutOfRangeNotice({ detail }: OutOfRangeNoticeProps) {
 					graceDays: detail.graceDays ?? undefined,
 				},
 			});
-			await invalidate();
 			toast.success(`First period moved to ${period}.`);
 		} catch (error) {
 			toastApiError(error, "The first period could not be changed.");
@@ -73,7 +65,6 @@ export function OutOfRangeNotice({ detail }: OutOfRangeNoticeProps) {
 				documentId,
 				included: false,
 			});
-			await invalidate();
 			toast.success("Document excluded from the recurrence.");
 		} catch (error) {
 			toastApiError(error, "The membership could not be changed.");

@@ -25,7 +25,7 @@ import {
 } from "@docstore/ui/components/sheet";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Switch } from "@docstore/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	PencilIcon,
 	PlusIcon,
@@ -61,7 +61,6 @@ const DEFAULT_CURRENCY = "EUR";
  * `CONFLICT` and its message is surfaced in the toast.
  */
 export function CustomFieldList() {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const fields = useQuery(orpc.customField.list.queryOptions({ input: {} }));
 
@@ -71,16 +70,11 @@ export function CustomFieldList() {
 	const reorder = useMutation(orpc.customField.reorder.mutationOptions());
 	const remove = useMutation(orpc.customField.delete.mutationOptions());
 
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.customField.key() });
-	};
-
 	const items = fields.data ?? [];
 
 	const onReorder = async (ids: string[]) => {
 		try {
 			await reorder.mutateAsync({ ids });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The fields could not be reordered.");
 		}
@@ -98,7 +92,6 @@ export function CustomFieldList() {
 		}
 		try {
 			await remove.mutateAsync({ id: field.id });
-			await invalidate();
 			toast.success("Custom field deleted.");
 		} catch (error) {
 			toastApiError(error, "The field could not be deleted.");
@@ -216,7 +209,6 @@ export function CustomFieldList() {
 						setEditing(null);
 					}
 				}}
-				onSaved={invalidate}
 			/>
 		</SettingsStack>
 	);
@@ -227,12 +219,10 @@ function CustomFieldSheet({
 	open,
 	field,
 	onOpenChange,
-	onSaved,
 }: {
 	open: boolean;
 	field?: CustomField;
 	onOpenChange: (open: boolean) => void;
-	onSaved: () => Promise<void>;
 }) {
 	const fieldId = useId();
 	const isEdit = Boolean(field);
@@ -310,7 +300,6 @@ function CustomFieldSheet({
 				});
 				toast.success(`Field "${trimmed}" created.`);
 			}
-			await onSaved();
 			onOpenChange(false);
 		} catch (error) {
 			toastApiError(error, "The field could not be saved.");

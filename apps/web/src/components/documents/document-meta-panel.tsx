@@ -19,7 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@docstore/ui/components/tooltip";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	ArrowRightIcon,
@@ -158,7 +158,6 @@ export function DocumentMetaPanel({
 	document,
 	readOnlyNotes = false,
 }: DocumentMetaPanelProps) {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const activeShareLinks = useActiveShareLinks();
 	const documentError = useDocumentErrorToast();
@@ -195,16 +194,9 @@ export function DocumentMetaPanel({
 	const errors = validateDateDraft(dates);
 	const approvalBlocked = approvalBlockedReason(document.status);
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-		]);
-
 	const applyPatch = async (patch: UpdateDocumentInput, message?: string) => {
 		try {
 			await update.mutateAsync({ id: document.id, ...patch });
-			await invalidate();
 			if (message) {
 				toast.success(message);
 			}
@@ -261,7 +253,6 @@ export function DocumentMetaPanel({
 	const onApprove = async () => {
 		try {
 			await approve.mutateAsync({ id: document.id });
-			await invalidate();
 			toast.success("Document approved.");
 		} catch (error) {
 			documentError(error, "The document could not be approved.", document.id);
@@ -271,7 +262,6 @@ export function DocumentMetaPanel({
 	const onReprocess = async () => {
 		try {
 			await reprocess.mutateAsync({ id: document.id });
-			await invalidate();
 			toast.success("Processing restarted.");
 		} catch (error) {
 			documentError(error, "Processing could not be restarted.", document.id);
@@ -281,7 +271,6 @@ export function DocumentMetaPanel({
 	const onAssignAsn = async () => {
 		try {
 			const updated = await assignAsn.mutateAsync({ id: document.id });
-			await invalidate();
 			toast.success(`Archive serial number ${updated.asn} assigned.`);
 		} catch (error) {
 			documentError(
@@ -508,7 +497,6 @@ export function DocumentMetaPanel({
 										id: document.id,
 										categoryId,
 									});
-									await invalidate();
 								} catch (error) {
 									documentError(
 										error,
@@ -527,7 +515,6 @@ export function DocumentMetaPanel({
 							onValueChange={async (tagIds) => {
 								try {
 									await setTags.mutateAsync({ id: document.id, tagIds });
-									await invalidate();
 								} catch (error) {
 									documentError(
 										error,
@@ -586,11 +573,7 @@ export function DocumentMetaPanel({
 													confidence={current.confidence}
 												/>
 											) : null}
-											<FieldExtractButton
-												document={document}
-												field={field}
-												onApplied={invalidate}
-											/>
+											<FieldExtractButton document={document} field={field} />
 										</span>
 									}
 									htmlFor={`${ids}-field-${field.id}`}
@@ -613,7 +596,6 @@ export function DocumentMetaPanel({
 														value,
 													});
 												}
-												await invalidate();
 											} catch (error) {
 												documentError(
 													error,

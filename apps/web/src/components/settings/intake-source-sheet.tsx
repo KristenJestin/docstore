@@ -177,7 +177,6 @@ export interface IntakeSourceSheetProps {
 	/** Absent = create, present = edit. */
 	source?: IntakeSource;
 	onOpenChange: (open: boolean) => void;
-	onSaved: () => Promise<void>;
 }
 
 /**
@@ -190,7 +189,6 @@ export function IntakeSourceSheet({
 	open,
 	source,
 	onOpenChange,
-	onSaved,
 }: IntakeSourceSheetProps) {
 	const fieldId = useId();
 	const isEdit = Boolean(source);
@@ -271,7 +269,6 @@ export function IntakeSourceSheet({
 				});
 				toast.success(`Intake source "${trimmed}" created.`);
 			}
-			await onSaved();
 			onOpenChange(false);
 		} catch (error) {
 			toastApiError(error, "The intake source could not be saved.");

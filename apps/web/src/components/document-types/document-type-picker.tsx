@@ -8,7 +8,7 @@ import {
 	ComboboxList,
 } from "@docstore/ui/components/combobox";
 import { cn } from "@docstore/ui/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { PlusIcon, SparklesIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -144,7 +144,6 @@ export function DocumentTypePicker({
 	className,
 }: DocumentTypePickerProps) {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const [query, setQuery] = useState("");
 	const needle = useDebouncedValue(query.trim());
 	const { options, byId } = useDocumentTypeOptions();
@@ -176,16 +175,9 @@ export function DocumentTypePicker({
 
 	const selected = value ? (byId.get(value) ?? null) : null;
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-		]);
-
 	const quickCreate = async (name: string) => {
 		try {
 			const created = await create.mutateAsync({ name, tagIds: [] });
-			await invalidate();
 			toast.success(`Document type "${created.name}" created.`);
 			onValueChange(created.id);
 		} catch (error) {
@@ -196,7 +188,6 @@ export function DocumentTypePicker({
 	const createFrom = async (documentId: string) => {
 		try {
 			const created = await createFromDocument.mutateAsync({ documentId });
-			await invalidate();
 			toast.success(
 				`Document type "${created.name}" created from this document.`,
 			);

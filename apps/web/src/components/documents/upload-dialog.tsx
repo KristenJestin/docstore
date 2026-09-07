@@ -149,6 +149,8 @@ export function UploadDialog({
 		);
 	};
 
+	// The upload goes through the raw oRPC client rather than `useMutation`, so
+	// it is the one write of the app the global mutation cache does not see.
 	const invalidate = async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
@@ -252,7 +254,6 @@ export function UploadDialog({
 		}
 		try {
 			await restore.mutateAsync({ id: item.documentId });
-			await invalidate();
 			patch(item.key, { status: "duplicate", message: undefined });
 			toast.success("Document restored from the trash.");
 		} catch (error) {

@@ -30,7 +30,7 @@ import {
 	SelectValue,
 } from "@docstore/ui/components/select";
 import { cn } from "@docstore/ui/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -387,7 +387,6 @@ export function PartyQuickCreateDialog({
 	onCreated,
 }: PartyQuickCreateDialogProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 	const createParty = useMutation(orpc.party.create.mutationOptions());
 
 	const [draftName, setDraftName] = useState(name);
@@ -422,7 +421,6 @@ export function PartyQuickCreateDialog({
 					? { domain: [normalizeIdentifier("domain", domain)] }
 					: {},
 			});
-			await queryClient.invalidateQueries({ queryKey: orpc.party.key() });
 			toast.success(`Party "${party.name}" created.`);
 			onOpenChange(false);
 			onCreated(party);

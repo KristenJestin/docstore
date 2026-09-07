@@ -8,7 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from "@docstore/ui/components/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@docstore/ui/components/tabs";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	FolderIcon,
@@ -37,7 +37,6 @@ export const Route = createFileRoute("/_app/dossiers/")({
 
 function DossiersPage() {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 
 	const [tab, setTab] = useState<"open" | "closed">("open");
@@ -64,9 +63,6 @@ function DossiersPage() {
 		useCallback(() => setFormOpen(true), []),
 	);
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.dossier.key() });
-
 	const all = dossiers.data ?? [];
 	const openItems = all.filter((item) => item.status === "open");
 	const closedItems = all.filter((item) => item.status === "closed");
@@ -75,7 +71,6 @@ function DossiersPage() {
 	const onClose = async (dossier: DossierWithCount) => {
 		try {
 			await close.mutateAsync({ id: dossier.id });
-			await invalidate();
 			toast.success("Dossier closed.");
 		} catch (error) {
 			toastApiError(error, "The dossier could not be closed.");
@@ -85,7 +80,6 @@ function DossiersPage() {
 	const onReopen = async (dossier: DossierWithCount) => {
 		try {
 			await reopen.mutateAsync({ id: dossier.id });
-			await invalidate();
 			toast.success("Dossier reopened.");
 		} catch (error) {
 			toastApiError(error, "The dossier could not be reopened.");
@@ -104,7 +98,6 @@ function DossiersPage() {
 		}
 		try {
 			await remove.mutateAsync({ id: dossier.id });
-			await invalidate();
 			toast.success("Dossier deleted.");
 		} catch (error) {
 			toastApiError(error, "The dossier could not be deleted.");

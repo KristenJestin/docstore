@@ -16,7 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@docstore/ui/components/tooltip";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	InboxIcon,
 	PencilIcon,
@@ -64,7 +64,6 @@ const MANAGED_TOOLTIP = "Defined in docstore.config.json";
  * testing it and reading its journal stay available.
  */
 export function IntakeSourceList() {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const sources = useQuery(orpc.intakeSource.list.queryOptions({ input: {} }));
 	const serverInfo = useQuery(
@@ -80,14 +79,9 @@ export function IntakeSourceList() {
 	const test = useMutation(orpc.intakeSource.test.mutationOptions());
 	const remove = useMutation(orpc.intakeSource.delete.mutationOptions());
 
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.intakeSource.key() });
-	};
-
 	const onToggle = async (source: IntakeSource, enabled: boolean) => {
 		try {
 			await toggle.mutateAsync({ id: source.id, enabled });
-			await invalidate();
 			toast.success(enabled ? "Source enabled." : "Source disabled.");
 		} catch (error) {
 			toastApiError(error, "The source could not be switched.");
@@ -102,7 +96,6 @@ export function IntakeSourceList() {
 					? "Run queued."
 					: "The ingestion queue is not available right now.",
 			);
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The run could not be started.");
 		}
@@ -137,7 +130,6 @@ export function IntakeSourceList() {
 		}
 		try {
 			await remove.mutateAsync({ id: source.id });
-			await invalidate();
 			toast.success("Intake source deleted.");
 		} catch (error) {
 			toastApiError(error, "The source could not be deleted.");
@@ -321,7 +313,6 @@ export function IntakeSourceList() {
 						setEditing(null);
 					}
 				}}
-				onSaved={invalidate}
 			/>
 
 			<IntakeLogsDialog source={logsFor} onClose={() => setLogsFor(null)} />

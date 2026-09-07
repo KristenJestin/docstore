@@ -12,7 +12,7 @@ import {
 	TagsInputChip,
 	TagsInputField,
 } from "@docstore/ui/components/tags-input";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 import { toast } from "sonner";
@@ -75,7 +75,6 @@ export function TagInput({
 	className,
 }: TagInputProps) {
 	const anchor = useComboboxAnchor();
-	const queryClient = useQueryClient();
 	const [query, setQuery] = useState("");
 
 	const tags = useQuery(orpc.tag.list.queryOptions({ input: {} }));
@@ -115,7 +114,6 @@ export function TagInput({
 				name,
 				color: colorForTagName(name),
 			});
-			await queryClient.invalidateQueries({ queryKey: orpc.tag.key() });
 			add(tag.id);
 			toast.success(`Tag "${tag.name}" created.`);
 		} catch (error) {

@@ -60,7 +60,10 @@ test.describe("parties", () => {
 		await editSheet.getByLabel("Alias").press("Enter");
 		await editSheet.getByRole("button", { name: "Save" }).click();
 
-		await expect(page.getByText("Iliad")).toBeVisible();
+		// Scoped to the page: the saved alias now lands on the detail page while
+		// the sheet is still animating out, so an unscoped locator would match
+		// its chip too.
+		await expect(page.getByRole("main").getByText("Iliad")).toBeVisible();
 
 		// --- Clearing an identifier -------------------------------------------
 		// `party.update` merges `identifiers` key by key: without
@@ -85,6 +88,44 @@ test.describe("parties", () => {
 			.click();
 
 		await expect(page.getByText("Archived", { exact: true })).toBeVisible();
+	});
+
+	test("editing a party refreshes its page without a reload", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Party Refresh User");
+
+		const partyName = runName("sfr");
+		const renamed = runName("sfr renamed");
+		const customerRef = `REF-${runSlug("sfr")}`;
+
+		await createParty(page, partyName);
+
+		// Every assertion below has to hold on the page the edit left behind: a
+		// marker dropped on `window` disappears the moment the document reloads.
+		await page.evaluate(() => {
+			(window as Window & { __noReload?: true }).__noReload = true;
+		});
+
+		await page.getByRole("button", { name: "Edit" }).click();
+		const sheet = page.getByRole("dialog");
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(renamed);
+		await sheet.getByLabel("Customer number").fill(customerRef);
+		await sheet.getByRole("button", { name: "Save" }).click();
+
+		// `party.get` is refetched by the mutation cache, so the header, the
+		// identifiers and the breadcrumb follow on their own.
+		await expect(page.getByRole("heading", { name: renamed })).toBeVisible();
+		await expect(page.getByText(customerRef)).toBeVisible();
+		await expect(page.getByRole("heading", { name: partyName })).toHaveCount(0);
+
+		expect(
+			await page.evaluate(
+				() => (window as Window & { __noReload?: true }).__noReload,
+			),
+		).toBe(true);
 	});
 
 	test("merge a party into another one", async ({ page }) => {

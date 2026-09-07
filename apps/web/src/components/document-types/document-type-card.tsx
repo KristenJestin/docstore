@@ -1,7 +1,7 @@
 import type { DocumentDetail } from "@docstore/shared/document";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	ArrowRightIcon,
@@ -34,7 +34,6 @@ export interface DocumentTypeCardProps {
  */
 export function DocumentTypeCard({ document }: DocumentTypeCardProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 	const forceRetry = useForceRetry();
 
 	const apply = useMutation(orpc.documentType.apply.mutationOptions());
@@ -44,13 +43,6 @@ export function DocumentTypeCard({ document }: DocumentTypeCardProps) {
 	);
 
 	const current = document.documentType;
-
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-		]);
 
 	const onPick = async (documentTypeId: string | null) => {
 		if (documentTypeId === (current?.id ?? null)) {
@@ -82,7 +74,6 @@ export function DocumentTypeCard({ document }: DocumentTypeCardProps) {
 						: "Document type applied.",
 				);
 			}
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The document type could not be applied.");
 		}
@@ -103,7 +94,6 @@ export function DocumentTypeCard({ document }: DocumentTypeCardProps) {
 			if (result === null) {
 				return;
 			}
-			await invalidate();
 			toast.success("Document type re-applied.");
 		} catch (error) {
 			toastApiError(error, "The document type could not be applied.");
@@ -120,7 +110,6 @@ export function DocumentTypeCard({ document }: DocumentTypeCardProps) {
 				documentId: document.id,
 				included,
 			});
-			await invalidate();
 			toast.success(
 				included === null
 					? "Membership handed back to the computation."
@@ -248,7 +237,6 @@ export interface CreateTypeFromReasonButtonProps {
 export function CreateTypeFromReasonButton({
 	meta,
 }: CreateTypeFromReasonButtonProps) {
-	const queryClient = useQueryClient();
 	const create = useMutation(
 		orpc.documentType.createFromSuggestion.mutationOptions(),
 	);
@@ -284,11 +272,6 @@ export function CreateTypeFromReasonButton({
 				startPeriod,
 				endPeriod,
 			});
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-			]);
 			toast.success(`Document type "${created.name}" created.`);
 		} catch (error) {
 			toastApiError(error, "The document type could not be created.");
@@ -319,7 +302,6 @@ export function ApplyTypeFromReasonButton({
 	documentId,
 	meta,
 }: ApplyTypeFromReasonButtonProps) {
-	const queryClient = useQueryClient();
 	const forceRetry = useForceRetry();
 	const apply = useMutation(orpc.documentType.apply.mutationOptions());
 
@@ -344,11 +326,6 @@ export function ApplyTypeFromReasonButton({
 			if (result === null) {
 				return;
 			}
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-			]);
 			toast.success("Document type applied.");
 		} catch (error) {
 			toastApiError(error, "The document type could not be applied.");

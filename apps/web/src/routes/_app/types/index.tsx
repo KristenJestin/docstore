@@ -2,7 +2,7 @@ import type { DocumentTypeItem } from "@docstore/shared/document-type";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
 import { Switch } from "@docstore/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { LayersIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -41,7 +41,6 @@ export const Route = createFileRoute("/_app/types/")({
 function DocumentTypesPage() {
 	const search = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
-	const queryClient = useQueryClient();
 	const searchRef = useRef<HTMLInputElement>(null);
 	const [formOpen, setFormOpen] = useState(false);
 	const [query, setQuery] = useState(search.q ?? "");
@@ -106,9 +105,6 @@ function DocumentTypesPage() {
 	const onToggle = async (item: DocumentTypeItem, enabled: boolean) => {
 		try {
 			await toggle.mutateAsync({ id: item.id, enabled });
-			await queryClient.invalidateQueries({
-				queryKey: orpc.documentType.key(),
-			});
 			toast.success(
 				enabled ? "Document type enabled." : "Document type disabled.",
 			);

@@ -12,7 +12,7 @@ import { Button } from "@docstore/ui/components/button";
 import { Card, CardContent, CardHeader } from "@docstore/ui/components/card";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Textarea } from "@docstore/ui/components/textarea";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArchiveIcon,
@@ -52,7 +52,6 @@ export const Route = createFileRoute("/_app/parties/$partyId")({
 function PartyDetailPage() {
 	const { partyId } = Route.useParams();
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const [editOpen, setEditOpen] = useState(false);
 	const [mergeOpen, setMergeOpen] = useState(false);
@@ -66,9 +65,6 @@ function PartyDetailPage() {
 	const remove = useMutation(orpc.party.delete.mutationOptions());
 	const fetchLogo = useMutation(orpc.party.fetchLogo.mutationOptions());
 	const removeLogo = useMutation(orpc.party.removeLogo.mutationOptions());
-
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.party.key() });
 
 	if (party.isLoading) {
 		return (
@@ -119,7 +115,6 @@ function PartyDetailPage() {
 				await archive.mutateAsync({ id: detail.id });
 				toast.success("Party archived.");
 			}
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The operation failed.");
 		}
@@ -128,7 +123,6 @@ function PartyDetailPage() {
 	const onFetchLogo = async () => {
 		try {
 			await fetchLogo.mutateAsync({ id: detail.id });
-			await invalidate();
 			toast.success("Logo fetched from the domain.");
 		} catch (error) {
 			toastApiError(error, "No logo could be fetched for this domain.");
@@ -138,7 +132,6 @@ function PartyDetailPage() {
 	const onRemoveLogo = async () => {
 		try {
 			await removeLogo.mutateAsync({ id: detail.id });
-			await invalidate();
 			toast.success("Logo removed.");
 		} catch (error) {
 			toastApiError(error, "The logo could not be removed.");
@@ -158,7 +151,6 @@ function PartyDetailPage() {
 		}
 		try {
 			await remove.mutateAsync({ id: detail.id });
-			await invalidate();
 			toast.success("Party deleted.");
 			navigate({ to: "/parties" });
 		} catch (error) {
@@ -372,7 +364,6 @@ function PartyNotesCard({
 	partyId: string;
 	notes: string | null;
 }) {
-	const queryClient = useQueryClient();
 	const fieldId = useId();
 	const update = useMutation(orpc.party.update.mutationOptions());
 	const [draft, setDraft] = useState(notes ?? "");
@@ -393,7 +384,6 @@ function PartyNotesCard({
 				id: partyId,
 				notes: next.length > 0 ? next : null,
 			});
-			await queryClient.invalidateQueries({ queryKey: orpc.party.key() });
 			toast.success("Notes saved.");
 		} catch (error) {
 			toastApiError(error, "The notes could not be saved.");

@@ -21,7 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@docstore/ui/components/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useId, useState } from "react";
@@ -66,7 +66,6 @@ export function DocumentRelationsCard({
 	relations,
 }: DocumentRelationsCardProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 
 	const [adding, setAdding] = useState(false);
@@ -78,9 +77,6 @@ export function DocumentRelationsCard({
 		orpc.document.removeRelation.mutationOptions(),
 	);
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.document.key() });
-
 	const submit = async () => {
 		if (!target) {
 			return;
@@ -91,7 +87,6 @@ export function DocumentRelationsCard({
 				toDocumentId: target.id,
 				kind,
 			});
-			await invalidate();
 			toast.success("Relation added.");
 			setAdding(false);
 			setTarget(null);
@@ -112,7 +107,6 @@ export function DocumentRelationsCard({
 		}
 		try {
 			await removeRelation.mutateAsync({ id: relation.id });
-			await invalidate();
 			toast.success("Relation removed.");
 		} catch (error) {
 			toastApiError(error, "The relation could not be removed.");

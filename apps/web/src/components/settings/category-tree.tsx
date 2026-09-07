@@ -20,7 +20,7 @@ import {
 } from "@docstore/ui/components/select";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { cn } from "@docstore/ui/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	FolderInputIcon,
 	FolderTreeIcon,
@@ -113,7 +113,6 @@ interface TreeView {
  * with reassignment of the documents.
  */
 export function CategoryTree() {
-	const queryClient = useQueryClient();
 	const categories = useQuery(orpc.category.list.queryOptions({ input: {} }));
 	const customFields = useQuery(
 		orpc.customField.list.queryOptions({ input: {} }),
@@ -130,10 +129,6 @@ export function CategoryTree() {
 	const tree = categories.data ?? [];
 	const flat = flatten(tree);
 
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.category.key() });
-	};
-
 	/**
 	 * Reorder: `category.reorder` renumbers one sibling group in a single call,
 	 * so the dropped order is written as is.
@@ -141,7 +136,6 @@ export function CategoryTree() {
 	const onReorder = async (parentId: string | null, ids: string[]) => {
 		try {
 			await reorderCategories.mutateAsync({ parentId, ids });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The categories could not be reordered.");
 		}
@@ -174,12 +168,10 @@ export function CategoryTree() {
 		onCancelDraft: () => setDraft(null),
 		onSavedDraft: async () => {
 			setDraft(null);
-			await invalidate();
 		},
 		onCancelEdit: () => setEditingId(null),
 		onSavedEdit: async () => {
 			setEditingId(null);
-			await invalidate();
 		},
 	};
 
@@ -246,13 +238,11 @@ export function CategoryTree() {
 				node={moving}
 				options={flat}
 				onClose={() => setMoving(null)}
-				onMoved={invalidate}
 			/>
 			<DeleteCategoryDialog
 				node={deleting}
 				options={flat}
 				onClose={() => setDeleting(null)}
-				onDeleted={invalidate}
 			/>
 		</SettingsStack>
 	);
@@ -520,12 +510,10 @@ function MoveCategoryDialog({
 	node,
 	options,
 	onClose,
-	onMoved,
 }: {
 	node: CategoryNode | null;
 	options: FlatCategory[];
 	onClose: () => void;
-	onMoved: () => Promise<void>;
 }) {
 	const [parentId, setParentId] = useState<string>(ROOT_VALUE);
 	const moveCategory = useMutation(orpc.category.move.mutationOptions());
@@ -542,7 +530,6 @@ function MoveCategoryDialog({
 				parentId: parentId === ROOT_VALUE ? null : parentId,
 				sortOrder: 0,
 			});
-			await onMoved();
 			toast.success(`"${node.name}" moved.`);
 			onClose();
 		} catch (error) {
@@ -614,12 +601,10 @@ function DeleteCategoryDialog({
 	node,
 	options,
 	onClose,
-	onDeleted,
 }: {
 	node: CategoryNode | null;
 	options: FlatCategory[];
 	onClose: () => void;
-	onDeleted: () => Promise<void>;
 }) {
 	const [reassignTo, setReassignTo] = useState<string>(NONE_VALUE);
 	const deleteCategory = useMutation(orpc.category.delete.mutationOptions());
@@ -633,7 +618,6 @@ function DeleteCategoryDialog({
 				id: node.id,
 				reassignTo: reassignTo === NONE_VALUE ? null : reassignTo,
 			});
-			await onDeleted();
 			toast.success(
 				result.reassignedDocuments > 0
 					? `Category deleted, ${countLabel(result.reassignedDocuments, "document")} reassigned.`

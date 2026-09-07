@@ -92,9 +92,6 @@ export function RuleEditor({ rule }: RuleEditorProps) {
 	const patch = (next: Partial<RuleDraftState>) =>
 		setDraft((current) => ({ ...current, ...next }));
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.rule.key() });
-
 	const canSave =
 		draft.name.trim().length > 0 &&
 		draft.triggers.length > 0 &&
@@ -113,12 +110,10 @@ export function RuleEditor({ rule }: RuleEditorProps) {
 		try {
 			if (rule) {
 				await update.mutateAsync({ id: rule.id, ...payload });
-				await invalidate();
 				toast.success("Rule saved.");
 				return;
 			}
 			const created = await create.mutateAsync(payload);
-			await invalidate();
 			toast.success(`Rule "${created.name}" created.`);
 			navigate({
 				to: "/settings/automations/$ruleId",
@@ -140,7 +135,6 @@ export function RuleEditor({ rule }: RuleEditorProps) {
 				actions: draft.actions,
 				stopOnMatch: draft.stopOnMatch,
 			});
-			await invalidate();
 			toast.success(`Rule "${created.name}" created.`);
 			navigate({
 				to: "/settings/automations/$ruleId",
@@ -173,7 +167,6 @@ export function RuleEditor({ rule }: RuleEditorProps) {
 			});
 			toast.success("Automation deleted.");
 			navigate({ to: "/settings/automations" });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The rule could not be deleted.");
 		}

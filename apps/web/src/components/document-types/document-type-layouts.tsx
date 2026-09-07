@@ -8,7 +8,7 @@ import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
 import { Card, CardContent, CardHeader } from "@docstore/ui/components/card";
 import { Input } from "@docstore/ui/components/input";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
 	FlaskConicalIcon,
 	LayoutTemplateIcon,
@@ -53,7 +53,6 @@ export interface DocumentTypeLayoutsProps {
  * layout is added when the look of the document changes.
  */
 export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const ids = useId();
 
@@ -85,16 +84,12 @@ export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
 	const soleDefault =
 		layouts.length === 1 && layouts[0]?.isDefault ? layouts[0] : null;
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.documentType.key() });
-
 	const onReorder = async (nextIds: string[]) => {
 		try {
 			await reorder.mutateAsync({
 				documentTypeId: detail.id,
 				ids: nextIds,
 			});
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The layouts could not be reordered.");
 		}
@@ -113,7 +108,6 @@ export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
 		}
 		try {
 			await remove.mutateAsync({ id: layout.id });
-			await invalidate();
 			toast.success("Layout deleted.");
 		} catch (error) {
 			toastApiError(error, "The layout could not be deleted.");
@@ -130,7 +124,6 @@ export function DocumentTypeLayouts({ detail }: DocumentTypeLayoutsProps) {
 				documentId: seedDocument.id,
 				name: seedName.trim() || seedDocument.title,
 			});
-			await invalidate();
 			toast.success(
 				`Layout "${created.name}" created; edit its signature to refine it.`,
 			);

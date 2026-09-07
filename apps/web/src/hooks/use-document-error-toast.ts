@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { toast } from "sonner";
 
@@ -11,7 +11,6 @@ import { orpc } from "@/utils/orpc";
  * a "Restore" button rather than leaving the user to find the trash filter.
  */
 export function useDocumentErrorToast() {
-	const queryClient = useQueryClient();
 	const restore = useMutation(orpc.document.restore.mutationOptions());
 
 	return useCallback(
@@ -26,10 +25,7 @@ export function useDocumentErrorToast() {
 					onClick: () => {
 						void restore
 							.mutateAsync({ id: documentId })
-							.then(async () => {
-								await queryClient.invalidateQueries({
-									queryKey: orpc.document.key(),
-								});
+							.then(() => {
 								toast.success("Document restored.");
 							})
 							.catch((restoreError: unknown) => {
@@ -42,6 +38,6 @@ export function useDocumentErrorToast() {
 				},
 			});
 		},
-		[queryClient, restore],
+		[restore],
 	);
 }

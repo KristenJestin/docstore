@@ -12,7 +12,7 @@ import {
 	PopoverTrigger,
 } from "@docstore/ui/components/popover";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { AlarmClockIcon, BellIcon, CheckIcon, XIcon } from "lucide-react";
 import { useId, useState } from "react";
@@ -46,14 +46,9 @@ export interface ReminderListProps {
 
 /** Reminders grouped by kind, with snooze / dismiss / done on every row. */
 export function ReminderList({ items, isLoading = false }: ReminderListProps) {
-	const queryClient = useQueryClient();
-
 	const snooze = useMutation(orpc.reminder.snooze.mutationOptions());
 	const dismiss = useMutation(orpc.reminder.dismiss.mutationOptions());
 	const complete = useMutation(orpc.reminder.done.mutationOptions());
-
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.reminder.key() });
 
 	const run = async (
 		action: Promise<unknown>,
@@ -62,7 +57,6 @@ export function ReminderList({ items, isLoading = false }: ReminderListProps) {
 	) => {
 		try {
 			await action;
-			await invalidate();
 			toast.success(message);
 		} catch (error) {
 			toastApiError(error, fallback);

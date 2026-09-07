@@ -7,7 +7,7 @@ import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Switch } from "@docstore/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRightIcon, CopyCheckIcon } from "lucide-react";
 import { useId, useState } from "react";
@@ -38,7 +38,6 @@ function pairKey(pair: DocumentDuplicate): string {
  * dismissed pairs back with an "Unignore" button.
  */
 export function DuplicatesPanel({ onClose }: { onClose: () => void }) {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const ids = useId();
 	const [includeIgnored, setIncludeIgnored] = useState(false);
@@ -53,9 +52,6 @@ export function DuplicatesPanel({ onClose }: { onClose: () => void }) {
 	);
 
 	const pairs = duplicates.data ?? [];
-
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.document.key() });
 
 	const onMerge = async (pair: DocumentDuplicate) => {
 		const ok = await confirm({
@@ -72,7 +68,6 @@ export function DuplicatesPanel({ onClose }: { onClose: () => void }) {
 				documentId: pair.documentId,
 				intoDocumentId: pair.duplicateOfId,
 			});
-			await invalidate();
 			toast.success("Duplicate merged as a version.");
 		} catch (error) {
 			toastApiError(error, "The duplicate could not be merged.");
@@ -85,7 +80,6 @@ export function DuplicatesPanel({ onClose }: { onClose: () => void }) {
 				documentId: pair.documentId,
 				otherDocumentId: pair.duplicateOfId,
 			});
-			await invalidate();
 			toast.success("Pair ignored.");
 		} catch (error) {
 			toastApiError(error, "The pair could not be ignored.");
@@ -98,7 +92,6 @@ export function DuplicatesPanel({ onClose }: { onClose: () => void }) {
 				documentId: pair.documentId,
 				otherDocumentId: pair.duplicateOfId,
 			});
-			await invalidate();
 			toast.success("Pair reported again.");
 		} catch (error) {
 			toastApiError(error, "The pair could not be restored.");

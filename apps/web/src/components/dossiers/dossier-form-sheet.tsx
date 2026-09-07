@@ -10,7 +10,7 @@ import {
 	SheetTitle,
 } from "@docstore/ui/components/sheet";
 import { Textarea } from "@docstore/ui/components/textarea";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
@@ -35,7 +35,6 @@ export function DossierFormSheet({
 }: DossierFormSheetProps) {
 	const isEdit = Boolean(dossier);
 	const ids = useId();
-	const queryClient = useQueryClient();
 
 	const [name, setName] = useState(dossier?.name ?? "");
 	const [description, setDescription] = useState(dossier?.description ?? "");
@@ -65,7 +64,6 @@ export function DossierFormSheet({
 			const saved = dossier
 				? await update.mutateAsync({ id: dossier.id, ...payload })
 				: await create.mutateAsync(payload);
-			await queryClient.invalidateQueries({ queryKey: orpc.dossier.key() });
 			toast.success(
 				isEdit ? "Dossier updated." : `Dossier "${saved.name}" created.`,
 			);

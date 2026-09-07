@@ -13,7 +13,7 @@ import {
 	ComboboxList,
 } from "@docstore/ui/components/combobox";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
@@ -37,7 +37,6 @@ export function DocumentDossiersCard({
 	documentId,
 	dossiers,
 }: DocumentDossiersCardProps) {
-	const queryClient = useQueryClient();
 	const [target, setTarget] = useState<DossierWithCount | null>(null);
 
 	// Read only when the caller has nothing to hand over: `document.get` already
@@ -62,12 +61,6 @@ export function DocumentDossiersCard({
 		orpc.dossier.removeDocument.mutationOptions(),
 	);
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.dossier.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-		]);
-
 	const add = async () => {
 		if (!target) {
 			return;
@@ -77,7 +70,6 @@ export function DocumentDossiersCard({
 				id: target.id,
 				documentIds: [documentId],
 			});
-			await invalidate();
 			toast.success(`Added to "${target.name}".`);
 			setTarget(null);
 		} catch (error) {
@@ -88,7 +80,6 @@ export function DocumentDossiersCard({
 	const remove = async (dossier: DossierSummary) => {
 		try {
 			await removeDocument.mutateAsync({ id: dossier.id, documentId });
-			await invalidate();
 			toast.success(`Removed from "${dossier.name}".`);
 		} catch (error) {
 			toastApiError(error, "The document could not be removed.");

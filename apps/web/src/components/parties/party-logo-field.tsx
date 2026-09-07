@@ -49,6 +49,8 @@ export async function applyLogoDraft(
 		default:
 			return false;
 	}
+	// Sent through the raw oRPC client, so outside the global invalidation the
+	// mutation cache runs after every `useMutation`.
 	await queryClient.invalidateQueries();
 	return true;
 }

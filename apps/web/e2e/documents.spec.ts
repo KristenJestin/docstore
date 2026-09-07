@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 import { signUp } from "./helpers/auth";
 import { runName, runSlug } from "./helpers/cleanup";
@@ -43,9 +43,19 @@ test.describe("documents", () => {
 			page.getByRole("heading", { name: "Documents" }),
 		).toBeVisible();
 
+		// The sidebar counter has to follow the upload on its own. The marker
+		// dropped on `window` is gone the moment the document reloads, so
+		// nothing below can be passing thanks to a full page load.
+		const navCount = page.getByTestId("nav-count-documents");
+		await page.evaluate(() => {
+			(window as Window & { __noReload?: true }).__noReload = true;
+		});
+
+		let documentsBefore = await settledDocumentCount(page);
 		let outcome = await uploadFixture(page);
 		if (outcome !== "created") {
 			await purgeExistingDocument(page);
+			documentsBefore = await settledDocumentCount(page);
 			outcome = await uploadFixture(page);
 		}
 		expect(outcome).toBe("created");
@@ -56,6 +66,15 @@ test.describe("documents", () => {
 			.getByRole("button", { name: "Done" })
 			.first()
 			.click();
+
+		await expect(navCount).toHaveText(String(documentsBefore + 1), {
+			timeout: 30_000,
+		});
+		expect(
+			await page.evaluate(
+				() => (window as Window & { __noReload?: true }).__noReload,
+			),
+		).toBe(true);
 
 		// --- Leaving the "processing" state (the list polls) -----------------
 		const row = page.getByRole("button", { name: "Open text-layer" });
@@ -194,3 +213,25 @@ test.describe("documents", () => {
 		await expect(page.getByRole("button", { name: "Trash" })).toBeVisible();
 	});
 });
+
+/**
+ * Sidebar "Documents" counter, read once two consecutive samples agree: a
+ * purge leaves a refetch in flight and the first sample would still be the
+ * count from before the deletion.
+ */
+async function settledDocumentCount(page: Page): Promise<number> {
+	const counter = page.getByTestId("nav-count-documents");
+	let previous = Number.NaN;
+	await expect
+		.poll(
+			async () => {
+				const current = Number((await counter.innerText()).trim());
+				const settled = current === previous;
+				previous = current;
+				return settled;
+			},
+			{ timeout: 15_000, intervals: [400] },
+		)
+		.toBe(true);
+	return previous;
+}

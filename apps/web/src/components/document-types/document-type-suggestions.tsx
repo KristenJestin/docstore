@@ -2,7 +2,7 @@ import type { DocumentTypeSuggestion } from "@docstore/shared/document-type";
 import { suggestedDocumentTypeName } from "@docstore/shared/document-type";
 import { periodKeyOf } from "@docstore/shared/recurrence";
 import { Button } from "@docstore/ui/components/button";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, DotIcon, PlusIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -26,7 +26,6 @@ function suggestionKey(suggestion: DocumentTypeSuggestion): string {
  * the "Suggested types" card of the dashboard.
  */
 function useSuggestions() {
-	const queryClient = useQueryClient();
 	const suggestions = useQuery(
 		orpc.documentType.suggest.queryOptions({ input: {} }),
 	);
@@ -46,9 +45,6 @@ function useSuggestions() {
 				// exactly the documents it was inferred from.
 				startPeriod: suggestion.startPeriod,
 				endPeriod: suggestion.endPeriod,
-			});
-			await queryClient.invalidateQueries({
-				queryKey: orpc.documentType.key(),
 			});
 			toast.success("Document type created from the suggestion.");
 		} catch (error) {

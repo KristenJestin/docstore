@@ -6,7 +6,7 @@ import {
 	PopoverTrigger,
 } from "@docstore/ui/components/popover";
 import { cn } from "@docstore/ui/lib/utils";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
 	FolderTreeIcon,
 	LayersIcon,
@@ -52,7 +52,6 @@ export function BulkActionsBar({
 	onClear,
 	trashed = false,
 }: BulkActionsBarProps) {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const activeShareLinks = useActiveShareLinks();
 	const bulk = useMutation(orpc.document.bulk.mutationOptions());
@@ -86,8 +85,6 @@ export function BulkActionsBar({
 	const run = async (action: DocumentBulkAction, message: string) => {
 		try {
 			const result = await bulk.mutateAsync({ ids, action });
-			await queryClient.invalidateQueries({ queryKey: orpc.document.key() });
-			await queryClient.invalidateQueries({ queryKey: orpc.review.key() });
 			toast.success(`${message} (${result.updated}).`);
 			onClear();
 		} catch (error) {

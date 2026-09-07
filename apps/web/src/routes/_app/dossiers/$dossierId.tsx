@@ -69,12 +69,6 @@ function DossierDetailPage() {
 		orpc.dossier.removeDocument.mutationOptions(),
 	);
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.dossier.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-		]);
-
 	if (dossier.isLoading) {
 		return (
 			<div className="flex flex-col gap-4 px-6 py-8 lg:px-8">
@@ -112,7 +106,6 @@ function DossierDetailPage() {
 				await reopen.mutateAsync({ id: dossierId });
 				toast.success("Dossier reopened.");
 			}
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The dossier could not be updated.");
 		}
@@ -135,7 +128,6 @@ function DossierDetailPage() {
 			});
 			toast.success("Dossier deleted.");
 			navigate({ to: "/dossiers" });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The dossier could not be deleted.");
 		}
@@ -144,7 +136,6 @@ function DossierDetailPage() {
 	const onRemoveDocument = async (documentId: string, title: string) => {
 		try {
 			await removeDocument.mutateAsync({ id: dossierId, documentId });
-			await invalidate();
 			toast.success(`"${title}" removed from the dossier.`);
 		} catch (error) {
 			toastApiError(error, "The document could not be removed.");

@@ -2,7 +2,7 @@ import type { DocumentDetail } from "@docstore/shared/document";
 import type { ReviewAssignmentKind } from "@docstore/shared/review";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { CheckIcon, XIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -114,7 +114,6 @@ export interface ReviewAssignmentsProps {
  * document is what turns every automatic assignment into a manual one.
  */
 export function ReviewAssignments({ document }: ReviewAssignmentsProps) {
-	const queryClient = useQueryClient();
 	const [kept, setKept] = useState<string[]>([]);
 	const reject = useMutation(orpc.review.rejectAssignment.mutationOptions());
 
@@ -128,10 +127,6 @@ export function ReviewAssignments({ document }: ReviewAssignmentsProps) {
 				ref: row.ref,
 				role: row.role,
 			});
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-			]);
 			toast.success(`Rejected the ${row.label}.`);
 		} catch (error) {
 			toastApiError(error, "The assignment could not be rejected.");

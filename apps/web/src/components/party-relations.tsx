@@ -12,7 +12,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@docstore/ui/components/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	BabyIcon,
@@ -66,7 +66,6 @@ export interface PartyRelationsProps {
 
 /** Outgoing and incoming relations of a party, with add and remove. */
 export function PartyRelations({ party }: PartyRelationsProps) {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const [adding, setAdding] = useState(false);
 	const [targetId, setTargetId] = useState<string | null>(null);
@@ -76,9 +75,6 @@ export function PartyRelations({ party }: PartyRelationsProps) {
 	const removeRelation = useMutation(
 		orpc.party.removeRelation.mutationOptions(),
 	);
-
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.party.key() });
 
 	const submit = async () => {
 		if (!targetId) {
@@ -90,7 +86,6 @@ export function PartyRelations({ party }: PartyRelationsProps) {
 				toPartyId: targetId,
 				kind,
 			});
-			await invalidate();
 			toast.success("Relation added.");
 			setTargetId(null);
 			setAdding(false);
@@ -111,7 +106,6 @@ export function PartyRelations({ party }: PartyRelationsProps) {
 		}
 		try {
 			await removeRelation.mutateAsync({ id: relation.id });
-			await invalidate();
 			toast.success("Relation removed.");
 		} catch (error) {
 			toastApiError(error, "The relation could not be removed.");

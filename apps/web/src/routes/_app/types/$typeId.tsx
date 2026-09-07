@@ -84,12 +84,6 @@ function DocumentTypeDetailPage() {
 	);
 	const remove = useMutation(orpc.documentType.delete.mutationOptions());
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-		]);
-
 	if (type.isLoading) {
 		return (
 			<div className="flex flex-col gap-4 px-6 py-8 lg:px-8">
@@ -124,7 +118,6 @@ function DocumentTypeDetailPage() {
 				documentId,
 				included,
 			});
-			await invalidate();
 			toast.success(
 				included ? "Document added to the type." : "Document excluded.",
 			);
@@ -151,7 +144,6 @@ function DocumentTypeDetailPage() {
 			});
 			toast.success("Document type deleted.");
 			navigate({ to: "/types", search: {} });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The document type could not be deleted.");
 		}

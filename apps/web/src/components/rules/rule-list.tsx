@@ -10,7 +10,7 @@ import {
 } from "@docstore/ui/components/dropdown-menu";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Switch } from "@docstore/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { MoreHorizontalIcon, PlusIcon, WorkflowIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -45,7 +45,6 @@ const SKELETON_ROWS = 6;
 export function RuleList() {
 	const navigate = useNavigate();
 	const confirm = useConfirm();
-	const queryClient = useQueryClient();
 
 	const rules = useQuery(orpc.rule.list.queryOptions({ input: {} }));
 	const reorder = useMutation(orpc.rule.reorder.mutationOptions());
@@ -57,13 +56,9 @@ export function RuleList() {
 
 	const items = rules.data ?? [];
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.rule.key() });
-
 	const onReorder = async (ids: string[]) => {
 		try {
 			await reorder.mutateAsync({ ids });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The automations could not be reordered.");
 		}
@@ -72,7 +67,6 @@ export function RuleList() {
 	const onToggle = async (rule: Rule, enabled: boolean) => {
 		try {
 			await toggle.mutateAsync({ id: rule.id, enabled });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The automation could not be switched.");
 		}
@@ -89,7 +83,6 @@ export function RuleList() {
 				actions: rule.actions,
 				stopOnMatch: rule.stopOnMatch,
 			});
-			await invalidate();
 			toast.success(`Automation "${created.name}" created.`);
 		} catch (error) {
 			toastApiError(error, "The automation could not be duplicated.");
@@ -108,7 +101,6 @@ export function RuleList() {
 		}
 		try {
 			await remove.mutateAsync({ id: rule.id });
-			await invalidate();
 			toast.success("Automation deleted.");
 		} catch (error) {
 			toastApiError(error, "The automation could not be deleted.");
@@ -133,11 +125,6 @@ export function RuleList() {
 			if (outcome === null) {
 				return;
 			}
-			await Promise.all([
-				invalidate(),
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-			]);
 			toast.success(
 				`${outcome.matched} matched of ${outcome.processed} processed.`,
 			);

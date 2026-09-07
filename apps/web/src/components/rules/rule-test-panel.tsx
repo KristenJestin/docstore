@@ -15,7 +15,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@docstore/ui/components/dialog";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { FlaskConicalIcon, PlayIcon, ZapIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -52,7 +52,6 @@ export function RuleTestPanel({
 	ruleId,
 }: RuleTestPanelProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 
 	const [target, setTarget] = useState<DocumentListItem | null>(null);
 	const [result, setResult] = useState<TestRuleResult | null>(null);
@@ -92,11 +91,6 @@ export function RuleTestPanel({
 			if (outcome === null) {
 				return;
 			}
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.rule.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-			]);
 			toast.success(
 				`${outcome.matched} of ${countLabel(outcome.processed, "document")} matched.`,
 			);
@@ -117,11 +111,6 @@ export function RuleTestPanel({
 				return;
 			}
 			setRunAllResult(outcome);
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.rule.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-			]);
 		} catch (error) {
 			toastApiError(error, "The rule could not be applied.");
 		}

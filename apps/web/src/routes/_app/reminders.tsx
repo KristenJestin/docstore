@@ -8,7 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@docstore/ui/components/select";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
@@ -33,7 +33,6 @@ const STATUS_ITEMS: Record<string, string> = {
 };
 
 function RemindersPage() {
-	const queryClient = useQueryClient();
 	const [status, setStatus] = useState<ReminderStatus | "all">("pending");
 
 	const reminders = useQuery(
@@ -46,7 +45,6 @@ function RemindersPage() {
 	const regenerate = async () => {
 		try {
 			const result = await generate.mutateAsync({});
-			await queryClient.invalidateQueries({ queryKey: orpc.reminder.key() });
 			toast.success("Reminders recomputed.", {
 				description: `${result.created} created, ${result.updated} updated, ${result.removed} removed.`,
 			});

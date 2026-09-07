@@ -2,7 +2,7 @@ import type { ExtractionRule } from "@docstore/shared/extraction";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, ScanTextIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
@@ -30,7 +30,6 @@ export function LayoutExtractionRules({
 	layoutId,
 }: LayoutExtractionRulesProps) {
 	const confirm = useConfirm();
-	const queryClient = useQueryClient();
 
 	const rules = useQuery(
 		orpc.extractionRule.list.queryOptions({ input: { layoutId } }),
@@ -60,10 +59,6 @@ export function LayoutExtractionRules({
 		}
 		try {
 			await remove.mutateAsync({ id: rule.id });
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.extractionRule.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-			]);
 			toast.success("Extraction rule deleted.");
 		} catch (error) {
 			toastApiError(error, "The extraction rule could not be deleted.");

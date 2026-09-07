@@ -26,7 +26,7 @@ import {
 } from "@docstore/ui/components/sheet";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Switch } from "@docstore/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	PencilIcon,
 	PlusIcon,
@@ -73,7 +73,6 @@ function generateSecret(): string {
  * the receiving service.
  */
 export function WebhookList() {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const webhooks = useQuery(orpc.webhook.list.queryOptions({ input: {} }));
 
@@ -84,10 +83,6 @@ export function WebhookList() {
 	const test = useMutation(orpc.webhook.test.mutationOptions());
 	const update = useMutation(orpc.webhook.update.mutationOptions());
 	const remove = useMutation(orpc.webhook.delete.mutationOptions());
-
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.webhook.key() });
-	};
 
 	const onTest = async (webhook: Webhook) => {
 		try {
@@ -105,7 +100,6 @@ export function WebhookList() {
 	const onToggle = async (webhook: Webhook, enabled: boolean) => {
 		try {
 			await update.mutateAsync({ id: webhook.id, enabled });
-			await invalidate();
 			toast.success(enabled ? "Webhook enabled." : "Webhook disabled.");
 		} catch (error) {
 			toastApiError(error, "The webhook could not be switched.");
@@ -124,7 +118,6 @@ export function WebhookList() {
 		}
 		try {
 			await remove.mutateAsync({ id: webhook.id });
-			await invalidate();
 			toast.success("Webhook deleted.");
 		} catch (error) {
 			toastApiError(error, "The webhook could not be deleted.");
@@ -257,7 +250,6 @@ export function WebhookList() {
 						setEditing(null);
 					}
 				}}
-				onSaved={invalidate}
 			/>
 
 			<DeliveriesDialog
@@ -272,12 +264,10 @@ function WebhookSheet({
 	open,
 	webhook,
 	onOpenChange,
-	onSaved,
 }: {
 	open: boolean;
 	webhook?: Webhook;
 	onOpenChange: (open: boolean) => void;
-	onSaved: () => Promise<void>;
 }) {
 	const fieldId = useId();
 	const isEdit = Boolean(webhook);
@@ -338,7 +328,6 @@ function WebhookSheet({
 				});
 				toast.success(`Webhook "${trimmedName}" created.`);
 			}
-			await onSaved();
 			onOpenChange(false);
 		} catch (error) {
 			toastApiError(error, "The webhook could not be saved.");

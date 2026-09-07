@@ -18,7 +18,7 @@ import {
 	SelectValue,
 } from "@docstore/ui/components/select";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	MergeIcon,
 	PencilIcon,
@@ -42,7 +42,6 @@ import { ColorPicker } from "./taxonomy-pickers";
  * merge into another tag (`tag.merge`).
  */
 export function TagManager() {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const tags = useQuery(orpc.tag.list.queryOptions({ input: {} }));
 
@@ -51,11 +50,6 @@ export function TagManager() {
 	const [merging, setMerging] = useState<TagWithCount | null>(null);
 
 	const deleteTag = useMutation(orpc.tag.delete.mutationOptions());
-
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.tag.key() });
-		await queryClient.invalidateQueries({ queryKey: orpc.document.key() });
-	};
 
 	const remove = async (item: TagWithCount) => {
 		const ok = await confirm({
@@ -72,7 +66,6 @@ export function TagManager() {
 		}
 		try {
 			await deleteTag.mutateAsync({ id: item.id });
-			await invalidate();
 			toast.success("Tag deleted.");
 		} catch (error) {
 			toastApiError(error, "The tag could not be deleted.");
@@ -112,7 +105,6 @@ export function TagManager() {
 						onCancel={() => setCreating(false)}
 						onSaved={async () => {
 							setCreating(false);
-							await invalidate();
 						}}
 					/>
 				) : null}
@@ -142,7 +134,6 @@ export function TagManager() {
 										onCancel={() => setEditingId(null)}
 										onSaved={async () => {
 											setEditingId(null);
-											await invalidate();
 										}}
 									/>
 								) : (
@@ -202,7 +193,6 @@ export function TagManager() {
 				source={merging}
 				tags={items}
 				onClose={() => setMerging(null)}
-				onMerged={invalidate}
 			/>
 		</SettingsStack>
 	);
@@ -279,12 +269,10 @@ function MergeTagDialog({
 	source,
 	tags,
 	onClose,
-	onMerged,
 }: {
 	source: TagWithCount | null;
 	tags: TagWithCount[];
 	onClose: () => void;
-	onMerged: () => Promise<void>;
 }) {
 	const [targetId, setTargetId] = useState<string>("");
 	const mergeTags = useMutation(orpc.tag.merge.mutationOptions());
@@ -300,7 +288,6 @@ function MergeTagDialog({
 				sourceId: source.id,
 				targetId,
 			});
-			await onMerged();
 			toast.success(
 				`"${source.name}" merged into "${result.target.name}" (${countLabel(
 					result.movedDocuments,

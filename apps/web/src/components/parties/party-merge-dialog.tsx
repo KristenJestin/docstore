@@ -9,7 +9,7 @@ import {
 	DialogTitle,
 } from "@docstore/ui/components/dialog";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -52,7 +52,6 @@ export function PartyMergeDialog({
 	onMerged,
 }: PartyMergeDialogProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 	const merge = useMutation(orpc.party.mergeInto.mutationOptions());
 
 	const [targetId, setTargetId] = useState<string | null>(
@@ -83,10 +82,9 @@ export function PartyMergeDialog({
 			return;
 		}
 		try {
+			// Merging moves the documents of the source onto the target, which the
+			// global invalidation of the mutation cache picks up on its own.
 			const result = await merge.mutateAsync({ sourceId, targetId });
-			await queryClient.invalidateQueries({ queryKey: orpc.party.key() });
-			// Every document linked to the source now points at the target.
-			await queryClient.invalidateQueries({ queryKey: orpc.document.key() });
 			toast.success(`Merged into "${result.target.name}".`, {
 				description: `${countLabel(
 					result.movedDocuments,

@@ -30,7 +30,7 @@ import {
 } from "@docstore/ui/components/sheet";
 import { Switch } from "@docstore/ui/components/switch";
 import { Textarea } from "@docstore/ui/components/textarea";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -196,7 +196,6 @@ export function DocumentTypeFormSheet({
 }: DocumentTypeFormSheetProps) {
 	const isEdit = Boolean(documentType);
 	const ids = useId();
-	const queryClient = useQueryClient();
 
 	const [draft, setDraft] = useState<DocumentTypeDraft>(() => ({
 		...emptyDocumentTypeDraft(),
@@ -278,9 +277,6 @@ export function DocumentTypeFormSheet({
 			const saved = documentType
 				? await update.mutateAsync({ id: documentType.id, ...payload })
 				: await create.mutateAsync(payload);
-			await queryClient.invalidateQueries({
-				queryKey: orpc.documentType.key(),
-			});
 			toast.success(
 				isEdit
 					? "Document type updated."

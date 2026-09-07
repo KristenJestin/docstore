@@ -18,7 +18,7 @@ import {
 	DropdownMenuTrigger,
 } from "@docstore/ui/components/dropdown-menu";
 import { Input } from "@docstore/ui/components/input";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	BookmarkIcon,
@@ -47,7 +47,6 @@ import { orpc } from "@/utils/orpc";
  */
 export function SavedSearchNav({ onNavigate }: { onNavigate?: () => void }) {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 
 	const searches = useQuery(orpc.savedSearch.list.queryOptions({ input: {} }));
@@ -62,9 +61,6 @@ export function SavedSearchNav({ onNavigate }: { onNavigate?: () => void }) {
 		return null;
 	}
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.savedSearch.key() });
-
 	const open = (search: SavedSearchDto) => {
 		navigate({
 			to: "/documents",
@@ -76,7 +72,6 @@ export function SavedSearchNav({ onNavigate }: { onNavigate?: () => void }) {
 	const onReorder = async (ids: string[]) => {
 		try {
 			await reorder.mutateAsync({ ids });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The saved searches could not be reordered.");
 		}
@@ -94,7 +89,6 @@ export function SavedSearchNav({ onNavigate }: { onNavigate?: () => void }) {
 		}
 		try {
 			await remove.mutateAsync({ id: search.id });
-			await invalidate();
 			toast.success("Saved search deleted.");
 		} catch (error) {
 			toastApiError(error, "The saved search could not be deleted.");
@@ -179,7 +173,6 @@ export function SavedSearchNav({ onNavigate }: { onNavigate?: () => void }) {
 					}
 					try {
 						await update.mutateAsync({ id: renaming.id, name });
-						await invalidate();
 						toast.success("Saved search renamed.");
 						setRenaming(null);
 					} catch (error) {
@@ -253,7 +246,6 @@ export function SaveSearchDialog({
 	filters,
 }: SaveSearchDialogProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
 
 	useEffect(() => {
@@ -271,7 +263,6 @@ export function SaveSearchDialog({
 		}
 		try {
 			await create.mutateAsync({ name: trimmed, filters });
-			await queryClient.invalidateQueries({ queryKey: orpc.savedSearch.key() });
 			toast.success(`Search "${trimmed}" saved.`);
 			onOpenChange(false);
 		} catch (error) {

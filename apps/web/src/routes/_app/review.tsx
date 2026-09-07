@@ -2,7 +2,7 @@ import type { ReviewItem } from "@docstore/shared/review";
 import { Badge } from "@docstore/ui/components/badge";
 import { Button } from "@docstore/ui/components/button";
 import { Checkbox } from "@docstore/ui/components/checkbox";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CheckIcon, InboxIcon } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -54,7 +54,6 @@ function lowestConfidence(item: ReviewItem): number | null {
 function ReviewPage() {
 	const search = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
-	const queryClient = useQueryClient();
 	const [selected, setSelected] = useState<string[]>([]);
 	const [openId, setOpenId] = useState<string | null>(null);
 
@@ -95,12 +94,6 @@ function ReviewPage() {
 	const index = openId ? items.findIndex((item) => item.id === openId) : -1;
 	const hasNext = index >= 0 && index < items.length - 1;
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-		]);
-
 	const step = (direction: -1 | 1) => {
 		if (index < 0) {
 			return;
@@ -116,7 +109,6 @@ function ReviewPage() {
 			for (const id of selected) {
 				await approve.mutateAsync({ id });
 			}
-			await invalidate();
 			toast.success(`${countLabel(selected.length, "document")} approved.`);
 			setSelected([]);
 		} catch (error) {

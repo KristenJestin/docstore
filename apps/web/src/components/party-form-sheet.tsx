@@ -156,7 +156,6 @@ export function PartyFormSheet({
 				} catch (error) {
 					toastApiError(error, "The logo could not be saved.");
 				}
-				await queryClient.invalidateQueries({ queryKey: orpc.party.key() });
 				toast.success(
 					isEdit ? "Party updated." : `Party "${saved.name}" created.`,
 				);

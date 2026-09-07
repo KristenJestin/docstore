@@ -95,10 +95,6 @@ export function RegenerateTitlesButton({
 
 		try {
 			const result = await regenerate.mutateAsync({ id: detail.id });
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			]);
 			toast.success(
 				`${countLabel(result.updated, "title")} rewritten, ${result.skipped} left alone.`,
 			);

@@ -88,8 +88,6 @@ function toFieldValue(
 export interface FieldExtractButtonProps {
 	document: DocumentDetail;
 	field: CustomField;
-	/** Called once the value has been written, to refresh the document. */
-	onApplied: () => Promise<unknown>;
 }
 
 /**
@@ -102,7 +100,6 @@ export interface FieldExtractButtonProps {
 export function FieldExtractButton({
 	document,
 	field,
-	onApplied,
 }: FieldExtractButtonProps) {
 	const [open, setOpen] = useState(false);
 	const [result, setResult] = useState<{
@@ -158,7 +155,6 @@ export function FieldExtractButton({
 				source: "rule",
 				confidence: result.outcome.confidence,
 			});
-			await onApplied();
 			setOpen(false);
 			setResult(null);
 		} catch (error) {

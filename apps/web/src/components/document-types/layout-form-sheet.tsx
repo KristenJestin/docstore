@@ -10,7 +10,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@docstore/ui/components/sheet";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -68,7 +68,6 @@ export function LayoutFormSheet({
 }: LayoutFormSheetProps) {
 	const ids = useId();
 	const isEdit = Boolean(layout);
-	const queryClient = useQueryClient();
 
 	const [draft, setDraft] = useState<LayoutDraft>(emptyDraft);
 	const [signatureOpen, setSignatureOpen] = useState(false);
@@ -109,9 +108,6 @@ export function LayoutFormSheet({
 				await add.mutateAsync({ documentTypeId, ...payload });
 				toast.success(`Layout "${payload.name}" added.`);
 			}
-			await queryClient.invalidateQueries({
-				queryKey: orpc.documentType.key(),
-			});
 			onOpenChange(false);
 			onSaved?.();
 		} catch (error) {

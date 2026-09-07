@@ -12,7 +12,7 @@ import {
 import { Input } from "@docstore/ui/components/input";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Switch } from "@docstore/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { BanIcon, LinkIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -52,7 +52,6 @@ export function ShareDialog({
 	title,
 }: ShareDialogProps) {
 	const ids = useId();
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 
 	const [expiresOn, setExpiresOn] = useState<string | null>(null);
@@ -91,9 +90,6 @@ export function ShareDialog({
 	const revoke = useMutation(orpc.shareLink.revoke.mutationOptions());
 	const remove = useMutation(orpc.shareLink.delete.mutationOptions());
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.shareLink.key() });
-
 	const submit = async () => {
 		try {
 			const created = await create.mutateAsync({
@@ -107,7 +103,6 @@ export function ShareDialog({
 				maxViews: maxViews.trim() ? Number(maxViews) : null,
 				allowDownload,
 			});
-			await invalidate();
 			await navigator.clipboard
 				.writeText(publicSharePageUrl(created.link))
 				.catch(() => undefined);
@@ -134,7 +129,6 @@ export function ShareDialog({
 		}
 		try {
 			await revoke.mutateAsync({ id: link.id });
-			await invalidate();
 			toast.success("Link revoked.");
 		} catch (error) {
 			toastApiError(error, "The link could not be revoked.");
@@ -144,7 +138,6 @@ export function ShareDialog({
 	const onDelete = async (link: ShareLink) => {
 		try {
 			await remove.mutateAsync({ id: link.id });
-			await invalidate();
 			toast.success("Link deleted.");
 		} catch (error) {
 			toastApiError(error, "The link could not be deleted.");

@@ -9,7 +9,7 @@ import {
 	DialogTitle,
 } from "@docstore/ui/components/dialog";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -42,7 +42,6 @@ export function DossierDocumentPicker({
 	dossierId,
 	memberIds,
 }: DossierDocumentPickerProps) {
-	const queryClient = useQueryClient();
 	const [query, setQuery] = useState("");
 	const [selected, setSelected] = useState<string[]>([]);
 
@@ -78,10 +77,6 @@ export function DossierDocumentPicker({
 		}
 		try {
 			await addDocuments.mutateAsync({ id: dossierId, documentIds: selected });
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orpc.dossier.key() }),
-				queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			]);
 			toast.success(`${countLabel(selected.length, "document")} added.`);
 			onOpenChange(false);
 		} catch (error) {

@@ -10,7 +10,7 @@ import {
 	SheetTitle,
 } from "@docstore/ui/components/sheet";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	CheckIcon,
@@ -64,7 +64,6 @@ export function ReviewSheet({
 	onApproved,
 	hasNext,
 }: ReviewSheetProps) {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 
 	const document_ = useQuery({
@@ -78,12 +77,6 @@ export function ReviewSheet({
 
 	const detail = document_.data ?? null;
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-		]);
-
 	/** `null` while the document can be approved (see `approvalBlockedReason`). */
 	const approvalBlocked = detail ? approvalBlockedReason(detail.status) : null;
 
@@ -93,7 +86,6 @@ export function ReviewSheet({
 		}
 		try {
 			await approve.mutateAsync({ id: documentId });
-			await invalidate();
 			toast.success("Document approved.");
 			onApproved(advance);
 		} catch (error) {
@@ -107,7 +99,6 @@ export function ReviewSheet({
 		}
 		try {
 			await requeue.mutateAsync({ id: documentId });
-			await invalidate();
 			toast.success("Analysis restarted.");
 		} catch (error) {
 			toastApiError(error, "The analysis could not be restarted.");
@@ -128,7 +119,6 @@ export function ReviewSheet({
 		}
 		try {
 			await trash.mutateAsync({ id: documentId });
-			await invalidate();
 			toast.success("Document moved to the trash.");
 			onApproved(false);
 		} catch (error) {

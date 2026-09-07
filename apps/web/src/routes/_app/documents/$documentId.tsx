@@ -57,12 +57,6 @@ function DocumentDetailPage() {
 	const remove = useMutation(orpc.document.deletePermanently.mutationOptions());
 	const reprocess = useMutation(orpc.document.reprocess.mutationOptions());
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.review.key() }),
-		]);
-
 	if (document.isLoading) {
 		return (
 			<div className="flex flex-col gap-4 px-6 py-8 lg:px-8">
@@ -102,7 +96,6 @@ function DocumentDetailPage() {
 		}
 		try {
 			await trash.mutateAsync({ id: detail.id });
-			await invalidate();
 			toast.success("Document moved to the trash.");
 		} catch (error) {
 			toastApiError(error, "The operation failed.");
@@ -112,7 +105,6 @@ function DocumentDetailPage() {
 	const onRestore = async () => {
 		try {
 			await restore.mutateAsync({ id: detail.id });
-			await invalidate();
 			toast.success("Document restored.");
 		} catch (error) {
 			toastApiError(error, "The operation failed.");
@@ -139,7 +131,6 @@ function DocumentDetailPage() {
 			});
 			toast.success("Document deleted.");
 			navigate({ to: "/documents" });
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The document could not be deleted.");
 		}
@@ -148,7 +139,6 @@ function DocumentDetailPage() {
 	const onReprocess = async () => {
 		try {
 			await reprocess.mutateAsync({ id: detail.id });
-			await invalidate();
 			toast.success("Processing restarted.");
 		} catch (error) {
 			toastApiError(error, "Processing could not be restarted.");
@@ -180,11 +170,7 @@ function DocumentDetailPage() {
 								{detail.title}
 							</h1>
 						) : (
-							<EditableTitle
-								documentId={detail.id}
-								title={detail.title}
-								onSaved={invalidate}
-							/>
+							<EditableTitle documentId={detail.id} title={detail.title} />
 						)}
 						<div className="mt-2 flex flex-wrap items-center gap-2">
 							<DocumentStatusBadge status={detail.status} />
@@ -317,11 +303,9 @@ function DocumentDetailPage() {
 function EditableTitle({
 	documentId,
 	title,
-	onSaved,
 }: {
 	documentId: string;
 	title: string;
-	onSaved: () => Promise<unknown>;
 }) {
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(title);
@@ -340,7 +324,6 @@ function EditableTitle({
 		}
 		try {
 			await update.mutateAsync({ id: documentId, title: next });
-			await onSaved();
 			toast.success("Title updated.");
 		} catch (error) {
 			setDraft(title);

@@ -12,7 +12,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@docstore/ui/components/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
@@ -48,7 +48,6 @@ export interface PartyRoleListProps {
  * assignment comes from a rule or an MCP agent.
  */
 export function PartyRoleList({ documentId, parties }: PartyRoleListProps) {
-	const queryClient = useQueryClient();
 	const [adding, setAdding] = useState(false);
 	const [targetId, setTargetId] = useState<string | null>(null);
 	const [role, setRole] = useState<DocumentPartyRole>("issuer");
@@ -56,16 +55,12 @@ export function PartyRoleList({ documentId, parties }: PartyRoleListProps) {
 	const addParty = useMutation(orpc.document.addParty.mutationOptions());
 	const removeParty = useMutation(orpc.document.removeParty.mutationOptions());
 
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.document.key() });
-
 	const submit = async () => {
 		if (!targetId) {
 			return;
 		}
 		try {
 			await addParty.mutateAsync({ id: documentId, partyId: targetId, role });
-			await invalidate();
 			toast.success("Party linked to the document.");
 			setTargetId(null);
 			setAdding(false);
@@ -81,7 +76,6 @@ export function PartyRoleList({ documentId, parties }: PartyRoleListProps) {
 				partyId: link.id,
 				role: link.role,
 			});
-			await invalidate();
 			toast.success("Party unlinked.");
 		} catch (error) {
 			toastApiError(error, "The party could not be unlinked.");

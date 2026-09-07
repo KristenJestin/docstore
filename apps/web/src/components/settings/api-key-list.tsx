@@ -14,7 +14,7 @@ import {
 import { Input } from "@docstore/ui/components/input";
 import { Label } from "@docstore/ui/components/label";
 import { Skeleton } from "@docstore/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	BanIcon,
 	KeyRoundIcon,
@@ -56,7 +56,6 @@ function mcpCommand(apiUrl: string, secret: string): string {
  * it is shown once in a dialog with a copy button and a warning.
  */
 export function ApiKeyList() {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const keys = useQuery(orpc.apiKey.list.queryOptions({ input: {} }));
 	const serverInfo = useQuery(
@@ -72,10 +71,6 @@ export function ApiKeyList() {
 	const revoke = useMutation(orpc.apiKey.revoke.mutationOptions());
 	const remove = useMutation(orpc.apiKey.delete.mutationOptions());
 
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.apiKey.key() });
-	};
-
 	const onRevoke = async (key: ApiKey) => {
 		const ok = await confirm({
 			title: `Revoke "${key.name}"?`,
@@ -88,7 +83,6 @@ export function ApiKeyList() {
 		}
 		try {
 			await revoke.mutateAsync({ id: key.id });
-			await invalidate();
 			toast.success("API key revoked.");
 		} catch (error) {
 			toastApiError(error, "The key could not be revoked.");
@@ -107,7 +101,6 @@ export function ApiKeyList() {
 		}
 		try {
 			await remove.mutateAsync({ id: key.id });
-			await invalidate();
 			toast.success("API key deleted.");
 		} catch (error) {
 			toastApiError(error, "The key could not be deleted.");
@@ -239,7 +232,6 @@ export function ApiKeyList() {
 				open={creating}
 				onOpenChange={setCreating}
 				onCreated={async (name, value) => {
-					await invalidate();
 					setSecret({ name, value });
 				}}
 			/>

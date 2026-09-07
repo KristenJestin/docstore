@@ -13,7 +13,7 @@ import {
 } from "@docstore/ui/components/sheet";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { Textarea } from "@docstore/ui/components/textarea";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	BanIcon,
 	LinkIcon,
@@ -42,7 +42,6 @@ import { SettingsPanel, SettingsStack } from "./settings-panel";
  * third party drops files, with an expiry date and a usage quota.
  */
 export function UploadLinkList() {
-	const queryClient = useQueryClient();
 	const confirm = useConfirm();
 	const links = useQuery(orpc.uploadLink.list.queryOptions({ input: {} }));
 
@@ -52,14 +51,9 @@ export function UploadLinkList() {
 	const disable = useMutation(orpc.uploadLink.disable.mutationOptions());
 	const remove = useMutation(orpc.uploadLink.delete.mutationOptions());
 
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: orpc.uploadLink.key() });
-	};
-
 	const onDisable = async (link: UploadLink) => {
 		try {
 			await disable.mutateAsync({ id: link.id });
-			await invalidate();
 			toast.success("Link disabled.");
 		} catch (error) {
 			toastApiError(error, "The link could not be disabled.");
@@ -78,7 +72,6 @@ export function UploadLinkList() {
 		}
 		try {
 			await remove.mutateAsync({ id: link.id });
-			await invalidate();
 			toast.success("Link deleted.");
 		} catch (error) {
 			toastApiError(error, "The link could not be deleted.");
@@ -207,7 +200,6 @@ export function UploadLinkList() {
 						setEditing(null);
 					}
 				}}
-				onSaved={invalidate}
 			/>
 		</SettingsStack>
 	);
@@ -225,12 +217,10 @@ function UploadLinkSheet({
 	open,
 	link,
 	onOpenChange,
-	onSaved,
 }: {
 	open: boolean;
 	link?: UploadLink;
 	onOpenChange: (open: boolean) => void;
-	onSaved: () => Promise<void>;
 }) {
 	const fieldId = useId();
 	const isEdit = Boolean(link);
@@ -281,7 +271,6 @@ function UploadLinkSheet({
 				await createLink.mutateAsync({ ...payload, enabled: true });
 				toast.success(`Upload link "${trimmed}" created.`);
 			}
-			await onSaved();
 			onOpenChange(false);
 		} catch (error) {
 			toastApiError(error, "The link could not be saved.");

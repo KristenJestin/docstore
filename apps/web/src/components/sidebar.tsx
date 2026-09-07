@@ -24,7 +24,7 @@ import { LogOutIcon, SettingsIcon } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { hotkeyBadge, NAV_ITEMS, NAV_SECTIONS } from "@/lib/navigation";
 import { countLabel } from "@/lib/plural";
-import { orpc } from "@/utils/orpc";
+import { COUNTER_POLL_MS, counterPollOptions, orpc } from "@/utils/orpc";
 import { BrandLogo } from "./brand-logo";
 import { SavedSearchNav } from "./documents/saved-search-list";
 import { PartyAvatar } from "./party-avatar";
@@ -41,27 +41,35 @@ export interface SidebarProps {
 
 /** Sidebar content: brand, navigation, library block, account. */
 export function Sidebar({ onNavigate, className }: SidebarProps) {
-	// While a document is being processed the counters move on their own, so
-	// they are refreshed at the same cadence as the list.
+	// Every counter polls on the shared idle cadence. While a document is being
+	// processed its numbers move on their own, so the stats fall back to the
+	// faster cadence of the list until the pipeline is done.
 	const stats = useQuery({
 		...orpc.document.stats.queryOptions({ input: {} }),
+		...counterPollOptions,
 		refetchInterval: (query) =>
 			(query.state.data?.byStatus.processing ?? 0) > 0
 				? PROCESSING_POLL_MS
-				: false,
+				: COUNTER_POLL_MS,
 	});
-	const parties = useQuery(
-		orpc.party.list.queryOptions({ input: { page: 1, pageSize: 1 } }),
-	);
-	const documentTypes = useQuery(
-		orpc.documentType.list.queryOptions({
+	const parties = useQuery({
+		...orpc.party.list.queryOptions({ input: { page: 1, pageSize: 1 } }),
+		...counterPollOptions,
+	});
+	const documentTypes = useQuery({
+		...orpc.documentType.list.queryOptions({
 			input: { recurringOnly: false, includeDisabled: true },
 		}),
-	);
-	const dossiers = useQuery(
-		orpc.dossier.list.queryOptions({ input: { includeClosed: false } }),
-	);
-	const reminders = useQuery(orpc.reminder.count.queryOptions({ input: {} }));
+		...counterPollOptions,
+	});
+	const dossiers = useQuery({
+		...orpc.dossier.list.queryOptions({ input: { includeClosed: false } }),
+		...counterPollOptions,
+	});
+	const reminders = useQuery({
+		...orpc.reminder.count.queryOptions({ input: {} }),
+		...counterPollOptions,
+	});
 
 	const counters: Record<string, number | undefined> = {
 		documents: stats.data?.total,
@@ -113,7 +121,12 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 										{(item.counter === "review" ||
 											item.counter === "reminders") &&
 										counter ? (
-											<Badge tone="warning">{counter}</Badge>
+											<Badge
+												tone="warning"
+												data-testid={`nav-count-${item.counter}`}
+											>
+												{counter}
+											</Badge>
 										) : item.counter === "documentTypes" && overdueTypes > 0 ? (
 											<Badge
 												tone="danger"
@@ -122,7 +135,10 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
 												{overdueTypes}
 											</Badge>
 										) : counter !== undefined ? (
-											<span className="font-mono text-muted-foreground text-xs tabular-nums">
+											<span
+												data-testid={`nav-count-${item.counter}`}
+												className="font-mono text-muted-foreground text-xs tabular-nums"
+											>
 												{counter}
 											</span>
 										) : badge ? (

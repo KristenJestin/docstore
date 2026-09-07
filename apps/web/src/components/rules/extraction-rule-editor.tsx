@@ -240,12 +240,6 @@ export function ExtractionRuleEditor({
 	const layoutName =
 		type.data?.layouts.find((item) => item.id === draft.layoutId)?.name ?? null;
 
-	const invalidate = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.extractionRule.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.documentType.key() }),
-		]);
-
 	const save = async () => {
 		try {
 			if (rule) {
@@ -257,7 +251,6 @@ export function ExtractionRuleEditor({
 					postprocess: draft.postprocess,
 					layoutId: draft.layoutId,
 				});
-				await invalidate();
 				toast.success("Extraction rule saved.");
 				return;
 			}
@@ -268,7 +261,6 @@ export function ExtractionRuleEditor({
 				postprocess: draft.postprocess,
 				layoutId: draft.layoutId,
 			});
-			await invalidate();
 			toast.success(`Extraction rule "${created.name}" created.`);
 			navigate({
 				to: "/types/$typeId/extraction/$extractionRuleId",
@@ -305,7 +297,6 @@ export function ExtractionRuleEditor({
 				params: { typeId: documentTypeId },
 				search: { tab: "layouts" },
 			});
-			await invalidate();
 		} catch (error) {
 			toastApiError(error, "The extraction rule could not be deleted.");
 		}
