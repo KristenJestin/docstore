@@ -48,7 +48,8 @@
 		},
 		"test": {
 			"cache": false,
-			"inputs": ["$TURBO_DEFAULT$", ".env*"]
+			"inputs": ["$TURBO_DEFAULT$", ".env*"],
+			"passThroughEnv": ["TEST_DB_SUFFIX"]
 		},
 		"test:e2e": {
 			"cache": false,
