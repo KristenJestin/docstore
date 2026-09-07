@@ -109,6 +109,8 @@ export interface DocumentTypeDraft {
 	subjectPartyId: string | null;
 	tagIds: string[];
 	sensitiveDefault: boolean;
+	/** Numbers every document this type is applied to. */
+	paperOriginal: boolean;
 	titleTemplate: string;
 	detection: RuleCondition | null;
 	enabled: boolean;
@@ -132,6 +134,7 @@ export function emptyDocumentTypeDraft(): DocumentTypeDraft {
 		subjectPartyId: null,
 		tagIds: [],
 		sensitiveDefault: false,
+		paperOriginal: false,
 		titleTemplate: "",
 		detection: null,
 		enabled: true,
@@ -155,6 +158,7 @@ function toDraft(type: DocumentTypeDto | DocumentTypeItem): DocumentTypeDraft {
 		subjectPartyId: type.subjectPartyId,
 		tagIds: type.tagIds,
 		sensitiveDefault: type.sensitiveDefault,
+		paperOriginal: type.paperOriginal,
 		titleTemplate: type.titleTemplate ?? "",
 		detection: type.detection,
 		enabled: type.enabled,
@@ -251,6 +255,7 @@ export function DocumentTypeFormSheet({
 			subjectPartyId: draft.subjectPartyId,
 			tagIds: draft.tagIds,
 			sensitiveDefault: draft.sensitiveDefault,
+			paperOriginal: draft.paperOriginal,
 			titleTemplate: draft.titleTemplate.trim() || null,
 			detection: detectionOpen ? draft.detection : null,
 			enabled: draft.enabled,
@@ -437,6 +442,20 @@ export function DocumentTypeFormSheet({
 								onCheckedChange={(sensitiveDefault) =>
 									patch({ sensitiveDefault })
 								}
+							/>
+						</div>
+
+						<div className="flex items-center justify-between gap-4">
+							<div>
+								<p className="text-sm">Paper original</p>
+								<p className="text-muted-foreground text-xs">
+									Assign an archive number when this type is applied.
+								</p>
+							</div>
+							<Switch
+								aria-label="Paper original"
+								checked={draft.paperOriginal}
+								onCheckedChange={(paperOriginal) => patch({ paperOriginal })}
 							/>
 						</div>
 					</FormSection>

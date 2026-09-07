@@ -1,4 +1,16 @@
-import type { SettingKey, Settings } from "@docstore/shared/settings";
+import type {
+	AsnAutoAssignMode,
+	SettingKey,
+	Settings,
+} from "@docstore/shared/settings";
+import { ASN_AUTO_ASSIGN_MODES } from "@docstore/shared/settings";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@docstore/ui/components/select";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import {
 	Slider,
@@ -31,6 +43,14 @@ const SETTING_LABELS: Record<SettingKey, string> = {
 	"review.requireCategory": "Category required",
 	"review.requireIssuer": "Issuer required",
 	"reminders.expiryLeadDays": "Expiry reminders",
+	"asn.autoAssign": "Automatic ASN",
+};
+
+/** Wording of the three automatic numbering modes. */
+const ASN_AUTO_ASSIGN_LABELS: Record<AsnAutoAssignMode, string> = {
+	never: "Never",
+	always: "Always",
+	scans: "Scans only",
 };
 
 /**
@@ -177,6 +197,38 @@ export function GeneralSettings() {
 						values={leadDays.map(String)}
 						onValuesChange={saveLeadDays}
 						placeholder="90, then Enter"
+					/>
+				</div>
+			</SettingsPanel>
+
+			<SettingsPanel
+				title="Physical archive"
+				description="Archive serial numbers (ASN) tie a document to the sheet filed under the same number in the binder."
+			>
+				<div className="divide-y divide-border">
+					<SettingsRow
+						label="Automatic ASN"
+						htmlFor={`${fieldId}-asn-auto`}
+						description="Numbers documents on their own; a document type marked “paper original” numbers its own whatever this says."
+						control={
+							<Select
+								value={data["asn.autoAssign"]}
+								onValueChange={(value) =>
+									void save("asn.autoAssign", value as AsnAutoAssignMode)
+								}
+							>
+								<SelectTrigger id={`${fieldId}-asn-auto`} className="w-44">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{ASN_AUTO_ASSIGN_MODES.map((mode) => (
+										<SelectItem key={mode} value={mode}>
+											{ASN_AUTO_ASSIGN_LABELS[mode]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						}
 					/>
 				</div>
 			</SettingsPanel>

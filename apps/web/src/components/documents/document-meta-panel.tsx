@@ -688,7 +688,19 @@ export function DocumentMetaPanel({
 					</div>
 
 					<FormField
-						label="ASN"
+						label={
+							<span className="flex items-center gap-2">
+								ASN
+								{document.asn !== null && document.asnSource === "auto" ? (
+									<Badge
+										tone="success"
+										title="Number handed out by the automatic numbering"
+									>
+										auto
+									</Badge>
+								) : null}
+							</span>
+						}
 						htmlFor={`${ids}-asn`}
 						hint="Physical archive number, unique. “Assign next” takes the first free one."
 					>
