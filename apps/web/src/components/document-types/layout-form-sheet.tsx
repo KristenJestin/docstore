@@ -1,4 +1,7 @@
-import type { DocumentTypeLayoutDto } from "@docstore/shared/document-type";
+import type {
+	DocumentTypeLayoutDto,
+	LayoutOverlap,
+} from "@docstore/shared/document-type";
 import type { RuleCondition } from "@docstore/shared/rule";
 import { Button } from "@docstore/ui/components/button";
 import { Input } from "@docstore/ui/components/input";
@@ -24,6 +27,9 @@ import {
 } from "@/components/rules/condition-builder";
 import { toastApiError } from "@/lib/api-error";
 import { orpc } from "@/utils/orpc";
+
+/** An overlap warning outlives the default toast: it has a list to read. */
+const OVERLAP_TOAST_MS = 8000;
 
 interface LayoutDraft {
 	name: string;
@@ -87,6 +93,31 @@ export function LayoutFormSheet({
 	const patch = (next: Partial<LayoutDraft>) =>
 		setDraft((current) => ({ ...current, ...next }));
 
+	/**
+	 * Two layouts covering the same day are both eligible, and only their order
+	 * settles it. The save goes through — half-typed bounds are normal — but the
+	 * collision is named, with the window the two share.
+	 */
+	const warnOverlaps = (overlaps: LayoutOverlap[]) => {
+		if (overlaps.length === 0) {
+			return;
+		}
+		toast.warning(
+			overlaps.length === 1
+				? `Its date range meets "${overlaps[0]?.name}".`
+				: `Its date range meets ${overlaps.length} other layouts.`,
+			{
+				description: overlaps
+					.map(
+						(overlap) =>
+							`${overlap.name}: ${overlap.from ?? "always"} → ${overlap.until ?? "always"}`,
+					)
+					.join(" · "),
+				duration: OVERLAP_TOAST_MS,
+			},
+		);
+	};
+
 	const nameError =
 		draft.name.trim().length === 0 ? "A name is required." : null;
 
@@ -102,11 +133,13 @@ export function LayoutFormSheet({
 		};
 		try {
 			if (layout) {
-				await update.mutateAsync({ id: layout.id, ...payload });
+				const saved = await update.mutateAsync({ id: layout.id, ...payload });
 				toast.success("Layout saved.");
+				warnOverlaps(saved.overlaps);
 			} else {
-				await add.mutateAsync({ documentTypeId, ...payload });
+				const saved = await add.mutateAsync({ documentTypeId, ...payload });
 				toast.success(`Layout "${payload.name}" added.`);
+				warnOverlaps(saved.overlaps);
 			}
 			onOpenChange(false);
 			onSaved?.();

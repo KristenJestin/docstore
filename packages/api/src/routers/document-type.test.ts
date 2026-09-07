@@ -918,6 +918,9 @@ describe("documentType — layouts", () => {
 		expect(first.sortOrder).toBe(1);
 		expect(second.sortOrder).toBe(2);
 		expect(first.isDefault).toBe(false);
+		// Back to back, not overlapping: nothing to warn about.
+		expect(first.overlaps).toEqual([]);
+		expect(second.overlaps).toEqual([]);
 
 		const reordered = await client.documentType.reorderLayouts({
 			documentTypeId: created.id,
@@ -961,6 +964,48 @@ describe("documentType — layouts", () => {
 		expect(
 			(await client.documentType.get({ id: created.id })).layouts,
 		).toHaveLength(2);
+	});
+
+	/**
+	 * Overlapping windows are saved as they are — bounds are typed in one at a
+	 * time — but the answer names what the new range now collides with.
+	 */
+	test("reports the layouts whose date range the saved one meets", async () => {
+		const created = await client.documentType.create({ name: "Payslip" });
+		const before = await client.documentType.addLayout({
+			documentTypeId: created.id,
+			name: "Before 2024",
+			validUntil: "2024-06-30",
+		});
+		expect(before.overlaps).toEqual([]);
+
+		const after = await client.documentType.addLayout({
+			documentTypeId: created.id,
+			name: "From 2024",
+			validFrom: "2024-01-01",
+		});
+		expect(after.overlaps).toEqual([
+			{
+				id: before.id,
+				name: "Before 2024",
+				from: "2024-01-01",
+				until: "2024-06-30",
+			},
+		]);
+
+		// Moving the bound past the collision clears the warning.
+		const moved = await client.documentType.updateLayout({
+			id: after.id,
+			validFrom: "2024-07-01",
+		});
+		expect(moved.overlaps).toEqual([]);
+
+		// A layout without any bound never takes part in the date-range race.
+		const unbounded = await client.documentType.addLayout({
+			documentTypeId: created.id,
+			name: "Anytime",
+		});
+		expect(unbounded.overlaps).toEqual([]);
 	});
 
 	test("refuses to remove the only layout of a type", async () => {

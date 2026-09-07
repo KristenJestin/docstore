@@ -130,6 +130,8 @@ export const REVIEW_REASON_CODES = [
 	"recurringCandidate",
 	/** A document type has layouts but none of them could be selected. */
 	"unknownLayout",
+	/** Several layouts of the type matched: the first one won by position. */
+	"ambiguousLayout",
 	/** A document type was detected below the confidence threshold. */
 	"typeCandidate",
 ] as const;
@@ -145,6 +147,7 @@ export const INFORMATIONAL_REVIEW_REASON_CODES = [
 	"recurringCandidate",
 	"typeCandidate",
 	"extractionMissed",
+	"ambiguousLayout",
 ] as const;
 
 /**

@@ -108,6 +108,31 @@ export const documentTypePartyRefSchema = z.object({
 });
 export type DocumentTypePartyRef = z.infer<typeof documentTypePartyRefSchema>;
 
+/**
+ * Sibling layout whose validity window meets the one just saved. Two layouts
+ * covering the same day are both eligible on a document dated there, and only
+ * `sortOrder` decides — which is a coin toss nobody meant to make.
+ */
+export const layoutOverlapSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	/** Bounds of the shared window; `null` = open on that side. */
+	from: z.string().nullable(),
+	until: z.string().nullable(),
+});
+export type LayoutOverlap = z.infer<typeof layoutOverlapSchema>;
+
+/**
+ * A layout as `addLayout`/`updateLayout` hand it back: the row, plus what it
+ * now collides with. Purely informational — the write always goes through.
+ */
+export const savedDocumentTypeLayoutSchema = documentTypeLayoutSchema.extend({
+	overlaps: z.array(layoutOverlapSchema),
+});
+export type SavedDocumentTypeLayout = z.infer<
+	typeof savedDocumentTypeLayoutSchema
+>;
+
 export const documentTypeItemSchema = documentTypeSchema.extend({
 	categoryName: z.string().nullable(),
 	/** @deprecated Use `issuer.name`; kept for compatibility. */

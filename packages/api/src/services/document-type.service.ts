@@ -49,6 +49,7 @@ import type {
 	DocumentTypeOutOfRange,
 	DocumentTypeSuggestion,
 	DocumentTypeTitlePreview,
+	LayoutOverlap,
 	ListDocumentTypesInput,
 	PreviewDocumentTypeInput,
 	PreviewDocumentTypeResult,
@@ -58,6 +59,7 @@ import type {
 	RegenerateTitlesResult,
 	ReorderDocumentTypeLayoutsInput,
 	ReorderDocumentTypesInput,
+	SavedDocumentTypeLayout,
 	SetDocumentTypeOverrideInput,
 	TestDocumentTypeLayoutInput,
 	TestDocumentTypeLayoutResult,
@@ -1712,10 +1714,49 @@ export function listLayouts(
 	return loadLayouts(db, documentTypeId);
 }
 
+/** `null` on either side means "open": the widest of the two bounds wins. */
+function laterBound(a: string | null, b: string | null): string | null {
+	if (a === null) return b;
+	if (b === null) return a;
+	return a > b ? a : b;
+}
+
+function earlierBound(a: string | null, b: string | null): string | null {
+	if (a === null) return b;
+	if (b === null) return a;
+	return a < b ? a : b;
+}
+
+/**
+ * Siblings whose validity window meets the one of `layout`.
+ *
+ * A layout without any bound never takes part: `coversDate` only considers a
+ * layout that states at least one bound, so an unbounded one is not in the
+ * date-range race at all. The result is advisory — nothing refuses the write,
+ * because a temporary overlap while both ends are being typed in is normal.
+ */
+async function layoutOverlaps(
+	db: Db,
+	layout: DocumentTypeLayoutDto,
+): Promise<LayoutOverlap[]> {
+	if (!layout.validFrom && !layout.validUntil) return [];
+	const siblings = await loadLayouts(db, layout.documentTypeId);
+	const overlaps: LayoutOverlap[] = [];
+	for (const sibling of siblings) {
+		if (sibling.id === layout.id) continue;
+		if (!sibling.validFrom && !sibling.validUntil) continue;
+		const from = laterBound(layout.validFrom, sibling.validFrom);
+		const until = earlierBound(layout.validUntil, sibling.validUntil);
+		if (from !== null && until !== null && from > until) continue;
+		overlaps.push({ id: sibling.id, name: sibling.name, from, until });
+	}
+	return overlaps;
+}
+
 export async function addLayout(
 	db: Db,
 	input: AddDocumentTypeLayoutInput,
-): Promise<DocumentTypeLayoutDto> {
+): Promise<SavedDocumentTypeLayout> {
 	await requireDocumentType(db, input.documentTypeId);
 	const existing = await loadLayouts(db, input.documentTypeId);
 
@@ -1736,13 +1777,13 @@ export async function addLayout(
 			message: "The layout could not be created.",
 		});
 	}
-	return row;
+	return { ...row, overlaps: await layoutOverlaps(db, row) };
 }
 
 export async function updateLayout(
 	db: Db,
 	input: UpdateDocumentTypeLayoutInput,
-): Promise<DocumentTypeLayoutDto> {
+): Promise<SavedDocumentTypeLayout> {
 	const current = await requireLayout(db, input.id);
 
 	const patch: Partial<typeof documentTypeLayout.$inferInsert> = {};
@@ -1752,7 +1793,9 @@ export async function updateLayout(
 		patch.validUntil = input.validUntil ?? null;
 	}
 	if (input.signature !== undefined) patch.signature = input.signature ?? null;
-	if (Object.keys(patch).length === 0) return current;
+	if (Object.keys(patch).length === 0) {
+		return { ...current, overlaps: await layoutOverlaps(db, current) };
+	}
 
 	const rows = await db
 		.update(documentTypeLayout)
@@ -1765,7 +1808,7 @@ export async function updateLayout(
 			message: `Layout "${input.id}" not found.`,
 		});
 	}
-	return row;
+	return { ...row, overlaps: await layoutOverlaps(db, row) };
 }
 
 export async function removeLayout(

@@ -376,6 +376,101 @@ describe("applyDocumentType — layouts", () => {
 		).toEqual(["unknownLayout"]);
 	});
 
+	/**
+	 * Two layouts recognising the same document is a modelling mistake: the
+	 * order settles it silently, so the document says so out loud — without
+	 * being held back, since the extraction did run.
+	 */
+	test("flags an ambiguous match when two signatures both fire", async () => {
+		const documentTypeId = await insertType();
+		const first = await insertLayout(documentTypeId, {
+			name: "Long form",
+			isDefault: true,
+			signature: { field: "content", cmp: "icontains", value: "bulletin" },
+		});
+		const second = await insertLayout(documentTypeId, {
+			name: "Short form",
+			sortOrder: 1,
+			signature: { field: "content", cmp: "icontains", value: "paie" },
+		});
+
+		const id = await insertDocument({ content: "Bulletin de paie" });
+		const outcome = await applyDocumentType(db, id, documentTypeId, {
+			source: "manual",
+		});
+
+		expect(outcome.layoutId).toBe(first);
+		expect(outcome.layoutReason).toBe("signature");
+		expect(outcome.reviewReasons.map((reason) => reason.code)).toEqual([
+			"ambiguousLayout",
+		]);
+		expect(outcome.reviewReasons[0]?.meta).toMatchObject({
+			documentTypeId,
+			layoutId: first,
+			alternatives: [{ id: second, name: "Short form" }],
+		});
+		expect(outcome.reviewReasons.some(isBlockingReviewReason)).toBe(false);
+	});
+
+	test("flags two date ranges covering the same document", async () => {
+		const documentTypeId = await insertType();
+		const first = await insertLayout(documentTypeId, {
+			name: "2023 onwards",
+			isDefault: true,
+			validFrom: "2023-01-01",
+		});
+		const second = await insertLayout(documentTypeId, {
+			name: "2024 only",
+			sortOrder: 1,
+			validFrom: "2024-01-01",
+			validUntil: "2024-12-31",
+		});
+
+		const id = await insertDocument({
+			content: "Nothing distinctive",
+			documentDate: "2024-06-15",
+		});
+		const outcome = await applyDocumentType(db, id, documentTypeId, {
+			source: "manual",
+		});
+
+		expect(outcome.layoutId).toBe(first);
+		expect(outcome.layoutReason).toBe("dateRange");
+		expect(outcome.reviewReasons[0]?.meta).toMatchObject({
+			alternatives: [{ id: second, name: "2024 only" }],
+		});
+	});
+
+	test("clears the ambiguity once a layout is forced", async () => {
+		const documentTypeId = await insertType();
+		const first = await insertLayout(documentTypeId, {
+			name: "Long form",
+			isDefault: true,
+			signature: { field: "content", cmp: "icontains", value: "bulletin" },
+		});
+		const second = await insertLayout(documentTypeId, {
+			name: "Short form",
+			sortOrder: 1,
+			signature: { field: "content", cmp: "icontains", value: "paie" },
+		});
+
+		const id = await insertDocument({ content: "Bulletin de paie" });
+		const ambiguous = await applyDocumentType(db, id, documentTypeId, {
+			source: "manual",
+		});
+		await db
+			.update(document)
+			.set({ reviewReasons: ambiguous.reviewReasons })
+			.where(eq(document.id, id));
+		expect(first).not.toBe(second);
+
+		await applyDocumentType(db, id, documentTypeId, {
+			source: "manual",
+			layoutId: second,
+		});
+		expect((await loadDocument(id)).reviewReasons).toEqual([]);
+	});
+
 	test("a single layout is used as is, whatever its signature", async () => {
 		const documentTypeId = await insertType();
 		const only = await insertLayout(documentTypeId, {

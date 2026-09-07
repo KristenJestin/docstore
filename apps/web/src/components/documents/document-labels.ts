@@ -177,6 +177,7 @@ export const REVIEW_REASON_LABELS: Record<ReviewReasonCode, string> = {
 	possibleDuplicate: "Possible duplicate",
 	recurringCandidate: "Recurring document",
 	unknownLayout: "Unknown layout",
+	ambiguousLayout: "Several layouts match",
 	typeCandidate: "Document type to confirm",
 };
 
@@ -189,6 +190,8 @@ export const REVIEW_REASON_HINTS: Partial<Record<ReviewReasonCode, string>> = {
 		"The rule is optional, so the document was not held back. Mark it required if the document is unusable without that value.",
 	unknownLayout:
 		"No layout matched this document: the default layout of the type was used, and its extraction rules ran all the same.",
+	ambiguousLayout:
+		"The first one by position was used and its extraction rules ran. Narrow the signatures or the date ranges so a single layout answers.",
 };
 
 export const REVIEW_REASON_ICONS: Record<ReviewReasonCode, LucideIcon> = {
@@ -200,6 +203,7 @@ export const REVIEW_REASON_ICONS: Record<ReviewReasonCode, LucideIcon> = {
 	possibleDuplicate: CopyIcon,
 	recurringCandidate: RepeatIcon,
 	unknownLayout: LayoutTemplateIcon,
+	ambiguousLayout: LayersIcon,
 	typeCandidate: FileQuestionMarkIcon,
 };
 

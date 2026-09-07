@@ -181,6 +181,12 @@ export interface LayoutSelection {
 	reason: LayoutSelectionReason;
 	/** Average confidence of the trial that decided, `0` otherwise. */
 	averageConfidence: number;
+	/**
+	 * The other layouts that matched by the same criterion. `sort_order` broke
+	 * the tie, which is a choice nobody made on purpose: the document carries an
+	 * informational `ambiguousLayout` so the signatures can be narrowed.
+	 */
+	alternatives: { id: string; name: string }[];
 }
 
 /** Anchor date of a document: its period start, otherwise its date. */
@@ -206,6 +212,7 @@ function defaultSelection(
 			layoutName: null,
 			reason: "none",
 			averageConfidence,
+			alternatives: [],
 		};
 	}
 	return {
@@ -213,7 +220,17 @@ function defaultSelection(
 		layoutName: fallback.name,
 		reason: "default",
 		averageConfidence,
+		alternatives: [],
 	};
+}
+
+/** `{ id, name }` of the layouts that tied with the one that was picked. */
+function tiedWith(
+	matches: DocumentTypeLayoutRow[],
+): { id: string; name: string }[] {
+	return matches
+		.slice(1)
+		.map((layout) => ({ id: layout.id, name: layout.name }));
 }
 
 /**
@@ -237,6 +254,7 @@ export async function selectLayout(
 				layoutName: forced.name,
 				reason: "forced",
 				averageConfidence: 0,
+				alternatives: [],
 			};
 		}
 	}
@@ -246,6 +264,7 @@ export async function selectLayout(
 			layoutName: null,
 			reason: "none",
 			averageConfidence: 0,
+			alternatives: [],
 		};
 	}
 
@@ -257,30 +276,39 @@ export async function selectLayout(
 			layoutName: single.name,
 			reason: "only",
 			averageConfidence: 0,
+			alternatives: [],
 		};
 	}
 
-	for (const layout of layouts) {
-		if (!layout.signature) continue;
-		if (evaluateCondition(layout.signature, subject).matched) {
-			return {
-				layoutId: layout.id,
-				layoutName: layout.name,
-				reason: "signature",
-				averageConfidence: 0,
-			};
-		}
+	// Every match is collected, not just the first: two signatures that both
+	// recognise the same document mean `sort_order` decided, and that is worth
+	// saying out loud rather than settling silently.
+	const signed = layouts.filter(
+		(layout) =>
+			layout.signature && evaluateCondition(layout.signature, subject).matched,
+	);
+	const bySignature = signed[0];
+	if (bySignature) {
+		return {
+			layoutId: bySignature.id,
+			layoutName: bySignature.name,
+			reason: "signature",
+			averageConfidence: 0,
+			alternatives: tiedWith(signed),
+		};
 	}
 
 	const anchor = anchorOf(subject);
 	if (anchor) {
-		const dated = layouts.find((layout) => coversDate(layout, anchor));
-		if (dated) {
+		const dated = layouts.filter((layout) => coversDate(layout, anchor));
+		const byDate = dated[0];
+		if (byDate) {
 			return {
-				layoutId: dated.id,
-				layoutName: dated.name,
+				layoutId: byDate.id,
+				layoutName: byDate.name,
 				reason: "dateRange",
 				averageConfidence: 0,
+				alternatives: tiedWith(dated),
 			};
 		}
 	}
@@ -290,6 +318,7 @@ export async function selectLayout(
 		layoutName: null,
 		reason: "none",
 		averageConfidence: 0,
+		alternatives: [],
 	};
 	for (const layout of layouts) {
 		const rules = await layoutExtractionRules(db, layout.id);
@@ -301,6 +330,7 @@ export async function selectLayout(
 				layoutName: layout.name,
 				reason: "bestConfidence",
 				averageConfidence: confidence,
+				alternatives: [],
 			};
 		}
 	}
@@ -652,7 +682,29 @@ export async function applyDocumentType(
 		});
 	}
 
-	await dropLayoutReason(db, documentId, !unknownLayout);
+	// Two layouts recognising the same document is a modelling mistake, not a
+	// reason to hold the document back: the extraction ran, and the reason says
+	// which layouts to tell apart.
+	const ambiguous = selection.alternatives;
+	if (ambiguous.length > 0) {
+		const others = ambiguous.map((layout) => `"${layout.name}"`).join(", ");
+		reviewReasons.push({
+			code: "ambiguousLayout",
+			message: `"${selection.layoutName}" was used, but ${others} matched this document too. Narrow their signatures or date ranges.`,
+			field: "layout",
+			ref: documentTypeId,
+			meta: {
+				documentTypeId,
+				...(selection.layoutId ? { layoutId: selection.layoutId } : {}),
+				alternatives: ambiguous,
+			},
+		});
+	}
+
+	await dropLayoutReason(db, documentId, {
+		unknownLayout: !unknownLayout,
+		ambiguousLayout: ambiguous.length === 0,
+	});
 
 	// The type may have just supplied a category or an issuer: the reasons that
 	// used to block the document on their absence no longer apply (same
@@ -675,20 +727,26 @@ export async function applyDocumentType(
 	};
 }
 
-/** Removes a stale `unknownLayout` reason once a layout has been selected. */
+/**
+ * Removes the layout reasons this pass no longer raises: `unknownLayout` once a
+ * layout has been selected, `ambiguousLayout` once a single one matches.
+ */
 async function dropLayoutReason(
 	db: Db,
 	documentId: string,
-	selected: boolean,
+	settled: { unknownLayout: boolean; ambiguousLayout: boolean },
 ): Promise<void> {
-	if (!selected) return;
+	const stale = new Set<string>();
+	if (settled.unknownLayout) stale.add("unknownLayout");
+	if (settled.ambiguousLayout) stale.add("ambiguousLayout");
+	if (stale.size === 0) return;
 	const rows = await db
 		.select({ reviewReasons: document.reviewReasons })
 		.from(document)
 		.where(eq(document.id, documentId))
 		.limit(1);
 	const current = rows[0]?.reviewReasons ?? [];
-	const kept = current.filter((reason) => reason.code !== "unknownLayout");
+	const kept = current.filter((reason) => !stale.has(reason.code));
 	if (kept.length === current.length) return;
 	await db
 		.update(document)

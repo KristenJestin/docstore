@@ -188,6 +188,20 @@ document the blocking review reason `unknownLayout` ("Create a layout from this
 document?"). The reason disappears as soon as a layout other than the default
 one is set.
 
+The opposite case has its own reason. When several layouts match at the same
+step — two signatures that both fire, two date ranges covering the same day —
+`sort_order` breaks the tie, and nobody chose that. The document then carries
+the informational `ambiguousLayout`, naming the layouts that also matched: the
+extraction did run, so the document is not held back, but the type needs
+narrower signatures or ranges. Forcing a layout, or narrowing until one layout
+answers, clears it on the next application of the type.
+
+`addLayout` and `updateLayout` see the same collision earlier, and return it as
+`overlaps`: the sibling layouts whose validity window meets the one just saved,
+with the shared window. The save always goes through — bounds are typed in one
+at a time, and a passing overlap is normal — and the interface warns. A layout
+with no bound at all is not in the date-range race and never appears there.
+
 `documentType.createLayoutFromDocument` seeds a signature from the first five
 rare words of the OCR text, as a starting point to edit.
 `documentType.testLayout` runs the rules of a layout on a document and returns
@@ -201,6 +215,11 @@ and the rule runs when its layout is selected. There is no global rule and no
 
 - `extractionRule.list` takes a `layoutId` or a `documentTypeId`;
 - `extractionRule.create` requires a `layoutId`;
+- `extraction_rule.required` says the document is unusable without the value.
+  A required rule that finds nothing raises the blocking `extractionFailed`;
+  an optional one — the default — leaves the field empty and raises the
+  informational `extractionMissed`, which names the rule so the switch is one
+  click away;
 - `extractionRule.applicable({ documentId })` returns the rules of the layout
   the document currently carries (empty without a type), which is what the
   "Extract" action of a field offers;

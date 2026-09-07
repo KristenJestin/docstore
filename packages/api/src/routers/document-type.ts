@@ -24,6 +24,7 @@ import {
 	removeDocumentTypeLayoutInput,
 	reorderDocumentTypeLayoutsInput,
 	reorderDocumentTypesInput,
+	savedDocumentTypeLayoutSchema,
 	setDocumentTypeOverrideInput,
 	testDocumentTypeLayoutInput,
 	testDocumentTypeLayoutResultSchema,
@@ -282,7 +283,7 @@ export const documentTypeRouter = {
 			successStatus: 201,
 		})
 		.input(addDocumentTypeLayoutInput)
-		.output(documentTypeLayoutSchema)
+		.output(savedDocumentTypeLayoutSchema)
 		.handler(({ input, context }) => addLayout(context.db, input)),
 
 	createLayoutFromDocument: writeProcedure
@@ -307,7 +308,7 @@ export const documentTypeRouter = {
 			summary: "Update a layout (name, date range, signature)",
 		})
 		.input(updateDocumentTypeLayoutInput)
-		.output(documentTypeLayoutSchema)
+		.output(savedDocumentTypeLayoutSchema)
 		.handler(({ input, context }) => updateLayout(context.db, input)),
 
 	removeLayout: writeProcedure

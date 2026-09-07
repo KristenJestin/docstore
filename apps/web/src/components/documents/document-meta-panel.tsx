@@ -827,7 +827,7 @@ function ReviewReasonAction({
 	if (reason.code === "typeCandidate") {
 		return <ApplyTypeFromReasonButton documentId={documentId} meta={meta} />;
 	}
-	if (reason.code === "unknownLayout") {
+	if (reason.code === "unknownLayout" || reason.code === "ambiguousLayout") {
 		const documentTypeId =
 			typeof meta.documentTypeId === "string" ? meta.documentTypeId : null;
 		if (!documentTypeId) {
@@ -847,7 +847,9 @@ function ReviewReasonAction({
 				}
 			>
 				<LayoutTemplateIcon />
-				Create layout from this document
+				{reason.code === "unknownLayout"
+					? "Create layout from this document"
+					: "Review the layouts of the type"}
 			</Button>
 		);
 	}
