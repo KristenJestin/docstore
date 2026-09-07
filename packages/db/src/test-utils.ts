@@ -18,7 +18,11 @@ const MIGRATIONS_FOLDER = fileURLToPath(
 	new URL("./migrations", import.meta.url),
 );
 
-export type TestDb = NodePgDatabase<typeof schema> & { $client: Pool };
+export type TestDb = NodePgDatabase<typeof schema> & {
+	$client: Pool;
+	/** Connection string of the test database the tests run against. */
+	connectionString: string;
+};
 
 /**
  * One test database per package.
@@ -138,6 +142,7 @@ export async function createTestDb(
 	// call above is what makes those variables available.
 	const { createDb } = await import("./index");
 	const db = createDb(target) as TestDb;
+	db.connectionString = target;
 	await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 	return db;
 }

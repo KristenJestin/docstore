@@ -27,10 +27,9 @@ let reminderRuns = 0;
 
 beforeAll(async () => {
 	db = await createTestDb();
-	const connectionString = process.env.DATABASE_URL_TEST;
-	if (!connectionString) {
-		throw new Error("DATABASE_URL_TEST is required for this test.");
-	}
+	// pg-boss must live in the same database as the drizzle connection: the
+	// per-package test database, not the raw `DATABASE_URL_TEST`.
+	const connectionString = db.connectionString;
 	queue = createQueue({ connectionString, max: 2 });
 	await queue.start();
 	ingestion = await createTestIngestion(db, {
