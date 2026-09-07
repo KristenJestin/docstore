@@ -21,8 +21,8 @@ double quotes).
 - `bun run dev` runs the whole stack (`scripts/dev.ts`): the database is
   created, migrated and seeded, the API takes a free port, and portless serves
   the web app on `https://docstore.localhost`. The dev server proxies `/rpc`,
-  `/api`, `/files`, `/health`, `/mcp`, `/api-reference` and `/parties/*/logo`,
-  so everything sits on a single origin exactly like production.
+  `/api`, `/files`, `/health`, `/mcp` and `/api-reference`, so everything sits
+  on a single origin exactly like production.
   `--no-portless` falls back to `http://localhost:3001`.
 - `bun run dev:server` / `bun run dev:web` start the raw servers (`:3000` /
   `:3001`), without the proxy.

@@ -54,7 +54,7 @@ Sensitive documents are also encrypted at rest and can never be shared through a
 public link. See `docs/security.md`.
 
 The same keys also authenticate the HTTP routes `/rpc*`, `/api-reference/*`,
-`/files/:id/download`, `/files/:id/thumbnail`, `/parties/:id/logo` and
+`/files/:id/download`, `/files/:id/thumbnail`, `/api/parties/:id/logo` and
 `POST /api/export`, through `Authorization: Bearer dsk_…` or `X-API-Key: dsk_…`.
 
 ## 3. Connect a client

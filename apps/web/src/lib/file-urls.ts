@@ -44,7 +44,7 @@ export function exportApiUrl(): string {
  * cache buster so a freshly fetched logo replaces the previous one right away.
  */
 export function partyLogoUrl(partyId: string, version?: string | null): string {
-	const url = `${SERVER_URL}/parties/${partyId}/logo`;
+	const url = `${SERVER_URL}/api/parties/${partyId}/logo`;
 	return version ? `${url}?v=${encodeURIComponent(version)}` : url;
 }
 

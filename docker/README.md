@@ -13,7 +13,7 @@ CORS and session cookie problem:
 
 | Path | Service |
 | --- | --- |
-| `/rpc*`, `/api*`, `/files*`, `/health`, `/mcp*`, `/parties/*/logo` | `api:3000` |
+| `/rpc*`, `/api*`, `/files*`, `/health`, `/mcp*` | `api:3000` |
 | everything else (SSR + assets) | `web:3001` |
 
 `/api*` covers `/api/auth/*`, `/api-reference`, `POST /api/export` and the two

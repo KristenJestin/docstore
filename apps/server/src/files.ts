@@ -107,7 +107,7 @@ export function registerFileRoutes(
 		}
 	});
 
-	app.get("/parties/:id/logo", async (c) => {
+	app.get("/api/parties/:id/logo", async (c) => {
 		if (!(await isAuthenticated(c, auth))) {
 			return c.json({ error: "UNAUTHORIZED" }, 401);
 		}
@@ -126,5 +126,13 @@ export function registerFileRoutes(
 		} catch (error) {
 			return errorResponse(c, error);
 		}
+	});
+
+	// Old path, unreachable behind Caddy's `@api` matcher (`/parties/*` never
+	// matched: the front-end's catch-all served 404 HTML instead). Kept as a
+	// redirect for one release for any client with the previous URL cached.
+	app.get("/parties/:id/logo", (c) => {
+		const search = new URL(c.req.raw.url).search;
+		return c.redirect(`/api/parties/${c.req.param("id")}/logo${search}`, 308);
 	});
 }

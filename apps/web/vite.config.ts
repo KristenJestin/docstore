@@ -41,8 +41,6 @@ export default defineConfig({
 			"/files": api,
 			"/health": api,
 			"/mcp": api,
-			// Regex form: only the logo route of a party belongs to the API.
-			"^/parties/[^/]+/logo": api,
 		},
 	},
 	resolve: {
