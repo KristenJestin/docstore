@@ -16,6 +16,7 @@ import {
 	documentType,
 	documentTypeLayout,
 } from "@docstore/db/schema/document-type";
+import { documentDossier, dossier } from "@docstore/db/schema/dossier";
 import { party } from "@docstore/db/schema/party";
 import { extractionRule, rule, ruleRun } from "@docstore/db/schema/rule";
 import { shareLink } from "@docstore/db/schema/share";
@@ -533,6 +534,129 @@ describe("applyOperations — custom field constraints", () => {
 				])
 			).applied,
 		).toHaveLength(1);
+	});
+});
+
+describe("applyOperations — set_category and add_to_dossier", () => {
+	async function seedDocument(
+		values: Partial<typeof document.$inferInsert> = {},
+	): Promise<string> {
+		const rows = await db
+			.insert(document)
+			.values({
+				title: "Notary deed",
+				status: "active",
+				createdById: userId,
+				...values,
+			})
+			.returning({ id: document.id });
+		return rows[0]?.id ?? "";
+	}
+
+	test("set_category files a document that has none", async () => {
+		const categoryId = await insertCategory("Housing", "housing-ops");
+		const documentId = await seedDocument();
+
+		const outcome = await applyOperations(db, documentId, [
+			{ type: "set_category", categoryId, confidence: 1 },
+		]);
+		expect(outcome.applied).toHaveLength(1);
+
+		const row = await loadDocument(documentId);
+		expect(row.categoryId).toBe(categoryId);
+		expect(row.categorySource).toBe("rule");
+		expect(row.categoryConfidence).toBe(1);
+	});
+
+	test("set_category leaves a category filed by hand alone", async () => {
+		const kept = await insertCategory("Housing", "housing-kept");
+		const other = await insertCategory("Tax", "tax-other");
+		const documentId = await seedDocument({
+			categoryId: kept,
+			categorySource: "manual",
+			categoryConfirmedAt: new Date(),
+		});
+
+		const outcome = await applyOperations(db, documentId, [
+			{ type: "set_category", categoryId: other, confidence: 1 },
+		]);
+		expect(outcome.applied).toEqual([]);
+		expect((await loadDocument(documentId)).categoryId).toBe(kept);
+	});
+
+	test("set_category replaces a category an earlier rule had set", async () => {
+		const first = await insertCategory("Housing", "housing-first");
+		const second = await insertCategory("Tax", "tax-second");
+		const documentId = await seedDocument({
+			categoryId: first,
+			categorySource: "rule",
+			categoryConfidence: 1,
+		});
+
+		await applyOperations(db, documentId, [
+			{ type: "set_category", categoryId: second, confidence: 1 },
+		]);
+		expect((await loadDocument(documentId)).categoryId).toBe(second);
+	});
+
+	test("add_to_dossier files the document, twice without failing", async () => {
+		const dossiers = await db
+			.insert(dossier)
+			.values({ name: "House purchase" })
+			.returning({ id: dossier.id });
+		const dossierId = dossiers[0]?.id ?? "";
+		const documentId = await seedDocument();
+
+		const operations: PlannedOperation[] = [
+			{ type: "add_to_dossier", dossierId },
+		];
+		expect((await applyOperations(db, documentId, operations)).applied).toEqual(
+			operations,
+		);
+		await applyOperations(db, documentId, operations);
+
+		const links = await db
+			.select()
+			.from(documentDossier)
+			.where(eq(documentDossier.documentId, documentId));
+		expect(links).toHaveLength(1);
+	});
+
+	test("add_to_dossier skips a document in the trash", async () => {
+		const dossiers = await db
+			.insert(dossier)
+			.values({ name: "House purchase" })
+			.returning({ id: dossier.id });
+		const dossierId = dossiers[0]?.id ?? "";
+		const documentId = await seedDocument({ deletedAt: new Date() });
+
+		const outcome = await applyOperations(db, documentId, [
+			{ type: "add_to_dossier", dossierId },
+		]);
+		expect(outcome.applied).toEqual([]);
+		expect(await db.select().from(documentDossier)).toHaveLength(0);
+	});
+
+	test("a sensitive document closes the public windows of its dossier", async () => {
+		const dossiers = await db
+			.insert(dossier)
+			.values({ name: "House purchase" })
+			.returning({ id: dossier.id });
+		const dossierId = dossiers[0]?.id ?? "";
+		const documentId = await seedDocument({ sensitive: true });
+		await db.insert(shareLink).values({
+			token: `tok-dos-${Date.now()}`,
+			dossierId,
+			createdById: userId,
+		});
+
+		await applyOperations(db, documentId, [
+			{ type: "add_to_dossier", dossierId },
+		]);
+
+		const links = await db.select().from(shareLink);
+		expect(links[0]?.revokedAt).not.toBeNull();
+		expect(links[0]?.revokedReason).toBe("sensitive");
 	});
 });
 

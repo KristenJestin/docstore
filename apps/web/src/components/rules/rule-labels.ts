@@ -120,14 +120,17 @@ export const AUTOMATIONS_DESCRIPTION =
 /**
  * Actions offered by the automation editor, in the order of the picker.
  *
- * Filing a recurring document is the job of a document type: `set_category` is
- * gone, and extracting into a field belongs to the extraction rules of a layout
- * (`run_extraction` gone, `set_field` literal only).
+ * Extracting into a field belongs to the extraction rules of a layout
+ * (`run_extraction` gone, `set_field` literal only). `set_category` is back for
+ * the one-off families a document type would only get in the way of: a
+ * recurring family still belongs in a type.
  */
 export const UI_RULE_ACTION_TYPES = [
 	"set_document_type",
+	"set_category",
 	"add_tag",
 	"remove_tag",
+	"add_to_dossier",
 	"link_party",
 	"set_field",
 	"set_document_date",
@@ -141,8 +144,10 @@ export type UiRuleActionType = (typeof UI_RULE_ACTION_TYPES)[number];
 
 export const RULE_ACTION_TYPE_LABELS: Record<UiRuleActionType, string> = {
 	set_document_type: "Set the document type",
+	set_category: "Set the category",
 	add_tag: "Add a tag",
 	remove_tag: "Remove a tag",
+	add_to_dossier: "Add to a dossier",
 	link_party: "Link a party",
 	set_field: "Set a custom field",
 	set_document_date: "Set the document date",

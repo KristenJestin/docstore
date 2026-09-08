@@ -69,6 +69,8 @@ const ruleJson = z.object({
 	triggers: z.array(z.string()),
 	stopOnMatch: z.boolean(),
 	matchCount: z.number(),
+	/** Action types, in execution order (`add_tag`, `set_category`…). */
+	actions: z.array(z.string()),
 });
 
 export function registerTaxonomyTools(
@@ -183,14 +185,18 @@ export function registerTaxonomyTools(
 		{
 			title: "List automations",
 			description:
-				"Automation rules, in increasing priority order (the first one that matches wins if `stopOnMatch`). Cross-cutting behaviour only (tags, sensitivity, webhooks…): classifying similar documents is the job of a document type, not an automation.",
+				"Automation rules, in increasing priority order (the first one that matches wins if `stopOnMatch`). Cross-cutting behaviour (tags, dossiers, sensitivity, webhooks…) plus the one-off filing a document type would be overkill for (`set_category`, `add_to_dossier`). A family of documents that keeps coming back is the job of a document type, not an automation.",
 			inputSchema: {},
 			outputSchema: { items: z.array(ruleJson) },
 			text: (output) =>
 				output.items
 					.map(
 						(item) =>
-							`- ${item.id} — ${item.name}${item.enabled ? "" : " (disabled)"}`,
+							`- ${item.id} — ${item.name}${item.enabled ? "" : " (disabled)"}${
+								item.actions.length > 0
+									? ` [${item.actions.join(", ")}]`
+									: " [no action]"
+							}`,
 					)
 					.join("\n") || "No automation.",
 		},
@@ -206,6 +212,7 @@ export function registerTaxonomyTools(
 					triggers: row.triggers,
 					stopOnMatch: row.stopOnMatch,
 					matchCount: row.matchCount,
+					actions: row.actions.map((action) => action.type),
 				})),
 			};
 		},

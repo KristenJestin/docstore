@@ -24,6 +24,7 @@ import {
 	SortableRow,
 } from "@/components/dnd/sortable";
 import { DocumentTypePicker } from "@/components/document-types/document-type-picker";
+import { CategoryPicker } from "@/components/documents/category-picker";
 import {
 	DOCUMENT_PARTY_ROLE_ICONS,
 	DOCUMENT_PARTY_ROLE_LABELS,
@@ -52,9 +53,13 @@ const ROLE_ITEMS = iconLabelItems(
 /** Blank action of each type, used when the user picks one in the select. */
 function emptyAction(type: UiRuleActionType): RuleAction {
 	switch (type) {
+		case "set_category":
+			return { type, categoryId: "" };
 		case "add_tag":
 		case "remove_tag":
 			return { type, tagId: "" };
+		case "add_to_dossier":
+			return { type, dossierId: "" };
 		case "link_party":
 			return { type, partyId: "", role: "issuer" };
 		case "set_field":
@@ -223,6 +228,28 @@ function ActionFields({
 				</FormField>
 			);
 
+		case "set_category":
+			return (
+				<FormField
+					label="Category"
+					htmlFor={`${ids}-category`}
+					hint="For a one-off family. A recurring one belongs in a document type, which files it and extracts from it."
+				>
+					<CategoryPicker
+						id={`${ids}-category`}
+						value={action.categoryId || null}
+						onValueChange={(categoryId) =>
+							onChange({ ...action, categoryId: categoryId ?? "" })
+						}
+					/>
+				</FormField>
+			);
+
+		case "add_to_dossier":
+			return (
+				<AddToDossierAction action={action} onChange={onChange} ids={ids} />
+			);
+
 		case "add_tag":
 		case "remove_tag":
 			return (
@@ -362,6 +389,50 @@ function ActionFields({
 		default:
 			return null;
 	}
+}
+
+/** Dossier the document is filed into when the automation matches. */
+function AddToDossierAction({
+	action,
+	onChange,
+	ids,
+}: {
+	action: Extract<RuleAction, { type: "add_to_dossier" }>;
+	onChange: (action: RuleAction) => void;
+	ids: string;
+}) {
+	// A closed dossier still accepts documents: it only drops out of the default
+	// lists, so an automation may legitimately point at one.
+	const dossiers = useQuery(
+		orpc.dossier.list.queryOptions({ input: { includeClosed: true } }),
+	);
+	const items = dossiers.data ?? [];
+	const labels = Object.fromEntries(
+		items.map((dossier) => [dossier.id, dossier.name]),
+	);
+
+	return (
+		<FormField label="Dossier" htmlFor={`${ids}-dossier`}>
+			<Select
+				items={labels}
+				value={action.dossierId}
+				onValueChange={(dossierId) =>
+					onChange({ ...action, dossierId: dossierId ?? "" })
+				}
+			>
+				<SelectTrigger id={`${ids}-dossier`} className="w-full">
+					<SelectValue placeholder="Choose a dossier…" />
+				</SelectTrigger>
+				<SelectContent>
+					{items.map((dossier) => (
+						<SelectItem key={dossier.id} value={dossier.id}>
+							{dossier.name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</FormField>
+	);
 }
 
 /** Custom field and the literal value written into it. */

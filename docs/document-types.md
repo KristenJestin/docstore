@@ -321,18 +321,33 @@ Every one of these refuses a document sitting in the trash (`CONFLICT`,
 A type is the entry point for classification: "the same document we keep
 receiving" gets its category, its parties, its tags, its title and its layout
 in one shot, through `detection` or the explicit action `set_document_type`.
-The rule action `set_category` is gone, so a type is now the only way to set
-the category.
 
 An automation (the `rule` table, `rule.*` procedures) is deliberately kept to
 what stays cross-cutting, orthogonal to any one type: tagging a document from
 the mail sender it arrived from, flagging it sensitive because its text carries
-an IBAN, firing a webhook, or running on a `scheduled`/`update` trigger instead
-of at intake. Anything that reads as "classify this kind of document"
-(category, issuer, tags, title, layout, extraction) belongs in a type.
+an IBAN, filing it into a dossier, firing a webhook, or running on a
+`scheduled`/`update` trigger instead of at intake.
+
+The nuance is the **one-off family**. `set_category` is an automation action
+again, because filing a handful of documents that will never come back does not
+deserve a whole type: no issuer, no recurrence, no detection to maintain.
+`add_to_dossier` is the same idea for a collection. Both write with the source
+`rule`, so a category someone set by hand is never taken away from them. The
+moment the family repeats — a monthly bill, a payslip, anything with a period
+and an issuer — it belongs in a type, which is the only thing that brings a
+layout and its extraction rules along.
+
+For a category that has no type at all, "Extraction rules" on the category row
+in Settings → Categories opens (creating it on first use) the generic type
+`Any <Category>`: category set, no issuer, no recurrence, detection disabled.
+Nothing detects it, nothing is assigned by it — the pipeline simply runs the
+extraction rules of its default layout on any document filed under that
+category and without a type of its own, writing the values with the source
+`rule` (see [`ingestion.md`](ingestion.md)).
 
 The two engines share the same condition tree (`detection` is a `RuleCondition`,
 SPEC §3) and the same action vocabulary where it overlaps (`set_document_type`,
-`add_tag`, `remove_tag`, `link_party`, `set_sensitive`, `set_title`,
-`set_document_date`, `set_period`, `set_valid_until`, `set_field`, `webhook`),
-so choosing between them is a question of scope.
+`set_category`, `add_tag`, `remove_tag`, `add_to_dossier`, `link_party`,
+`set_sensitive`, `set_title`, `set_document_date`, `set_period`,
+`set_valid_until`, `set_field`, `webhook`), so choosing between them is a
+question of scope.

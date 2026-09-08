@@ -4,6 +4,7 @@ import {
 	documentFieldValue,
 } from "@docstore/db/schema/custom-field";
 import { document, documentParty } from "@docstore/db/schema/document";
+import { documentDossier } from "@docstore/db/schema/dossier";
 import type { ExtractionRuleRow, RuleRow } from "@docstore/db/schema/rule";
 import { extractionRule, rule, ruleRun } from "@docstore/db/schema/rule";
 import { documentTag } from "@docstore/db/schema/tag";
@@ -41,7 +42,11 @@ import type { IngestionContext } from "./context";
 import { applyDocumentType } from "./document-type";
 import { DocumentTypeNotFoundError } from "./errors";
 import { manualFieldsOf } from "./manual-fields";
-import { revokeShareLinksForSensitive, setSensitive } from "./sensitive";
+import {
+	revokeDossierShareLinksForSensitive,
+	revokeShareLinksForSensitive,
+	setSensitive,
+} from "./sensitive";
 import { getContentLocale } from "./settings";
 import type { DocumentSubject } from "./subject";
 import { buildSubject, categoryChainIds, loadExtractionInput } from "./subject";
@@ -314,6 +319,66 @@ export async function applyOperations(
 						...(ruleId ? { ruleId } : {}),
 					});
 				}
+				break;
+			}
+			case "set_category": {
+				// Same rule as applying a document type: an automatic write never
+				// takes a category someone filed by hand away from them.
+				const [row] = await db
+					.select({
+						categoryId: document.categoryId,
+						categorySource: document.categorySource,
+					})
+					.from(document)
+					.where(eq(document.id, documentId))
+					.limit(1);
+				if (row && row.categoryId !== null && row.categorySource === "manual") {
+					break;
+				}
+				await db
+					.update(document)
+					.set({
+						categoryId: operation.categoryId,
+						categorySource: "rule",
+						categoryConfidence: operation.confidence,
+						// The approval described the category being replaced.
+						categoryConfirmedAt: null,
+					})
+					.where(eq(document.id, documentId));
+				result.applied.push(operation);
+				if (operation.confidence !== null && operation.confidence < threshold) {
+					result.reasons.push({
+						code: "lowConfidence",
+						message: `Category set automatically with a confidence of ${Math.round(operation.confidence * 100)}%.`,
+						confidence: operation.confidence,
+						field: "category",
+						...(ruleId ? { ruleId } : {}),
+					});
+				}
+				break;
+			}
+			case "add_to_dossier": {
+				// A dossier collects live documents (SPEC §2): a trashed one would be
+				// filed into a list it is hidden from.
+				const [row] = await db
+					.select({
+						deletedAt: document.deletedAt,
+						sensitive: document.sensitive,
+					})
+					.from(document)
+					.where(eq(document.id, documentId))
+					.limit(1);
+				if (!row || row.deletedAt !== null) break;
+				await db
+					.insert(documentDossier)
+					.values({ documentId, dossierId: operation.dossierId })
+					.onConflictDoNothing();
+				// Same rule as `dossier.addDocuments`, applied from the other side:
+				// a sensitive document closes the public windows of its dossier.
+				if (row.sensitive) {
+					await revokeDossierShareLinksForSensitive(db, operation.dossierId);
+				}
+				result.applied.push(operation);
 				break;
 			}
 			case "add_tag": {
