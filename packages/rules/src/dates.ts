@@ -267,7 +267,7 @@ export function detectExplicitPeriods(text: string): PeriodCandidate[] {
 const READING_QUALIFIER = String.raw`(?:pr[ée]c[ée]dent[e]?|ant[ée]rieur[e]?|ancien(?:ne)?|actuel(?:le)?|nouveau|nouvel(?:le)?|dernier|derni[èe]re|initial[e]?|final[e]?|de\s+d[ée]but|de\s+fin|previous|current|last)`;
 
 /** The reading itself, in the two languages the pipeline reads. */
-const READING_LABEL = String.raw`(?:relev[ée]s?|index|lecture|reading)`;
+const READING_LABEL = "(?:relev[ée]s?|index|lecture|reading)";
 
 /**
  * A reading and the date it was taken, whichever side the qualifier sits on:
