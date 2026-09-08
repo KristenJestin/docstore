@@ -206,6 +206,41 @@ describe("planActions", () => {
 		});
 	});
 
+	test("an extraction into a period reads a bare year as that whole year", () => {
+		const outcomes = outcome(
+			{ kind: "period" },
+			{ raw: "2025", value: "2025", confidence: 0.8 },
+		);
+		const only = outcomes.get("ext_1");
+		if (!only) throw new Error("missing outcome");
+		expect(operationFromExtraction(only, subject())).toEqual({
+			type: "set_period",
+			start: "2025-01-01",
+			end: "2025-12-31",
+			confidence: 0.8,
+		});
+	});
+
+	test("a year-precision date covers its whole year too", () => {
+		const outcomes = outcome(
+			{ kind: "period" },
+			{
+				raw: "année 2025",
+				value: "2025-01-01",
+				confidence: 1,
+				precision: "year",
+			},
+		);
+		const only = outcomes.get("ext_1");
+		if (!only) throw new Error("missing outcome");
+		expect(operationFromExtraction(only, subject())).toEqual({
+			type: "set_period",
+			start: "2025-01-01",
+			end: "2025-12-31",
+			confidence: 1,
+		});
+	});
+
 	test("set_valid_until and set_document_date run their extraction", () => {
 		expect(
 			planActions(
@@ -318,6 +353,60 @@ describe("planActions", () => {
 			date: "2025-12-05",
 			precision: "day",
 			confidence: AUTO_DATE_CONFIDENCE,
+		});
+	});
+
+	test("set_period writes the literal bounds it was given", () => {
+		const operations = planActions(
+			rule([
+				{
+					type: "set_period",
+					periodStart: "2025-01-01",
+					periodEnd: "2025-12-31",
+				},
+			]),
+			subject(),
+			empty,
+		);
+		expect(operations[0]).toEqual({
+			type: "set_period",
+			start: "2025-01-01",
+			end: "2025-12-31",
+			confidence: LITERAL_CONFIDENCE,
+		});
+	});
+
+	test("set_period with a year covers the whole year", () => {
+		const operations = planActions(
+			rule([{ type: "set_period", year: 2025 }]),
+			subject(),
+			empty,
+		);
+		expect(operations[0]).toEqual({
+			type: "set_period",
+			start: "2025-01-01",
+			end: "2025-12-31",
+			confidence: LITERAL_CONFIDENCE,
+		});
+	});
+
+	test("the literal bounds win over the year and over the detection", () => {
+		const operations = planActions(
+			rule([
+				{
+					type: "set_period",
+					periodStart: "2024-04-01",
+					periodEnd: "2025-03-31",
+					year: 2025,
+					extractionRuleId: "ext_1",
+				},
+			]),
+			subject(),
+			empty,
+		);
+		expect(operations[0]).toMatchObject({
+			start: "2024-04-01",
+			end: "2025-03-31",
 		});
 	});
 
