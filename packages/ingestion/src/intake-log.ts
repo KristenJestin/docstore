@@ -1,5 +1,7 @@
 import type { Db } from "@docstore/db";
 import { intakeLog, intakeSource } from "@docstore/db/schema/intake";
+import type { ArchiveResult } from "@docstore/shared/archive";
+import { archiveEntryRef } from "@docstore/shared/archive";
 import type { IntakeOutcome, IntakeStats } from "@docstore/shared/intake";
 import { INTAKE_LOG_RETENTION_DAYS } from "@docstore/shared/intake";
 import { eq, lt } from "drizzle-orm";
@@ -46,6 +48,62 @@ export async function logIntake(db: Db, entry: IntakeLogEntry): Promise<void> {
 		});
 	} catch (error) {
 		console.error("[intake] unable to write the log entry", error);
+	}
+}
+
+/**
+ * Journals what an archive produced: one row per entry, so the log of a
+ * source reads the same whether the file arrived alone or inside a ZIP.
+ *
+ * The archive itself only gets a row when it was kept as a document; in
+ * `extract` mode it leaves nothing behind but its entries.
+ */
+export async function logArchiveRun(
+	db: Db,
+	sourceId: string,
+	filename: string,
+	archive: ArchiveResult,
+	result: IntakeRunResult,
+): Promise<void> {
+	if (archive.archiveDocumentId) {
+		result.imported += 1;
+		await logIntake(db, {
+			sourceId,
+			filename,
+			outcome: "imported",
+			documentId: archive.archiveDocumentId,
+			message: `Archive kept (${archive.mode}).`,
+		});
+	}
+	for (const entry of archive.extracted) {
+		result.imported += 1;
+		await logIntake(db, {
+			sourceId,
+			filename: archiveEntryRef(filename, entry.entry),
+			outcome: "imported",
+			documentId: entry.documentId,
+		});
+	}
+	for (const entry of archive.duplicates) {
+		result.duplicates += 1;
+		await logIntake(db, {
+			sourceId,
+			filename: archiveEntryRef(filename, entry.entry),
+			outcome: "duplicate",
+			documentId: entry.duplicateOf || null,
+			message: entry.trashed
+				? "Content already stored on a document in the trash."
+				: `Content already present (document ${entry.duplicateOf}).`,
+		});
+	}
+	for (const entry of archive.skipped) {
+		result.skipped += 1;
+		await logIntake(db, {
+			sourceId,
+			filename: archiveEntryRef(filename, entry.entry),
+			outcome: "skipped",
+			message: entry.message,
+		});
 	}
 }
 

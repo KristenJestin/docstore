@@ -571,6 +571,7 @@ async function loadFieldValues(
 
 type FileSummary = {
 	fileId: string;
+	mime: string;
 	thumbnailKey: string | null;
 	pageCount: number | null;
 };
@@ -590,6 +591,7 @@ async function loadPrimaryFiles(
 			id: documentFile.id,
 			documentId: documentFile.documentId,
 			kind: documentFile.kind,
+			mime: documentFile.mime,
 			thumbnailKey: documentFile.thumbnailKey,
 			pageCount: documentFile.pageCount,
 		})
@@ -606,6 +608,7 @@ async function loadPrimaryFiles(
 		) {
 			result.set(row.documentId, {
 				fileId: row.id,
+				mime: row.mime,
 				thumbnailKey: row.thumbnailKey,
 				pageCount: row.pageCount,
 			});
@@ -689,6 +692,7 @@ export async function listDocuments(
 			documentType: documentTypeId
 				? (documentTypes.get(documentTypeId) ?? null)
 				: null,
+			mime: file?.mime ?? null,
 			thumbnailFileId: file?.fileId ?? null,
 			thumbnailKey: file?.thumbnailKey ?? null,
 			pageCount: file?.pageCount ?? null,

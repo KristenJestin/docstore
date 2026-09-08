@@ -4,6 +4,19 @@ export {
 	computeReviewReasons,
 } from "./analyze";
 export {
+	type ArchiveEntryHeader,
+	type ArchiveFile,
+	archiveContent,
+	declaresArchive,
+	type ExpandArchiveOptions,
+	type ExpandArchiveResult,
+	entryBasename,
+	expandArchive,
+	isJunkEntry,
+	readArchiveEntries,
+	sniffArchive,
+} from "./archive";
+export {
 	ASN_ATTEMPTS,
 	type AsnContext,
 	allocateAsn,
@@ -38,6 +51,7 @@ export {
 	typeTitleContext,
 } from "./document-type";
 export {
+	ArchiveError,
 	AsnAllocationError,
 	DocumentTypeNotFoundError,
 	DuplicateOriginalError,
@@ -56,18 +70,24 @@ export {
 	testFolderConfig,
 } from "./folder";
 export {
+	type IntakeArchive,
 	type IntakeCreated,
 	type IntakeDuplicate,
 	type IntakeFileInput,
 	type IntakeResult,
+	intakeArchive,
 	intakeFile,
+	isArchive,
+	isCreated,
 	isDuplicate,
+	resolveArchiveMode,
 } from "./intake";
 export {
 	emptyRunResult,
 	finishRun,
 	type IntakeLogEntry,
 	type IntakeRunResult,
+	logArchiveRun,
 	logIntake,
 	purgeIntakeLogs,
 } from "./intake-log";
@@ -130,6 +150,7 @@ export {
 	extensionForMime,
 	extensionForMimeOrUndefined,
 	fileExtension,
+	isArchiveMime,
 	MAGIC_BYTES_LENGTH,
 	normalizeMime,
 	readMagicBytes,

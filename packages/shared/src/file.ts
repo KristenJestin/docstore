@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { archiveResultSchema } from "./archive";
 
 /** Number of files accepted per `file.upload` call (multi drag & drop, SPEC §5). */
 export const MAX_UPLOAD_FILES = 20;
@@ -32,5 +33,12 @@ export type UploadDuplicate = z.infer<typeof uploadDuplicateSchema>;
 export const uploadFilesOutput = z.object({
 	created: z.array(uploadedFileSchema),
 	duplicates: z.array(uploadDuplicateSchema),
+	/**
+	 * One entry per ZIP of the batch (SPEC §5, `docs/ingestion.md` "Archives").
+	 * The documents it lists are **not** repeated in `created`: a caller that
+	 * only reads `created` sees the plain files, one that follows an archive
+	 * finds its children here.
+	 */
+	archives: z.array(archiveResultSchema),
 });
 export type UploadFilesOutput = z.infer<typeof uploadFilesOutput>;

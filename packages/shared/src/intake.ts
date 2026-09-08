@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { archiveModeSchema } from "./archive";
 
 /**
  * Intake sources (SPEC §2 "Misc" and §5): watched folder and IMAP mailbox.
@@ -35,6 +36,12 @@ export const intakeDefaultsSchema = z.object({
 	tagIds: z.array(z.string().min(1)).max(50).optional(),
 	partyId: z.string().min(1).nullish(),
 	sensitive: z.boolean().optional(),
+	/**
+	 * What a ZIP arriving through this door becomes, overriding the
+	 * `intake.archives` setting (see `shared/archive.ts`). Absent = the
+	 * household setting decides.
+	 */
+	archives: archiveModeSchema.optional(),
 });
 export type IntakeDefaults = z.infer<typeof intakeDefaultsSchema>;
 
@@ -203,6 +210,17 @@ export const intakeMetaSchema = z.object({
 			subject: z.string().optional(),
 			/** ISO 8601. */
 			receivedAt: z.string().optional(),
+		})
+		.optional(),
+	/**
+	 * Set on every document pulled out of a ZIP: the archive it came from and
+	 * its path inside it. `document.source_ref` carries `<archive>!<entry>`,
+	 * this keeps the two apart for anything that needs them separately.
+	 */
+	archive: z
+		.object({
+			name: z.string(),
+			entry: z.string(),
 		})
 		.optional(),
 });

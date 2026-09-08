@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import { allocateAsn, isScannedDocument, maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
 import { applyDocumentType } from "./document-type";
-import { intakeFile, isDuplicate } from "./intake";
+import { intakeFile, isCreated } from "./intake";
 import { extractText, finalize } from "./pipeline";
 import { writeSetting } from "./settings";
 import {
@@ -73,7 +73,7 @@ async function intakePdf(
 		mime: "application/pdf",
 		createdById: userId,
 	});
-	if (isDuplicate(result)) throw new Error("unexpected duplicate");
+	if (!isCreated(result)) throw new Error("expected a created document");
 	return { documentId: result.documentId, fileId: result.fileId };
 }
 

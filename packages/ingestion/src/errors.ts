@@ -16,6 +16,21 @@ export class UnsupportedMediaError extends Error {
 }
 
 /**
+ * A ZIP archive that cannot be expanded: corrupt, truncated,
+ * password-protected, or built to explode (too many entries, too much
+ * expanded data, an absurd compression ratio).
+ *
+ * Always the caller's problem, never the server's: every door turns it into a
+ * `BAD_REQUEST` carrying this message.
+ */
+export class ArchiveError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ArchiveError";
+	}
+}
+
+/**
  * The content already exists as an original, but attached to a document in the
  * trash: the unique index `document_file_sha256_original_uidx` does not filter
  * on `deleted_at`, so a new upload is impossible until the trash is emptied or

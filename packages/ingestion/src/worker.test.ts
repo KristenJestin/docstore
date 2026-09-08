@@ -4,7 +4,7 @@ import type { TestDb } from "@docstore/db/test-utils";
 import { createTestDb, truncateAll } from "@docstore/db/test-utils";
 import { thumbnailKey } from "@docstore/storage";
 import { eq, sql } from "drizzle-orm";
-import { intakeFile, isDuplicate } from "./intake";
+import { intakeFile, isCreated } from "./intake";
 import { REMINDERS_GENERATE_CRON } from "./jobs";
 import { createQueue, type IngestionQueue, PGBOSS_SCHEMA } from "./queue";
 import {
@@ -86,7 +86,7 @@ describe("worker pg-boss", () => {
 				mime: "application/pdf",
 				createdById: userId,
 			});
-			if (isDuplicate(result)) throw new Error("unexpected duplicate");
+			if (!isCreated(result)) throw new Error("expected a created document");
 
 			const doc = await waitFor(
 				async () => {

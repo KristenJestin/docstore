@@ -29,7 +29,7 @@ import type { IngestionBinding } from "@docstore/ingestion";
 import {
 	createIngestionContext,
 	intakeFile,
-	isDuplicate,
+	isCreated,
 } from "@docstore/ingestion";
 import type {
 	CreateShareLinkInput,
@@ -151,7 +151,7 @@ async function seedDocument(title: string): Promise<{
 		createdById: userId,
 		title,
 	});
-	if (isDuplicate(result)) throw new Error("unexpected duplicate");
+	if (!isCreated(result)) throw new Error("expected a created document");
 	return { documentId: result.documentId, fileId: result.fileId, bytes };
 }
 

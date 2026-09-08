@@ -7,12 +7,17 @@ import {
 import type { Db } from "@docstore/db";
 import type { IngestionBinding } from "@docstore/ingestion";
 import {
+	ArchiveError,
 	DuplicateOriginalError,
+	declaresArchive,
 	intakeFile,
+	isArchive,
 	isDuplicate,
 	resolveAllowedMime,
 	UnsupportedMediaError,
 } from "@docstore/ingestion";
+import type { ArchiveMode, ArchiveResult } from "@docstore/shared/archive";
+import { archiveEntryRef, archiveModeSchema } from "@docstore/shared/archive";
 import type { PublicUploadResult } from "@docstore/shared/upload-link";
 import {
 	UPLOAD_LINK_MAX_FILE_BYTES,
@@ -87,6 +92,39 @@ export function clientIp(c: Context): string {
 	return first || c.req.header("x-real-ip") || "unknown";
 }
 
+/**
+ * Folds an expanded archive into the flat report the public page reads.
+ *
+ * Its entries are listed under `<archive>!<entry>` so the uploader sees the
+ * files they actually sent, and the archive itself only shows up when it was
+ * kept as a document.
+ */
+function reportArchive(
+	result: PublicUploadResult,
+	archive: ArchiveResult,
+): void {
+	result.archives.push(archive);
+	if (archive.archiveDocumentId) {
+		result.created.push({ filename: archive.filename });
+	}
+	for (const entry of archive.extracted) {
+		result.created.push({
+			filename: archiveEntryRef(archive.filename, entry.entry),
+		});
+	}
+	for (const entry of archive.duplicates) {
+		result.duplicates.push({
+			filename: archiveEntryRef(archive.filename, entry.entry),
+		});
+	}
+	for (const entry of archive.skipped) {
+		result.errors.push({
+			filename: archiveEntryRef(archive.filename, entry.entry),
+			message: entry.message,
+		});
+	}
+}
+
 export function registerUploadLinkRoutes(
 	app: Hono,
 	{ db, ingestion }: UploadLinkRoutesOptions,
@@ -152,10 +190,18 @@ export function registerUploadLinkRoutes(
 			);
 		}
 
+		// The page may ask for one mode for this drop; otherwise the defaults of
+		// the link, then the household setting, decide (`intakeFile`).
+		const requested = archiveModeSchema.safeParse(body.archives);
+		const archives: ArchiveMode | undefined = requested.success
+			? requested.data
+			: undefined;
+
 		const result: PublicUploadResult = {
 			created: [],
 			duplicates: [],
 			errors: [],
+			archives: [],
 		};
 
 		for (const file of files) {
@@ -166,17 +212,20 @@ export function registerUploadLinkRoutes(
 				});
 				continue;
 			}
-			try {
-				resolveAllowedMime(file.type, file.name);
-			} catch (error) {
-				result.errors.push({
-					filename: file.name,
-					message:
-						error instanceof UnsupportedMediaError
-							? error.message
-							: String(error),
-				});
-				continue;
+			// A ZIP is a container: what it holds is checked once expanded.
+			if (!declaresArchive(file.type, file.name)) {
+				try {
+					resolveAllowedMime(file.type, file.name);
+				} catch (error) {
+					result.errors.push({
+						filename: file.name,
+						message:
+							error instanceof UnsupportedMediaError
+								? error.message
+								: String(error),
+					});
+					continue;
+				}
 			}
 
 			try {
@@ -190,8 +239,11 @@ export function registerUploadLinkRoutes(
 					source: "link",
 					sourceRef: link.id,
 					defaults: link.defaults,
+					archives,
 				});
-				if (isDuplicate(outcome)) {
+				if (isArchive(outcome)) {
+					reportArchive(result, outcome.archive);
+				} else if (isDuplicate(outcome)) {
 					result.duplicates.push({ filename: file.name });
 				} else {
 					result.created.push({ filename: file.name });
@@ -201,13 +253,15 @@ export function registerUploadLinkRoutes(
 				// else lands here, and the uploader deserves to know why.
 				const known =
 					error instanceof DuplicateOriginalError ||
-					error instanceof UnsupportedMediaError;
+					error instanceof UnsupportedMediaError ||
+					error instanceof ArchiveError;
 				result.errors.push({
 					filename: file.name,
 					message:
 						error instanceof DuplicateOriginalError
 							? "This content has already been uploaded."
-							: error instanceof UnsupportedMediaError
+							: error instanceof UnsupportedMediaError ||
+									error instanceof ArchiveError
 								? error.message
 								: "The upload failed.",
 				});

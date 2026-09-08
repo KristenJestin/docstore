@@ -17,7 +17,7 @@ import { createTestDb, truncateAll } from "@docstore/db/test-utils";
 import { ENCRYPTION_MAGIC, thumbnailKey } from "@docstore/storage";
 import { eq } from "drizzle-orm";
 import type { IngestionContext } from "./context";
-import { intakeFile, isDuplicate } from "./intake";
+import { intakeFile, isCreated } from "./intake";
 import {
 	setSensitive,
 	storageForFile,
@@ -90,7 +90,7 @@ async function intakePdf(): Promise<{ documentId: string; fileId: string }> {
 		mime: "application/pdf",
 		createdById: userId,
 	});
-	if (isDuplicate(result)) throw new Error("unexpected duplicate");
+	if (!isCreated(result)) throw new Error("expected a created document");
 	return result;
 }
 
@@ -190,7 +190,7 @@ describe("intakeFile with defaults.sensitive", () => {
 			createdById: userId,
 			defaults: { sensitive: true },
 		});
-		if (isDuplicate(result)) throw new Error("unexpected duplicate");
+		if (!isCreated(result)) throw new Error("expected a created document");
 
 		const row = await fileRow(result.fileId);
 		expect(row.encrypted).toBe(true);
@@ -323,7 +323,7 @@ describe("without a master key", () => {
 				mime: "application/pdf",
 				createdById: userId,
 			});
-			if (isDuplicate(result)) throw new Error("unexpected duplicate");
+			if (!isCreated(result)) throw new Error("expected a created document");
 
 			const outcome = await setSensitive(
 				plainIngestion.ctx,

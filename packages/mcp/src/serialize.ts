@@ -214,6 +214,7 @@ export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 						color: detail.documentType.color,
 					}
 				: null,
+			mime: null,
 			thumbnailFileId: null,
 			thumbnailKey: null,
 			pageCount: null,

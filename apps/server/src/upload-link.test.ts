@@ -30,6 +30,7 @@ import type {
 } from "@docstore/shared/upload-link";
 import { UPLOAD_LINK_RATE_LIMIT } from "@docstore/shared/upload-link";
 import { eq } from "drizzle-orm";
+import { zipSync } from "fflate";
 import type { Hono } from "hono";
 import { createApp } from "./app";
 import { resetRateLimit } from "./upload-link";
@@ -144,6 +145,7 @@ async function postFiles(
 	token: string,
 	files: { name: string; bytes: Uint8Array; type?: string }[],
 	ip = "203.0.113.10",
+	archives?: string,
 ): Promise<Response> {
 	const form = new FormData();
 	for (const file of files) {
@@ -154,6 +156,7 @@ async function postFiles(
 			}),
 		);
 	}
+	if (archives) form.append("archives", archives);
 	return await app.request(`/api/u/${token}`, {
 		method: "POST",
 		body: form,
@@ -261,6 +264,52 @@ describe("POST /api/u/:token", () => {
 
 		// Only the real PDF became a document.
 		expect(await db.select().from(document)).toHaveLength(1);
+	});
+
+	test("expands a ZIP and reports its entries one by one", async () => {
+		const { token } = await createLink();
+		const zip = zipSync({
+			"invoice.pdf": pdf,
+			"notes.txt": new TextEncoder().encode("nothing to see"),
+		});
+
+		const response = await postFiles(
+			token,
+			[{ name: "batch.zip", bytes: zip, type: "application/zip" }],
+			"203.0.113.11",
+			"extract",
+		);
+		expect(response.status).toBe(201);
+
+		const body = (await response.json()) as PublicUploadResult;
+		expect(body.created).toEqual([{ filename: "batch.zip!invoice.pdf" }]);
+		expect(body.errors).toHaveLength(1);
+		expect(body.errors[0]?.filename).toBe("batch.zip!notes.txt");
+		expect(body.archives).toHaveLength(1);
+		expect(body.archives[0]?.mode).toBe("extract");
+
+		const [doc] = await db.select().from(document);
+		expect(doc?.source).toBe("link");
+		expect(doc?.sourceRef).toBe("batch.zip!invoice.pdf");
+	});
+
+	test("keeps the archive when the drop asks for it", async () => {
+		const { token } = await createLink();
+		const zip = zipSync({ "invoice.pdf": pdf });
+
+		const response = await postFiles(
+			token,
+			[{ name: "batch.zip", bytes: zip, type: "application/zip" }],
+			"203.0.113.12",
+			"keep",
+		);
+		const body = (await response.json()) as PublicUploadResult;
+		expect(body.created).toEqual([{ filename: "batch.zip" }]);
+		expect(body.archives[0]?.archiveDocumentId).toBeString();
+
+		const [doc] = await db.select().from(document);
+		expect(doc?.status).toBe("active");
+		expect(doc?.content).toBe("invoice.pdf");
 	});
 
 	test("responds 410 when the link has expired", async () => {

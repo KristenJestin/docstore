@@ -1,11 +1,19 @@
 import {
+	ArchiveError,
 	DuplicateOriginalError,
+	declaresArchive,
 	intakeFile,
+	isArchive,
 	isDuplicate,
 	resolveAllowedMime,
 	resolveContentMime,
+	sniffArchive,
 	UnsupportedMediaError,
 } from "@docstore/ingestion";
+import {
+	archiveModeSchema,
+	archiveResultSchema,
+} from "@docstore/shared/archive";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
@@ -48,7 +56,7 @@ export function registerUploadTool(
 		{
 			title: "Upload a document",
 			description:
-				"Creates a document from a base64-encoded file (20 MB maximum). The ingestion pipeline takes over: OCR, analysis, rules. Content already stored is not an error: it returns `duplicateOf`, plus `trashed: true` when the document holding that content sits in the trash (restore it or delete it permanently before importing again).",
+				"Creates a document from a base64-encoded file (20 MB maximum). The ingestion pipeline takes over: OCR, analysis, rules. Content already stored is not an error: it returns `duplicateOf`, plus `trashed: true` when the document holding that content sits in the trash (restore it or delete it permanently before importing again). A ZIP archive is handled according to `archives`: `extract` turns each file it holds into a document, `keep` stores the archive itself, `both` does the two and links them; the result then comes back in `archive` and `documentId` stays null.",
 			inputSchema: {
 				filename: z.string().trim().min(1).max(255),
 				mime: z
@@ -58,6 +66,11 @@ export function registerUploadTool(
 					.describe("MIME type, for example application/pdf"),
 				base64: z.string().min(1).describe("File content in base64"),
 				title: z.string().trim().min(1).max(500).optional(),
+				archives: archiveModeSchema
+					.optional()
+					.describe(
+						"What to do with a ZIP: extract its files, keep the archive, or both. Defaults to the `intake.archives` setting.",
+					),
 			},
 			outputSchema: {
 				documentId: z.string().nullable(),
@@ -68,8 +81,18 @@ export function registerUploadTool(
 					.describe(
 						"True when `duplicateOf` points at a document currently in the trash.",
 					),
+				archive: archiveResultSchema
+					.nullable()
+					.describe("What a ZIP produced; null for an ordinary file."),
 			},
 			text: (output) => {
+				if (output.archive) {
+					const { archive } = output;
+					const kept = archive.archiveDocumentId
+						? `archive kept as ${archive.archiveDocumentId}`
+						: "archive not kept";
+					return `Archive ${archive.filename} (${archive.mode}): ${archive.extracted.length} document(s) created, ${archive.duplicates.length} already stored, ${archive.skipped.length} entry(ies) skipped, ${kept}.`;
+				}
 				if (!output.duplicateOf) {
 					return `Document created: ${output.documentId}.`;
 				}
@@ -82,13 +105,18 @@ export function registerUploadTool(
 			requireWrite(context);
 			const ingestion = requireIngestion(context);
 
-			try {
-				resolveAllowedMime(input.mime, input.filename);
-			} catch (error) {
-				if (error instanceof UnsupportedMediaError) {
-					throw new McpToolError(error.message);
+			// A ZIP is a container, not one of the accepted document types: only
+			// what comes out of it is checked against `ALLOWED_MIMES`.
+			const container = declaresArchive(input.mime, input.filename);
+			if (!container) {
+				try {
+					resolveAllowedMime(input.mime, input.filename);
+				} catch (error) {
+					if (error instanceof UnsupportedMediaError) {
+						throw new McpToolError(error.message);
+					}
+					throw error;
 				}
-				throw error;
 			}
 
 			const data = decodeBase64(input.base64);
@@ -100,13 +128,15 @@ export function registerUploadTool(
 
 			// The magic bytes decide what the file really is: a `.pdf` carrying
 			// anything else is refused before it reaches the pipeline.
-			try {
-				resolveContentMime(data, input.filename, input.mime);
-			} catch (error) {
-				if (error instanceof UnsupportedMediaError) {
-					throw new McpToolError(error.message);
+			if (!sniffArchive(data)) {
+				try {
+					resolveContentMime(data, input.filename, input.mime);
+				} catch (error) {
+					if (error instanceof UnsupportedMediaError) {
+						throw new McpToolError(error.message);
+					}
+					throw error;
 				}
-				throw error;
 			}
 
 			let result: Awaited<ReturnType<typeof intakeFile>>;
@@ -117,6 +147,7 @@ export function registerUploadTool(
 					mime: input.mime,
 					createdById: context.principal.userId,
 					title: input.title,
+					archives: input.archives,
 				});
 			} catch (error) {
 				// Content already stored on a trashed document: the unique sha256
@@ -128,20 +159,34 @@ export function registerUploadTool(
 						fileId: null,
 						duplicateOf: error.documentId,
 						trashed: true,
+						archive: null,
 					};
 				}
 				if (error instanceof DuplicateOriginalError) {
 					throw new McpToolError(error.message);
 				}
+				if (error instanceof ArchiveError) {
+					throw new McpToolError(error.message);
+				}
 				throw error;
 			}
 
+			if (isArchive(result)) {
+				return {
+					documentId: null,
+					fileId: null,
+					duplicateOf: null,
+					trashed: false,
+					archive: result.archive,
+				};
+			}
 			if (isDuplicate(result)) {
 				return {
 					documentId: null,
 					fileId: null,
 					duplicateOf: result.duplicateOf,
 					trashed: false,
+					archive: null,
 				};
 			}
 			return {
@@ -149,6 +194,7 @@ export function registerUploadTool(
 				fileId: result.fileId,
 				duplicateOf: null,
 				trashed: false,
+				archive: null,
 			};
 		},
 	);

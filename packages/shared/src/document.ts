@@ -391,6 +391,12 @@ export const documentListItemSchema = z.object({
 	tags: z.array(tagSummarySchema),
 	documentType: documentTypeSummarySchema.nullable(),
 	/**
+	 * Type of that same file. A document with no renderable preview — a ZIP
+	 * archive kept as it arrived — is drawn from its type rather than from a
+	 * thumbnail that will never exist.
+	 */
+	mime: z.string().nullable(),
+	/**
 	 * Id of the file the thumbnail belongs to: the `original` file, otherwise
 	 * the oldest one. Feed it to `file.thumbnail` (`GET
 	 * /files/{fileId}/thumbnail`) to render the preview.

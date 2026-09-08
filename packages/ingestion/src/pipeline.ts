@@ -12,7 +12,11 @@ import { maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
 import { PipelineTargetNotFoundError } from "./errors";
 import { type DocumentProcessPayload, JOB_RETRY_LIMIT } from "./jobs";
-import { extensionForMimeOrUndefined, fileExtension } from "./media";
+import {
+	extensionForMimeOrUndefined,
+	fileExtension,
+	isArchiveMime,
+} from "./media";
 import { storageForFile } from "./sensitive";
 import { emitDocumentEvent } from "./webhook";
 
@@ -91,6 +95,10 @@ async function withLocalFile<T>(
  */
 export const extractText: PipelineStep = async (ctx, payload) => {
 	const file = await loadFile(ctx, payload);
+	// An archive kept as a document has no text layer and no page to OCR: its
+	// `content` was written at intake as the list of the entries it holds, and
+	// re-running the pipeline must leave that list alone.
+	if (isArchiveMime(file.mime)) return;
 	const result = await withLocalFile(ctx, file, (path) =>
 		ctx.ocr.extract(
 			{ path, mime: file.mime },
@@ -115,6 +123,9 @@ export const extractText: PipelineStep = async (ctx, payload) => {
 /** 3. `render` — PNG thumbnail stored at `thumbnails/<docId>/<fileId>.png`. */
 export const render: PipelineStep = async (ctx, payload) => {
 	const file = await loadFile(ctx, payload);
+	// Nothing to draw from a ZIP: the interface falls back on a generic icon,
+	// driven by `document.mime`.
+	if (isArchiveMime(file.mime)) return;
 	const png = await withLocalFile(ctx, file, (path) =>
 		renderThumbnail(ctx.tools, { path, mime: file.mime }),
 	);

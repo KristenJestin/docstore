@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { archiveResultSchema } from "./archive";
 import { futureDatetimeSchema } from "./common";
 import { intakeDefaultsSchema } from "./intake";
 
@@ -85,5 +86,11 @@ export const publicUploadResultSchema = z.object({
 	created: z.array(z.object({ filename: z.string() })),
 	duplicates: z.array(z.object({ filename: z.string() })),
 	errors: z.array(z.object({ filename: z.string(), message: z.string() })),
+	/**
+	 * ZIPs of the drop, expanded server side. Their entries also appear in
+	 * `created` / `duplicates` under `<archive>!<entry>`, so a page that only
+	 * counts files needs to know nothing about archives.
+	 */
+	archives: z.array(archiveResultSchema).default([]),
 });
 export type PublicUploadResult = z.infer<typeof publicUploadResultSchema>;

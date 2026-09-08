@@ -7,6 +7,7 @@ import {
 	test,
 } from "bun:test";
 import { document, documentFile } from "@docstore/db/schema/document";
+import { documentRelation } from "@docstore/db/schema/relation";
 import {
 	createTestDb,
 	type TestDb,
@@ -23,6 +24,7 @@ import {
 import { sha256 } from "@docstore/storage";
 import { createRouterClient, type RouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
+import { zipSync } from "fflate";
 import {
 	createTestContext,
 	createTestUser,
@@ -64,6 +66,15 @@ async function expectFailure(promise: Promise<unknown>): Promise<Error> {
 
 function pdfFile(name = "EDF invoice.pdf"): File {
 	return new File([pdf], name, { type: "application/pdf" });
+}
+
+/** One usable PDF and one piece of archiver debris. */
+function zipFile(name = "batch.zip"): File {
+	const zip = zipSync({
+		"invoice.pdf": pdf,
+		"__MACOSX/._invoice.pdf": new TextEncoder().encode("fork"),
+	});
+	return new File([zip], name, { type: "application/zip" });
 }
 
 beforeAll(async () => {
@@ -152,6 +163,79 @@ describe("file.upload", () => {
 			{ filename: "copy.pdf", duplicateOf: documentId, trashed: true },
 		]);
 		expect(await db.select().from(document)).toHaveLength(1);
+	});
+
+	test("a ZIP is expanded, and only its entries become documents", async () => {
+		const result = await client.file.upload({
+			files: [zipFile()],
+			archives: "extract",
+		});
+
+		// The entries are reported under `archives`, never mixed into `created`.
+		expect(result.created).toEqual([]);
+		expect(result.archives).toHaveLength(1);
+		const archive = result.archives[0];
+		if (!archive) throw new Error("no archive reported");
+		expect(archive.filename).toBe("batch.zip");
+		expect(archive.mode).toBe("extract");
+		expect(archive.archiveDocumentId).toBeNull();
+		expect(archive.extracted.map((entry) => entry.entry)).toEqual([
+			"invoice.pdf",
+		]);
+		expect(archive.skipped.map((entry) => entry.reason)).toEqual(["junk"]);
+		expect(await db.select().from(document)).toHaveLength(1);
+	});
+
+	test("a ZIP can be kept as a document of its own", async () => {
+		const result = await client.file.upload({
+			files: [zipFile()],
+			archives: "keep",
+		});
+		const archive = result.archives[0];
+		if (!archive?.archiveDocumentId) throw new Error("archive not kept");
+		expect(archive.extracted).toEqual([]);
+
+		const [doc] = await db
+			.select()
+			.from(document)
+			.where(eq(document.id, archive.archiveDocumentId));
+		expect(doc?.status).toBe("active");
+		expect(doc?.content).toContain("invoice.pdf");
+	});
+
+	test("`both` keeps the archive and links it to its files", async () => {
+		const result = await client.file.upload({
+			files: [zipFile()],
+			archives: "both",
+		});
+		const archive = result.archives[0];
+		if (!archive?.archiveDocumentId) throw new Error("archive not kept");
+		expect(archive.extracted).toHaveLength(1);
+
+		const relations = await db
+			.select()
+			.from(documentRelation)
+			.where(eq(documentRelation.fromDocumentId, archive.archiveDocumentId));
+		expect(relations).toHaveLength(1);
+		expect(relations[0]?.kind).toBe("related_to");
+		expect(relations[0]?.toDocumentId).toBe(
+			archive.extracted[0]?.documentId ?? "",
+		);
+		expect(await db.select().from(document)).toHaveLength(2);
+	});
+
+	test("a ZIP that cannot be expanded is a bad request", async () => {
+		await expectOrpcError(
+			client.file.upload({
+				files: [
+					new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], "broken.zip", {
+						type: "application/zip",
+					}),
+				],
+			}),
+			"BAD_REQUEST",
+		);
+		expect(await db.select().from(document)).toHaveLength(0);
 	});
 
 	test("rejects an unsupported type", async () => {

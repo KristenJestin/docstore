@@ -428,6 +428,7 @@ describe("settings", () => {
 			"reminders.expiryLeadDays": [90, 30, 7],
 			"asn.autoAssign": "never",
 			"content.locale": "en-GB",
+			"intake.archives": "extract",
 		});
 
 		const updated = await client.settings.set({

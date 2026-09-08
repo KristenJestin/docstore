@@ -1,3 +1,4 @@
+import { ARCHIVE_MIME_ALIASES } from "@docstore/shared/archive";
 import { UnsupportedMediaError } from "./errors";
 
 /**
@@ -172,6 +173,19 @@ export async function readMagicBytes(
 		return new Uint8Array(await data.arrayBuffer()).subarray(0, length);
 	}
 	return data.subarray(0, length);
+}
+
+/**
+ * True for a file stored as an archive (`keep` mode).
+ *
+ * There is no text to extract and no page to render in a ZIP: the pipeline
+ * steps check this and step aside, which is what keeps `document.reprocess`
+ * from parking an archive in `failed`.
+ */
+export function isArchiveMime(mime: string): boolean {
+	return (ARCHIVE_MIME_ALIASES as readonly string[]).includes(
+		normalizeMime(mime),
+	);
 }
 
 /** Storage extension for an accepted mime. */

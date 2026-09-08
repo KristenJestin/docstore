@@ -24,7 +24,7 @@ import { createTestDb, truncateAll } from "@docstore/db/test-utils";
 import type { PlannedOperation, RuleAction } from "@docstore/shared/rule";
 import { and, eq } from "drizzle-orm";
 import type { IngestionContext } from "./context";
-import { intakeFile, isDuplicate } from "./intake";
+import { intakeFile, isCreated } from "./intake";
 import { processDocument } from "./pipeline";
 import { applyOperations, applyRules, purgeRuleRuns } from "./rules";
 import { writeSetting } from "./settings";
@@ -173,7 +173,7 @@ async function intakePdf(
 		mime: "application/pdf",
 		createdById: userId,
 	});
-	if (isDuplicate(result)) throw new Error("unexpected duplicate");
+	if (!isCreated(result)) throw new Error("expected a created document");
 	return { documentId: result.documentId, fileId: result.fileId };
 }
 

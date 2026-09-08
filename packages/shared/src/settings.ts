@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+	ARCHIVE_MODES,
+	archiveModeSchema,
+	DEFAULT_ARCHIVE_MODE,
+} from "./archive";
+import {
 	CONTENT_LOCALES,
 	contentLocaleSchema,
 	DEFAULT_CONTENT_LOCALE,
@@ -20,6 +25,7 @@ export const SETTING_KEYS = [
 	"reminders.expiryLeadDays",
 	"asn.autoAssign",
 	"content.locale",
+	"intake.archives",
 ] as const;
 export const settingKeySchema = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof settingKeySchema>;
@@ -109,11 +115,26 @@ export const SETTING_DEFINITIONS: Record<SettingKey, SettingDefinition> = {
 		description:
 			"Used for generated titles, file names and dates inside your documents; the interface stays in English.",
 	},
+	"intake.archives": {
+		schema: archiveModeSchema,
+		defaultValue: DEFAULT_ARCHIVE_MODE,
+		label: "Archives",
+		description:
+			"What a ZIP dropped on any intake door becomes: the files it holds, the archive itself, or both linked together.",
+	},
 };
 
+export type { ArchiveMode } from "./archive";
 export type { ContentLocale } from "./common";
 /** Re-exported so the settings screen can list the choices. */
-export { CONTENT_LOCALES, contentLocaleSchema, DEFAULT_CONTENT_LOCALE };
+export {
+	ARCHIVE_MODES,
+	archiveModeSchema,
+	CONTENT_LOCALES,
+	contentLocaleSchema,
+	DEFAULT_ARCHIVE_MODE,
+	DEFAULT_CONTENT_LOCALE,
+};
 
 /** Review queue settings, all resolved with their defaults. */
 export const reviewSettingsSchema = z.object({
@@ -136,6 +157,7 @@ export const settingsSchema = z.object({
 	"reminders.expiryLeadDays": z.array(z.int().min(0)),
 	"asn.autoAssign": asnAutoAssignSchema,
 	"content.locale": contentLocaleSchema,
+	"intake.archives": archiveModeSchema,
 });
 export type Settings = z.infer<typeof settingsSchema>;
 

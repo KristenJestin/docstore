@@ -45,6 +45,7 @@ import {
 } from "@docstore/shared/recurrence";
 import { DOCUMENT_RELATION_KINDS } from "@docstore/shared/relation";
 import { eq } from "drizzle-orm";
+import { zipSync } from "fflate";
 import { MCP_INSTRUCTIONS, MCP_SERVER_NAME } from "./server";
 import {
 	createMcpTestClient,
@@ -578,6 +579,50 @@ describe("upload_document", () => {
 		expect(
 			structured<{ duplicateOf: string | null; trashed: boolean }>(again),
 		).toMatchObject({ duplicateOf: documentId, trashed: true });
+	});
+
+	test("expands a base64 ZIP archive", async () => {
+		const client = await connect(["read", "write"], {
+			ingestion: { ctx: ingestion.ctx },
+		});
+
+		const pdf = new Uint8Array(await Bun.file(TEXT_LAYER_PDF).arrayBuffer());
+		const zip = zipSync({
+			"invoice.pdf": pdf,
+			"notes.txt": new TextEncoder().encode("nothing to see"),
+		});
+
+		const result = await client.callTool({
+			name: "upload_document",
+			arguments: {
+				filename: "batch.zip",
+				mime: "application/zip",
+				base64: Buffer.from(zip).toString("base64"),
+				archives: "both",
+			},
+		});
+
+		expect(isToolError(result)).toBe(false);
+		const output = structured<{
+			documentId: string | null;
+			archive: {
+				mode: string;
+				extracted: { entry: string; documentId: string }[];
+				skipped: { entry: string }[];
+				archiveDocumentId: string | null;
+			} | null;
+		}>(result);
+		// An archive never produces a document "of its own" at the top level:
+		// what it produced is spelled out entry by entry.
+		expect(output.documentId).toBeNull();
+		expect(output.archive?.mode).toBe("both");
+		expect(output.archive?.extracted.map((entry) => entry.entry)).toEqual([
+			"invoice.pdf",
+		]);
+		expect(output.archive?.skipped.map((entry) => entry.entry)).toEqual([
+			"notes.txt",
+		]);
+		expect(output.archive?.archiveDocumentId).toBeTruthy();
 	});
 
 	test("refuses the upload without the `write` scope", async () => {

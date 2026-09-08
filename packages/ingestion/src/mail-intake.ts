@@ -1,10 +1,16 @@
 import type { IntakeSourceRow } from "@docstore/db/schema/intake";
+import { ARCHIVE_MIME } from "@docstore/shared/archive";
 import type { MailConfig } from "@docstore/shared/intake";
+import { sniffArchive } from "./archive";
 import type { IngestionContext } from "./context";
-import { DuplicateOriginalError, UnsupportedMediaError } from "./errors";
-import { intakeFile, isDuplicate } from "./intake";
+import {
+	ArchiveError,
+	DuplicateOriginalError,
+	UnsupportedMediaError,
+} from "./errors";
+import { intakeFile, isArchive, isDuplicate } from "./intake";
 import type { IntakeRunResult } from "./intake-log";
-import { emptyRunResult, logIntake } from "./intake-log";
+import { emptyRunResult, logArchiveRun, logIntake } from "./intake-log";
 import type {
 	MailClient,
 	MailConnection,
@@ -104,7 +110,7 @@ export async function applyMailAfterImport(
 	}
 }
 
-/** Attachments that can actually be ingested (pdf and images). */
+/** Attachments that can actually be ingested (pdf, images and ZIP archives). */
 function importableAttachments(message: MailMessage): {
 	filename: string;
 	mime: string;
@@ -112,9 +118,20 @@ function importableAttachments(message: MailMessage): {
 }[] {
 	const kept: { filename: string; mime: string; content: Uint8Array }[] = [];
 	for (const attachment of message.attachments) {
+		const head = attachment.content.subarray(0, MAGIC_BYTES_LENGTH);
+		// An invoice sent zipped is the ordinary case, not an oddity: the
+		// archive goes through and `intake.archives` decides what it becomes.
+		if (sniffArchive(head)) {
+			kept.push({
+				filename: attachment.filename,
+				mime: ARCHIVE_MIME,
+				content: attachment.content,
+			});
+			continue;
+		}
 		try {
 			const mime = resolveIntakeMime(
-				attachment.content.subarray(0, MAGIC_BYTES_LENGTH),
+				head,
 				attachment.filename,
 				attachment.mime,
 			);
@@ -218,7 +235,15 @@ export async function runMailSource(
 						defaults: source.defaults,
 					});
 
-					if (isDuplicate(outcome)) {
+					if (isArchive(outcome)) {
+						await logArchiveRun(
+							ctx.db,
+							source.id,
+							attachment.filename,
+							outcome.archive,
+							result,
+						);
+					} else if (isDuplicate(outcome)) {
 						result.duplicates += 1;
 						await logIntake(ctx.db, {
 							sourceId: source.id,
@@ -238,12 +263,16 @@ export async function runMailSource(
 					}
 				} catch (error) {
 					const duplicate = error instanceof DuplicateOriginalError;
+					// A ZIP that cannot be expanded is skipped: the message is
+					// acknowledged and will not come back on every poll.
+					const unusable = error instanceof ArchiveError;
 					if (duplicate) result.duplicates += 1;
+					else if (unusable) result.skipped += 1;
 					else result.errors += 1;
 					await logIntake(ctx.db, {
 						sourceId: source.id,
 						filename: attachment.filename,
-						outcome: duplicate ? "duplicate" : "error",
+						outcome: duplicate ? "duplicate" : unusable ? "skipped" : "error",
 						message: error instanceof Error ? error.message : String(error),
 					});
 				}

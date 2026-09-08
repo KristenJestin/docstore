@@ -22,7 +22,7 @@ import type { IngestionBinding } from "@docstore/ingestion";
 import {
 	createIngestionContext,
 	intakeFile,
-	isDuplicate,
+	isCreated,
 	setSensitive,
 } from "@docstore/ingestion";
 import { deriveStorageMasterKey } from "@docstore/storage";
@@ -130,7 +130,7 @@ async function seedDocument(
 		createdById: userId,
 		title,
 	});
-	if (isDuplicate(result)) throw new Error("unexpected duplicate");
+	if (!isCreated(result)) throw new Error("expected a created document");
 	if (options.documentDate) {
 		await db
 			.update(document)

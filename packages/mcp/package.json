@@ -25,6 +25,7 @@
 		"@docstore/ocr": "workspace:*",
 		"@types/bun": "catalog:",
 		"dotenv": "catalog:",
+		"fflate": "^0.8.3",
 		"typescript": "catalog:"
 	}
 }

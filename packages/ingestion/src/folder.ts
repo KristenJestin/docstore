@@ -1,12 +1,18 @@
 import { access, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 import type { IntakeSourceRow } from "@docstore/db/schema/intake";
+import { ARCHIVE_MIME } from "@docstore/shared/archive";
 import type { FolderConfig } from "@docstore/shared/intake";
+import { sniffArchive } from "./archive";
 import type { IngestionContext } from "./context";
-import { DuplicateOriginalError, UnsupportedMediaError } from "./errors";
-import { intakeFile, isDuplicate } from "./intake";
+import {
+	ArchiveError,
+	DuplicateOriginalError,
+	UnsupportedMediaError,
+} from "./errors";
+import { intakeFile, isArchive, isDuplicate } from "./intake";
 import type { IntakeRunResult } from "./intake-log";
-import { emptyRunResult, logIntake } from "./intake-log";
+import { emptyRunResult, logArchiveRun, logIntake } from "./intake-log";
 import { MAGIC_BYTES_LENGTH, resolveIntakeMime } from "./media";
 
 /**
@@ -239,9 +245,14 @@ export async function runFolderSource(
 			continue;
 		}
 
+		const head = data.subarray(0, MAGIC_BYTES_LENGTH);
 		let mime: string;
 		try {
-			mime = resolveIntakeMime(data.subarray(0, MAGIC_BYTES_LENGTH), filename);
+			// A ZIP dropped in the folder is a container, not an unsupported type:
+			// `intakeFile` expands or keeps it according to `intake.archives`.
+			mime = sniffArchive(head)
+				? ARCHIVE_MIME
+				: resolveIntakeMime(head, filename);
 		} catch (error) {
 			if (!(error instanceof UnsupportedMediaError)) throw error;
 			result.skipped += 1;
@@ -265,7 +276,15 @@ export async function runFolderSource(
 				defaults: source.defaults,
 			});
 
-			if (isDuplicate(outcome)) {
+			if (isArchive(outcome)) {
+				await logArchiveRun(
+					ctx.db,
+					source.id,
+					filename,
+					outcome.archive,
+					result,
+				);
+			} else if (isDuplicate(outcome)) {
 				result.duplicates += 1;
 				await logIntake(ctx.db, {
 					sourceId: source.id,
@@ -285,6 +304,18 @@ export async function runFolderSource(
 			}
 			await applyAfterImport(config, path);
 		} catch (error) {
+			// A ZIP that cannot be expanded is skipped, not retried for ever: the
+			// next poll would hit the same corrupt or locked file.
+			if (error instanceof ArchiveError) {
+				result.skipped += 1;
+				await logIntake(ctx.db, {
+					sourceId: source.id,
+					filename,
+					outcome: "skipped",
+					message: error.message,
+				});
+				continue;
+			}
 			// Content attached to a document in the trash: the file stays in place,
 			// deleting or moving it would lose the only copy.
 			if (error instanceof DuplicateOriginalError) {

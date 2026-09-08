@@ -1,12 +1,17 @@
 import type { IngestionBinding } from "@docstore/ingestion";
 import {
+	ArchiveError,
 	DuplicateOriginalError,
+	declaresArchive,
 	intakeFile,
+	isArchive,
 	isDuplicate,
 	resolveAllowedMime,
 	storageForFile,
 	UnsupportedMediaError,
 } from "@docstore/ingestion";
+import type { ArchiveResult } from "@docstore/shared/archive";
+import { archiveModeSchema } from "@docstore/shared/archive";
 import {
 	MAX_UPLOAD_FILES,
 	type UploadDuplicate,
@@ -30,6 +35,11 @@ const uploadInput = z.object({
 	files: z.array(z.file()).min(1).max(MAX_UPLOAD_FILES),
 	/** Title applied only when a single file is sent. */
 	title: z.string().trim().min(1).max(500).optional(),
+	/**
+	 * What a ZIP of this batch becomes, overriding the `intake.archives`
+	 * setting for this call only.
+	 */
+	archives: archiveModeSchema.optional(),
 });
 
 const fileIdInput = z.object({ fileId: z.string().min(1) });
@@ -52,7 +62,7 @@ export const fileRouter = {
 			tags: TAGS,
 			summary: "Upload one or more files (multipart)",
 			description:
-				"Content that is already stored is never an error: it comes back in `duplicates`, with `trashed: true` when the document holding it sits in the trash.",
+				"Content that is already stored is never an error: it comes back in `duplicates`, with `trashed: true` when the document holding it sits in the trash. A ZIP is expanded, kept as a document, or both, according to `archives` (default: the `intake.archives` setting); what it produced is reported in `archives`.",
 		})
 		.input(uploadInput)
 		.output(uploadFilesOutput)
@@ -65,6 +75,9 @@ export const fileRouter = {
 
 			// Validate first: nothing is ingested if one file of the batch is rejected.
 			for (const file of input.files) {
+				// A ZIP is a container rather than a document type: its content is
+				// checked entry by entry once it is expanded.
+				if (declaresArchive(file.type, file.name)) continue;
 				try {
 					resolveAllowedMime(file.type, file.name);
 				} catch (error) {
@@ -81,6 +94,7 @@ export const fileRouter = {
 
 			const created: UploadedFile[] = [];
 			const duplicates: UploadDuplicate[] = [];
+			const archives: ArchiveResult[] = [];
 
 			for (const file of input.files) {
 				let result: Awaited<ReturnType<typeof intakeFile>>;
@@ -92,6 +106,7 @@ export const fileRouter = {
 						createdById,
 						title: input.files.length === 1 ? input.title : undefined,
 						source,
+						archives: input.archives,
 					});
 				} catch (error: unknown) {
 					// Content already stored on a trashed document: the unique sha256
@@ -116,10 +131,16 @@ export const fileRouter = {
 					if (error instanceof UnsupportedMediaError) {
 						throw new ORPCError("BAD_REQUEST", { message: error.message });
 					}
+					// A corrupt, locked or exploding ZIP: the message names which.
+					if (error instanceof ArchiveError) {
+						throw new ORPCError("BAD_REQUEST", { message: error.message });
+					}
 					throw error;
 				}
 
-				if (isDuplicate(result)) {
+				if (isArchive(result)) {
+					archives.push(result.archive);
+				} else if (isDuplicate(result)) {
 					duplicates.push({
 						filename: file.name,
 						duplicateOf: result.duplicateOf,
@@ -134,7 +155,7 @@ export const fileRouter = {
 				}
 			}
 
-			return { created, duplicates };
+			return { created, duplicates, archives };
 		}),
 
 	download: protectedProcedure

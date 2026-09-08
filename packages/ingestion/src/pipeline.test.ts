@@ -13,7 +13,7 @@ import { thumbnailKey } from "@docstore/storage";
 import { eq } from "drizzle-orm";
 import type { IngestionContext } from "./context";
 import { PipelineTargetNotFoundError } from "./errors";
-import { intakeFile, isDuplicate } from "./intake";
+import { intakeFile, isCreated } from "./intake";
 import {
 	decideStatus,
 	extractText,
@@ -67,7 +67,7 @@ async function intakePdf(
 		mime: "application/pdf",
 		createdById: userId,
 	});
-	if (isDuplicate(result)) throw new Error("unexpected duplicate");
+	if (!isCreated(result)) throw new Error("expected a created document");
 	return { documentId: result.documentId, fileId: result.fileId };
 }
 
