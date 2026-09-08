@@ -31,15 +31,111 @@ await client.file.upload({ files });
 The MCP tool `upload_document` returns the same pair (`duplicateOf`,
 `trashed`) for a single file, and rejects a payload that is not valid base64.
 
+### The upload tracker
+
+On the web side there is no "Upload" button: dropping files anywhere on
+`/documents`, or picking them in the "Add documents" dialog, sends them
+straight away. The dialog is a tracker rather than a form, and each file owns
+one row that follows it:
+
+`queued` → `uploading` → `processing` → `Added` (with **Open**), `Duplicate`
+(**Open the original**), `In the trash` (**Restore**), `Skipped` or `Failed`.
+
+Once a row leaves `processing` it offers the document type the pipeline
+detected, changeable on the spot, plus an "Apply to all pending" picker for a
+batch that is all the same thing. "Add more" keeps the batch going, and "Done"
+closes it. A ZIP row pauses on Extract / Keep / Both — prefilled from
+`intake.archives`, see "Archives" below — with an optional "Group into a
+dossier"; the answer holds for every archive of the batch, and each entry
+appears as a child row indented under the archive.
+
+The public page of an upload link (`/u/<token>`, §5) behaves the same way:
+files are sent on drop or on pick, and every one of them gets a row.
+
 ### Content validation
 
 The declared MIME type and the file name are both caller-supplied, so intake
 trusts neither and lets the magic bytes decide. `file.upload`,
 `POST /api/u/:token` and the MCP `upload_document` all go through `intakeFile`,
 which sniffs the first bytes and refuses anything that is not a PDF (`%PDF-`),
-a PNG, a JPEG, a WebP or a TIFF, with a `BAD_REQUEST` raised before a row is
-written. A `.pdf` whose content says PNG is stored as a PNG: the content wins
-over the declaration.
+a PNG, a JPEG, a WebP, a TIFF or a ZIP archive (`PK\x03\x04`), with a
+`BAD_REQUEST` raised before a row is written. A `.pdf` whose content says PNG
+is stored as a PNG: the content wins over the declaration.
+
+### Archives
+
+A ZIP is not a document, it is a box. What comes out of it is a household
+decision rather than a per-file one, so it lives in the `intake.archives`
+setting (Settings → General → Archives), and **every** door honours it: web
+upload, upload link, watched folder, mailbox and MCP.
+
+| Mode | What happens |
+| ---- | ------------ |
+| `extract` (default) | Each usable file inside the archive becomes a document; the archive itself is not kept |
+| `keep` | The archive becomes one document, and nothing is expanded |
+| `both` | The two, plus a `related_to` relation from the archive to every document pulled out of it |
+
+One call may override the setting: `archives` on `file.upload`, on the
+`archives` form field of `POST /api/u/:token`, on the MCP `upload_document`,
+and `defaults.archives` on an upload link or an intake source.
+
+```ts
+await client.file.upload({ files, archives: "both" });
+// {
+//   created:    [],                       // the plain files of the batch
+//   duplicates: [],
+//   archives: [{
+//     filename: "invoices-2026.zip",
+//     mode: "both",
+//     extracted:  [{ entry: "2026/edf.pdf", documentId: "doc_…" }],
+//     duplicates: [{ entry: "2026/gaz.pdf", duplicateOf: "doc_…", trashed: false }],
+//     skipped:    [{ entry: "notes.txt", reason: "unsupported", message: "Not a PDF or an image." }],
+//     archiveDocumentId: "doc_…",
+//   }],
+// }
+```
+
+The entries of an archive never show up in `created`: a caller that ignores
+archives sees the plain files of the batch and nothing else, and one that
+follows an archive finds its children spelled out with their paths.
+
+#### What is expanded
+
+Only the types the pipeline accepts (PDF, PNG, JPEG, WebP, TIFF), decided by
+the magic bytes as everywhere else. A nested archive is expanded **one** level
+down, its entries carrying the path `nested.zip!invoice.pdf`. Everything else
+comes back in `skipped` with a reason: `junk` (`__MACOSX/`, `.DS_Store`,
+`Thumbs.db`, anything hidden), `unsupported`, `nested` (a second level of
+nesting) or `empty`. One unusable entry never fails the archive: a ZIP holding
+eight invoices and a `notes.txt` imports the eight invoices.
+
+Each entry then goes through the ordinary intake — same duplicate detection,
+same pipeline, same channel and same default values — with
+`document.source_ref` set to `<archive>!<entry path>` and
+`document.intake_meta.archive` set to `{ name, entry }`.
+
+#### What is kept
+
+A kept archive is an ordinary document whose original file has the type
+`application/zip`. There is nothing to OCR and nothing to render, so it skips
+the pipeline and is `active` straight away, with a generic icon in place of a
+thumbnail. Its `content` is the list of the paths it holds, which is what puts
+it in the full-text index: searching a file name finds the archive carrying it.
+
+#### Guards
+
+An archive is refused outright — `BAD_REQUEST`, with a message naming the
+reason — when it is corrupt or truncated, password-protected, or built to
+explode:
+
+| Guard | Limit |
+| ----- | ----- |
+| Entries, nested archives included | 200 |
+| Total expanded size | 500 MB |
+| Expansion ratio, above 1 MB expanded | 100 |
+
+The first three are read off the central directory before a single byte is
+inflated, so a zip bomb is turned away rather than survived.
 
 ### When the pipeline gives up
 
@@ -134,8 +230,9 @@ purged beyond 30 days when the server starts.
 | `filePattern` | —       | Regular expression on the name, for example `\.pdf$`         |
 
 Ignored: hidden files (`.`), editor temporary files (`~`), and anything that is
-neither a PDF nor an image. The type comes from the leading bytes rather than
-the extension, so a `.pdf` that is not one is rejected.
+neither a PDF, an image nor a ZIP archive. The type comes from the leading
+bytes rather than the extension, so a `.pdf` that is not one is rejected. A ZIP
+follows the "Archives" section above and leaves one `intake_log` row per entry.
 
 Files still being written are handled by measuring the size of each candidate
 twice, two seconds apart. A file that grows between the two measurements is
@@ -278,6 +375,9 @@ the date of the mail.
 
 A message without a usable attachment is logged `skipped` then acknowledged
 like the others: it will not be seen again on every poll.
+
+A ZIP attachment is a usable attachment: an invoice sent zipped is the ordinary
+case, and it follows the "Archives" section above.
 
 ### Example: Gmail with an app password
 
