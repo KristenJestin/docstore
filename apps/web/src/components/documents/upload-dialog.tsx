@@ -120,13 +120,6 @@ const STATUS_LABELS: Record<UploadItemStatus, string> = {
 	error: "Failed",
 };
 
-/** Statuses a document type can still be pushed onto. */
-function acceptsType(item: UploadItem): boolean {
-	if (item.archive) return false;
-	if (item.status === "processing") return true;
-	return item.status === "done" && !item.documentTypeId;
-}
-
 let sequence = 0;
 function nextKey(): string {
 	sequence += 1;
@@ -145,9 +138,8 @@ export interface UploadDialogProps {
  * row follows its file from `queued` to `done`.
  *
  * There is no "Upload" button and no batch-wide type select any more. The type
- * is chosen per row once the analysis is over — that is the only moment the
- * detected type is known, and confirming it is a one-click gesture — with an
- * "Apply to all pending" shortcut for the batches that are all the same thing.
+ * is chosen per row once the analysis is over: that is the only moment the
+ * detected type is known, and confirming it is a one-click gesture.
  */
 export function UploadDialog({
 	open,
@@ -460,29 +452,6 @@ export function UploadDialog({
 		}
 	};
 
-	/**
-	 * Pushes a type onto every row still open: those still processing, and
-	 * those the pipeline left without one. A row someone already set is never
-	 * overwritten.
-	 */
-	const applyToPending = async (documentTypeId: string) => {
-		const pending = queue.current.filter(acceptsType);
-		const ready = pending.filter(
-			(item) => item.status === "done" && item.documentId,
-		);
-		if (ready.length === 0) {
-			setNotice("No document is waiting for a type yet.");
-			return;
-		}
-		const ids = ready.map((item) => item.documentId as string);
-		if (await applyType(ids, documentTypeId)) {
-			for (const item of ready) patch(item.key, { documentTypeId });
-			setNotice(
-				`Document type applied to ${countLabel(ids.length, "document")}.`,
-			);
-		}
-	};
-
 	/** Single close entry point: the batch always starts over from scratch. */
 	const changeOpen = (next: boolean) => {
 		onOpenChange(next);
@@ -514,7 +483,6 @@ export function UploadDialog({
 	const skipped = items.filter((item) => item.status === "skipped").length;
 	const expanded = items.filter((item) => item.status === "expanded").length;
 	const settled = added + duplicates + failed + skipped + expanded;
-	const pendingTypes = items.filter(acceptsType).length;
 
 	const fileInput = (
 		<input
@@ -621,23 +589,6 @@ export function UploadDialog({
 								/>
 							))}
 						</div>
-
-						{pendingTypes > 0 ? (
-							<div className="flex flex-wrap items-center gap-2">
-								<span className="shrink-0 text-muted-foreground text-xs">
-									Apply to all pending
-								</span>
-								<DocumentTypePicker
-									className="w-56"
-									value={null}
-									onValueChange={(next) => {
-										if (next) void applyToPending(next);
-									}}
-									allowCreate={false}
-									placeholder="Choose a type"
-								/>
-							</div>
-						) : null}
 					</>
 				)}
 

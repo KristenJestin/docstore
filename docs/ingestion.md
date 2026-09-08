@@ -42,8 +42,7 @@ one row that follows it:
 (**Open the original**), `In the trash` (**Restore**), `Skipped` or `Failed`.
 
 Once a row leaves `processing` it offers the document type the pipeline
-detected, changeable on the spot, plus an "Apply to all pending" picker for a
-batch that is all the same thing. "Add more" keeps the batch going, and "Done"
+detected, changeable on the spot. "Add more" keeps the batch going, and "Done"
 closes it. A ZIP row pauses on Extract / Keep / Both — prefilled from
 `intake.archives`, see "Archives" below — with an optional "Group into a
 dossier"; the answer holds for every archive of the batch, and each entry
