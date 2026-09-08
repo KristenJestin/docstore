@@ -402,7 +402,9 @@ function ConditionLeafEditor({
 				<Select
 					items={RULE_COMPARATOR_LABELS}
 					value={leaf.cmp}
-					onValueChange={(cmp) => onChange(withComparator(leaf, cmp))}
+					onValueChange={(cmp) => {
+						if (cmp) onChange(withComparator(leaf, cmp));
+					}}
 				>
 					<SelectTrigger
 						id={`${ids}-cmp`}
