@@ -117,7 +117,7 @@ function toDraft(rule: ExtractionRule): ExtractionDraft {
 		strategyKind: strategy.kind,
 		regexPattern: strategy.kind === "regex" ? strategy.pattern : "",
 		regexGroup: strategy.kind === "regex" ? String(strategy.group ?? 1) : "1",
-		regexFlags: strategy.kind === "regex" ? (strategy.flags ?? "i") : "i",
+		regexFlags: strategy.kind === "regex" ? (strategy.flags ?? "") : "i",
 		anchorLabel: strategy.kind === "anchor" ? strategy.label : "",
 		anchorPosition: strategy.kind === "anchor" ? strategy.position : "sameLine",
 		anchorMaxDistance:
@@ -126,7 +126,7 @@ function toDraft(rule: ExtractionRule): ExtractionDraft {
 				: "",
 		anchorValuePattern:
 			strategy.kind === "anchor" ? (strategy.valuePattern ?? "") : "",
-		anchorFlags: strategy.kind === "anchor" ? (strategy.flags ?? "i") : "i",
+		anchorFlags: strategy.kind === "anchor" ? (strategy.flags ?? "") : "i",
 		zone:
 			strategy.kind === "zone"
 				? {
@@ -536,7 +536,11 @@ export function ExtractionRuleEditor({
 												}
 											/>
 										</FormField>
-										<FormField label="Flags" htmlFor={`${ids}-flags`}>
+										<FormField
+											label="Flags"
+											htmlFor={`${ids}-flags`}
+											hint="Empty = case-sensitive. Add i to ignore case."
+										>
 											<Input
 												id={`${ids}-flags`}
 												maxLength={8}

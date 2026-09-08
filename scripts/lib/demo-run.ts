@@ -713,6 +713,7 @@ async function addExtraction(
 		fieldSlug: string;
 		label: string;
 		valuePattern: string;
+		flags?: string;
 	},
 	fields: Map<string, string>,
 ): Promise<void> {
@@ -727,6 +728,7 @@ async function addExtraction(
 			label: extraction.label,
 			position: "sameLine",
 			valuePattern: extraction.valuePattern,
+			...(extraction.flags ? { flags: extraction.flags } : {}),
 		},
 		postprocess: ["number_fr"],
 		layoutId,

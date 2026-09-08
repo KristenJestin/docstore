@@ -352,7 +352,12 @@ export const TITLE_PLACEHOLDERS: { token: string; hint: string }[] = [
 	{ token: "{filename}", hint: "Original file name" },
 ];
 
-/** `null` when the pattern compiles, the error message otherwise. */
+/**
+ * `null` when the pattern compiles, the error message otherwise.
+ *
+ * Compiled with the flags as they are stored: the engine adds none either, so
+ * a pattern without `i` is case-sensitive on both sides.
+ */
 export function regexError(
 	pattern: string,
 	flags: string | undefined,
@@ -361,11 +366,29 @@ export function regexError(
 		return null;
 	}
 	try {
-		new RegExp(pattern, flags && flags.length > 0 ? flags : "i");
+		new RegExp(pattern, flags ?? "");
 		return null;
 	} catch (error) {
 		return error instanceof Error
 			? error.message
 			: "Invalid regular expression";
 	}
+}
+
+/** The `i` of a flags string, as the editors expose it: a checkbox. */
+export function isCaseInsensitive(flags: string | undefined): boolean {
+	return (flags ?? "").includes("i");
+}
+
+/**
+ * Adds or removes `i`, keeping the other flags in place. Returns `undefined`
+ * when nothing is left, so a leaf without flags stays free of an empty string.
+ */
+export function withCaseInsensitive(
+	flags: string | undefined,
+	enabled: boolean,
+): string | undefined {
+	const rest = (flags ?? "").replace(/i/g, "");
+	const next = enabled ? `i${rest}` : rest;
+	return next.length > 0 ? next : undefined;
 }

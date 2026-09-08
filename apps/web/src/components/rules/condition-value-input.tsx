@@ -12,7 +12,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@docstore/ui/components/select";
+import { Switch } from "@docstore/ui/components/switch";
 import { ArrowRightIcon } from "lucide-react";
+import { useId } from "react";
 
 import { ChipsInput } from "@/components/chips-input";
 import { DatePicker } from "@/components/date-picker";
@@ -27,9 +29,11 @@ import { CategoryMultiSelect } from "@/components/settings/category-multi-select
 import {
 	DOCUMENT_SOURCE_ICONS,
 	DOCUMENT_SOURCE_LABELS,
+	isCaseInsensitive,
 	regexError,
 	ruleFieldKind,
 	valueControlFor,
+	withCaseInsensitive,
 } from "./rule-labels";
 
 const SOURCE_ITEMS = iconLabelItems(
@@ -255,7 +259,9 @@ function RegexValueInput({
 	onPatternChange: (pattern: string) => void;
 	onFlagsChange: (flags: string | undefined) => void;
 }) {
+	const flagsId = useId();
 	const error = regexError(pattern, flags);
+	const insensitive = isCaseInsensitive(flags);
 
 	return (
 		<div className="flex flex-col gap-1">
@@ -268,24 +274,28 @@ function RegexValueInput({
 					value={pattern}
 					onChange={(event) => onPatternChange(event.target.value)}
 				/>
-				<Input
-					aria-label="Regex flags"
-					placeholder="i"
-					maxLength={8}
-					className="w-16 font-mono"
-					value={flags ?? ""}
-					onChange={(event) =>
-						onFlagsChange(
-							event.target.value.replace(/[^dgimsuvy]/g, "") || undefined,
-						)
+				{/* The `i` is a choice, never an assumption: the engine runs the
+				    pattern with exactly the flags stored here. */}
+				<Switch
+					id={flagsId}
+					checked={insensitive}
+					onCheckedChange={(checked) =>
+						onFlagsChange(withCaseInsensitive(flags, checked))
 					}
+					aria-label="Case-insensitive"
 				/>
+				<label
+					htmlFor={flagsId}
+					className="shrink-0 text-muted-foreground text-xs"
+				>
+					Case-insensitive
+				</label>
 			</div>
 			{error ? (
 				<p className="text-destructive text-xs">{error}</p>
 			) : pattern.length > 0 ? (
 				<p className="text-tone-success-foreground text-xs">
-					Valid pattern (flags: {flags && flags.length > 0 ? flags : "i"}).
+					Valid pattern ({insensitive ? "case-insensitive" : "case-sensitive"}).
 				</p>
 			) : null}
 		</div>

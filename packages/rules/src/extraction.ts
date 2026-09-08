@@ -12,6 +12,10 @@ import { safeMatchRegex } from "./regex";
 /**
  * Execution of extraction strategies (SPEC §4). A pure function: the text and
  * the OCR layer come in as input, nothing is read from the database.
+ *
+ * Patterns run with exactly the flags the rule carries. Nothing adds `i` on
+ * the author's behalf: `NET À PAYER` is a heading, and matching it against
+ * "net à payer" in a sentence lands the wrong line.
  */
 
 export interface ExtractionInput {
@@ -79,7 +83,7 @@ function runRegex(
 	input: ExtractionInput,
 	postprocess: readonly PostprocessStep[],
 ): ExtractionResult {
-	const regex = safeMatchRegex(strategy.pattern, strategy.flags ?? "i");
+	const regex = safeMatchRegex(strategy.pattern, strategy.flags ?? "");
 	if (!regex) return EMPTY_RESULT;
 	const match = regex.exec(input.text);
 	if (!match) return EMPTY_RESULT;
@@ -99,7 +103,7 @@ function narrowToValue(
 		const trimmed = text.trim();
 		return trimmed.length > 0 ? { raw: trimmed, words: segment.words } : null;
 	}
-	const regex = safeMatchRegex(valuePattern, flags ?? "i");
+	const regex = safeMatchRegex(valuePattern, flags ?? "");
 	if (!regex) return null;
 	const match = regex.exec(text);
 	if (!match) return null;
@@ -118,7 +122,7 @@ function runAnchor(
 	postprocess: readonly PostprocessStep[],
 ): ExtractionResult {
 	if (!input.layout) return EMPTY_RESULT;
-	const labelRegex = safeMatchRegex(strategy.label, strategy.flags ?? "i");
+	const labelRegex = safeMatchRegex(strategy.label, strategy.flags ?? "");
 	if (!labelRegex) return EMPTY_RESULT;
 
 	const lines = buildLines(input.layout);

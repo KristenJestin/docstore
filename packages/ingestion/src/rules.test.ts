@@ -127,10 +127,13 @@ async function setupInvoiceRule(): Promise<{
 			target: { kind: "field", fieldId },
 			strategy: {
 				kind: "anchor",
-				// French anchor: the fixture PDF is a French invoice.
+				// French anchor: the fixture PDF is a French invoice. The fixture
+				// writes "Net à payer": no flag is added on the rule's behalf, so
+				// the `i` is spelled out here.
 				label: "NET (À|A) PAYER",
 				position: "sameLine",
 				valuePattern: AMOUNT_PATTERN,
+				flags: "i",
 			},
 			postprocess: ["number_fr"],
 		})

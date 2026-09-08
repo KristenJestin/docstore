@@ -204,7 +204,9 @@ function matchesOne(
 			);
 		case "regex": {
 			const pattern = toText(toList(expected)[0] ?? "");
-			const regex = safeMatchRegex(pattern, flags ?? "i");
+			// Case-sensitive unless the leaf asks for `i`: the editor writes the
+			// flag explicitly, and a pattern nobody flagged means what it says.
+			const regex = safeMatchRegex(pattern, flags ?? "");
 			return regex ? regex.test(text) : false;
 		}
 		case "in":

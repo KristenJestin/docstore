@@ -132,10 +132,13 @@ export const SEED_EXTRACTION_RULES: SeedExtractionRule[] = [
 		fieldSlug: "net-pay",
 		strategy: {
 			kind: "anchor",
-			// The anchor stays in French: it matches real French payslips.
+			// The anchor stays in French: it matches real French payslips. They
+			// print "Net à payer" as often as they shout it, and no flag is added
+			// on a rule's behalf, so the `i` is spelled out.
 			label: "NET (À|A) PAYER",
 			position: "sameLine",
 			valuePattern: "(\\d[\\d\\s.,]*\\d)",
+			flags: "i",
 		},
 		postprocess: ["number_fr"],
 		documentTypeName: "Payslip",
@@ -203,11 +206,16 @@ export const SEED_RULES: SeedRule[] = [
 			"Flags any document whose text contains a French IBAN as sensitive.",
 		priority: 0,
 		triggers: ["ingest", "manual"],
-		condition: { field: "content", cmp: "regex", value: IBAN_PATTERN },
+		condition: {
+			field: "content",
+			cmp: "regex",
+			value: IBAN_PATTERN,
+			// An IBAN is printed uppercase, but a scan is not always that tidy.
+			flags: "i",
+		},
 		actions: [{ type: "set_sensitive", sensitive: true }],
-		// Replaces the former "Invoice by keyword" example, which relied on the
-		// removed `set_category` action (classification now goes through
-		// document types only).
+		// Replaces the former "Invoice by keyword" example, which classified by
+		// hand what a document type now recognises.
 		renamedFrom: "Invoice by keyword",
 	},
 	{
@@ -221,10 +229,12 @@ export const SEED_RULES: SeedRule[] = [
 			cmp: "regex",
 			// The matched value stays in French: it targets French document text.
 			value: "bulletin de (paie|salaire)",
+			// Payslips head the page "BULLETIN DE PAIE" as often as not.
+			flags: "i",
 		},
 		actions: [{ type: "set_document_type", documentTypeName: "Payslip" }],
-		// Replaces the plain "Payslip" example, whose `set_category` action the
-		// same migration removed.
+		// Replaces the plain "Payslip" example, which set a category where a
+		// document type now brings its layout along.
 		renamedFrom: "Payslip",
 	},
 ];
