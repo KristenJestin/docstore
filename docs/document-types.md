@@ -28,7 +28,16 @@ The assignment itself is stored on the document: `document_type_id`,
 and `layout_id`, exactly like the category and the Party links.
 
 An automatic application (`source` other than `manual`) never overwrites a
-category set by hand, and never clears an existing Party link.
+category set by hand.
+
+Party links follow the same idea with one exception. A type naming an issuer
+replaces the one **a rule guessed weakly** in that role — `source = rule` and
+`confidence < 0.8`, which is what an email or a domain match is worth: the mail
+went through a platform, the PDF carries the accountant's domain, and neither
+of those issued anything. Two issuers on one document means the wrong one shows
+wherever a single issuer is shown. A link someone made by hand, or one a strong
+identifier earned (SIREN, SIRET, VAT, IBAN — 0.9), is left exactly as it is:
+the type is a default, not an eraser.
 
 ### Archive numbers
 

@@ -36,7 +36,7 @@ import {
 } from "@docstore/shared/document-type";
 import { periodKeyOf, periodStartOf } from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, lt, ne } from "drizzle-orm";
 import { computeReviewReasons } from "./analyze";
 import { maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
@@ -502,6 +502,46 @@ export function typeTitleContext(
 	};
 }
 
+/**
+ * Confidence under which a Party the pipeline guessed is only a guess.
+ *
+ * An email or a domain match sits at 0.7 (`WEAK_IDENTIFIER_CONFIDENCE`): the
+ * mail was *sent* through a platform, the PDF carries the accountant's domain,
+ * and neither says who issued the document. A strong identifier (SIREN, SIRET,
+ * VAT, IBAN) sits at 0.9 and is left alone.
+ */
+export const WEAK_PARTY_CONFIDENCE = 0.8;
+
+/**
+ * Removes the Party a rule guessed in this role, when the type names another
+ * one and the guess was weak.
+ *
+ * Without this the document ends up with two issuers — the domain the text
+ * happened to carry, and the one the type states — and the wrong one wins
+ * wherever a single issuer is shown. A link someone made by hand (`manual`),
+ * or one a strong identifier earned, is never touched: the type is a default,
+ * not an eraser.
+ */
+async function dropWeakGuess(
+	db: Db,
+	documentId: string,
+	role: "issuer" | "subject",
+	partyId: string,
+): Promise<void> {
+	await db
+		.delete(documentParty)
+		.where(
+			and(
+				eq(documentParty.documentId, documentId),
+				eq(documentParty.role, role),
+				ne(documentParty.partyId, partyId),
+				eq(documentParty.source, "rule"),
+				isNotNull(documentParty.confidence),
+				lt(documentParty.confidence, WEAK_PARTY_CONFIDENCE),
+			),
+		);
+}
+
 /** `true` when the title still is the one derived from the filename. */
 async function titleIsDerived(
 	db: Db,
@@ -566,6 +606,7 @@ export async function applyDocumentType(
 		links.push({ partyId: type.subjectPartyId, role: "subject" });
 	}
 	for (const link of links) {
+		await dropWeakGuess(db, documentId, link.role, link.partyId);
 		await db
 			.insert(documentParty)
 			.values({ documentId, ...link, source, confidence })

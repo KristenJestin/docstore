@@ -195,6 +195,93 @@ describe("applyDocumentType", () => {
 		expect((await loadDocument(untouched)).title).toBe("Renamed by hand");
 	});
 
+	test("replaces the weak issuer a rule had guessed", async () => {
+		const guesses = await db
+			.insert(party)
+			.values({ type: "company", name: "Mailing platform" })
+			.returning({ id: party.id });
+		const guessed = guesses[0]?.id ?? "";
+		const documentTypeId = await insertType();
+		const id = await insertDocument();
+		// A domain match: 0.7, which says where the mail came from, not who
+		// issued the document.
+		await db.insert(documentParty).values({
+			documentId: id,
+			partyId: guessed,
+			role: "issuer",
+			source: "rule",
+			confidence: 0.7,
+		});
+
+		await applyDocumentType(db, id, documentTypeId, {
+			source: "rule",
+			confidence: 0.9,
+		});
+
+		const issuers = await db
+			.select()
+			.from(documentParty)
+			.where(
+				and(eq(documentParty.documentId, id), eq(documentParty.role, "issuer")),
+			);
+		expect(issuers).toHaveLength(1);
+		expect(issuers[0]?.partyId).toBe(partyId);
+	});
+
+	test("keeps an issuer a strong identifier or a human settled", async () => {
+		const others = await db
+			.insert(party)
+			.values([
+				{ type: "company", name: "Matched by SIRET" },
+				{ type: "company", name: "Chosen by hand" },
+			])
+			.returning({ id: party.id });
+		const strong = others[0]?.id ?? "";
+		const chosen = others[1]?.id ?? "";
+
+		const strongDoc = await insertDocument();
+		await db.insert(documentParty).values({
+			documentId: strongDoc,
+			partyId: strong,
+			role: "issuer",
+			source: "rule",
+			confidence: 0.9,
+		});
+		const manualDoc = await insertDocument();
+		await db.insert(documentParty).values({
+			documentId: manualDoc,
+			partyId: chosen,
+			role: "issuer",
+			source: "manual",
+			confidence: null,
+		});
+
+		const documentTypeId = await insertType();
+		for (const id of [strongDoc, manualDoc]) {
+			await applyDocumentType(db, id, documentTypeId, {
+				source: "rule",
+				confidence: 0.9,
+			});
+		}
+
+		const issuersOf = async (id: string) =>
+			db
+				.select({ partyId: documentParty.partyId })
+				.from(documentParty)
+				.where(
+					and(
+						eq(documentParty.documentId, id),
+						eq(documentParty.role, "issuer"),
+					),
+				);
+		expect(
+			(await issuersOf(strongDoc)).map((row) => row.partyId).sort(),
+		).toEqual([strong, partyId].sort());
+		expect(
+			(await issuersOf(manualDoc)).map((row) => row.partyId).sort(),
+		).toEqual([chosen, partyId].sort());
+	});
+
 	test("never lowers an explicit sensitive flag", async () => {
 		const documentTypeId = await insertType({ sensitiveDefault: false });
 		const id = await insertDocument({ sensitive: true });
