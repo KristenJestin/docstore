@@ -38,6 +38,12 @@ export interface IdentifierMatch {
 	partyId: string;
 	partyName: string;
 	confidence: number;
+	/**
+	 * `true` for a member of the household. Their name and their IBAN are all
+	 * over the documents they *receive*: they are the subject, never the issuer
+	 * (SPEC §2).
+	 */
+	isHouseholdMember: boolean;
 }
 
 export interface DocumentSubject {
@@ -159,6 +165,7 @@ export async function matchIdentifiers(
 			id: party.id,
 			name: party.name,
 			identifiers: party.identifiers,
+			isHouseholdMember: party.isHouseholdMember,
 		})
 		.from(party)
 		.where(or(...conditions))
@@ -185,6 +192,7 @@ export async function matchIdentifiers(
 				confidence: STRONG_KINDS.has(identifier.kind)
 					? STRONG_IDENTIFIER_CONFIDENCE
 					: WEAK_IDENTIFIER_CONFIDENCE,
+				isHouseholdMember: row.isHouseholdMember,
 			});
 		}
 	}
