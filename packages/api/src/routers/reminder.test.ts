@@ -271,6 +271,45 @@ describe("reminder.generate — missing periods", () => {
 		await client.documentType.update({ id: type.id, enabled: false });
 		expect((await client.reminder.generate({})).removed).toBe(1);
 	});
+
+	test("a recurrence with no first period and no document watches nothing", async () => {
+		await client.documentType.create({
+			name: "EDF invoice",
+			issuerPartyId: partyId,
+			categoryId,
+			// Neither bound: nothing tells the recurrence where to begin, so it
+			// covers no period at all rather than every month since 1970.
+			recurrence: { periodicity: "monthly", graceDays: 0 },
+		});
+		expect((await client.reminder.generate({})).created).toBe(0);
+	});
+
+	test("without a first period the gaps start at the oldest document", async () => {
+		const threeMonthsBack = addMonths(previousMonth, -2);
+		const id = await seedDocument("Invoice", {
+			periodStart: threeMonthsBack,
+			categoryId,
+		});
+		await db
+			.insert(documentParty)
+			.values({ documentId: id, partyId, role: "issuer" });
+
+		await client.documentType.create({
+			name: "EDF invoice",
+			issuerPartyId: partyId,
+			categoryId,
+			recurrence: { periodicity: "monthly", graceDays: 0 },
+		});
+
+		// The oldest document opens the range: the two months between it and the
+		// last elapsed period are missing, and nothing before it is.
+		await client.reminder.generate({});
+		const reminders = await client.reminder.list({ kind: "period_gap" });
+		expect(reminders.map((item) => item.period)).toEqual([
+			addMonths(threeMonthsBack, 1),
+			previousMonth,
+		]);
+	});
 });
 
 describe("reminder — statuses", () => {

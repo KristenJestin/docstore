@@ -1,8 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 import { signUp } from "./helpers/auth";
 import { runName } from "./helpers/cleanup";
-import { ensureFreshFixtureDocument } from "./helpers/fixture-document";
+import {
+	ensureFreshFixtureDocument,
+	INVOICE_SIRET_FIXTURE,
+} from "./helpers/fixture-document";
+
+/** Files a document on a date, which is what gives it a period. */
+async function setDocumentDate(
+	page: Page,
+	documentId: string,
+	iso: string,
+	displayed: string,
+): Promise<void> {
+	await page.goto(`/documents/${documentId}`);
+	const field = page.getByRole("textbox", { name: "Document date" });
+	await expect(field).toBeVisible({ timeout: 20_000 });
+	await field.fill(iso);
+	await field.press("Enter");
+	await expect(field).toHaveValue(displayed);
+}
 
 /**
  * Document types (SPEC §9): creating one from a document, turning it into a
@@ -19,6 +37,15 @@ test.describe("document types", () => {
 
 		const documentId = await ensureFreshFixtureDocument(page);
 		await page.goto(`/documents/${documentId}`);
+
+		// --- A date, so the recurrence below has a period to start from --------
+		// Nothing fills `First period` any more: the range is read from the
+		// oldest document of the type, which is this one.
+		const documentDate = page.getByRole("textbox", { name: "Document date" });
+		await expect(documentDate).toBeVisible({ timeout: 20_000 });
+		await documentDate.fill("2024-03-17");
+		await documentDate.press("Enter");
+		await expect(documentDate).toHaveValue("17 Mar 2024");
 
 		// --- "Create type from this document" ---------------------------------
 		const typePicker = page.getByRole("combobox", { name: "Document type" });
@@ -214,6 +241,76 @@ test.describe("document types", () => {
 		await expect(timeline).toBeVisible({ timeout: 15_000 });
 		await expect(timeline.getByText("2024-H1", { exact: true })).toBeVisible();
 		await expect(timeline.getByText("2024-H2", { exact: true })).toBeVisible();
+	});
+
+	test("a recurring type without a first period derives its range", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Derived Range User");
+
+		const typeName = runName("derived range type");
+
+		// --- Two documents, two different years --------------------------------
+		const older = await ensureFreshFixtureDocument(page);
+		await setDocumentDate(page, older, "2023-05-10", "10 May 2023");
+		const newer = await ensureFreshFixtureDocument(page, INVOICE_SIRET_FIXTURE);
+		await setDocumentDate(page, newer, "2025-08-04", "4 Aug 2025");
+
+		// --- A yearly type, first period left empty ----------------------------
+		await page.getByRole("link", { name: "Document types" }).first().click();
+		await page
+			.getByRole("button", { name: "New document type" })
+			.first()
+			.click();
+		const sheet = page.getByRole("dialog");
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(typeName);
+		await sheet.getByRole("switch", { name: "Recurring document" }).click();
+		await sheet.getByRole("combobox", { name: "Periodicity" }).click();
+		await page.getByRole("option", { name: "Yearly" }).click();
+
+		// The field is optional now, and says what fills it in.
+		await expect(
+			sheet.getByText("Defaults to the oldest document of this type."),
+		).toBeVisible();
+		await sheet.getByRole("button", { name: "Create document type" }).click();
+		await expect(sheet).toBeHidden();
+
+		// --- Both documents carry the type -------------------------------------
+		await page.getByRole("link", { name: "Documents" }).first().click();
+		await expect(
+			page.getByRole("heading", { name: "Documents" }),
+		).toBeVisible();
+		for (const label of ["Select text-layer", "Select invoice-siret"]) {
+			const checkbox = page.getByRole("checkbox", { name: label }).first();
+			await expect(checkbox).toBeVisible({ timeout: 20_000 });
+			await checkbox.click();
+		}
+		await expect(page.getByText(/2 selected/)).toBeVisible();
+
+		await page.getByRole("button", { name: "Type", exact: true }).click();
+		await page
+			.getByRole("combobox", { name: "Document type to apply" })
+			.fill(typeName);
+		await page.getByRole("option", { name: typeName }).first().click();
+		await expect(page.getByText(/Document type applied/)).toBeVisible({
+			timeout: 30_000,
+		});
+
+		// --- The timeline spans the two documents, and says where it starts ----
+		await page.getByRole("link", { name: "Document types" }).first().click();
+		await page.getByRole("link", { name: typeName }).click();
+		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
+
+		const timeline = page.getByTestId("recurrence-timeline");
+		await expect(timeline).toBeVisible({ timeout: 15_000 });
+		await expect(timeline.getByText("2023", { exact: true })).toBeVisible();
+		await expect(timeline.getByText("2024", { exact: true })).toBeVisible();
+		await expect(timeline.getByText("2025", { exact: true })).toBeVisible();
+		await expect(page.getByText("from the oldest document")).toBeVisible();
+		// Nothing older than the first document is enumerated.
+		await expect(timeline.getByText("2022", { exact: true })).toHaveCount(0);
 	});
 
 	test("regenerate the titles of a type from its template", async ({

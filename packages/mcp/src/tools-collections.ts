@@ -19,6 +19,7 @@ import { addRelation } from "@docstore/api/services/relation.service";
 import { listReminders } from "@docstore/api/services/reminder.service";
 import { listSavedSearches } from "@docstore/api/services/saved-search.service";
 import { dateOnlySchema, UI_LOCALE } from "@docstore/shared/common";
+import type { RecurrenceRange } from "@docstore/shared/recurrence";
 import { periodicitySchema } from "@docstore/shared/recurrence";
 import { documentRelationKindSchema } from "@docstore/shared/relation";
 import {
@@ -48,8 +49,21 @@ const documentTypeJson = z.object({
 	enabled: z.boolean(),
 	/** Applying the type hands the document an archive serial number. */
 	paperOriginal: z.boolean(),
+	/** Bound typed in by the user; `null` = read from the documents. */
 	startPeriod: z.string().nullable(),
 	endPeriod: z.string().nullable(),
+	/**
+	 * Periods the recurrence actually covers, missing bounds filled in from the
+	 * member documents. `derived` says the start comes from the oldest document
+	 * rather than from `startPeriod`. `null` when nothing bounds the recurrence.
+	 */
+	range: z
+		.object({
+			start: z.string(),
+			end: z.string(),
+			derived: z.boolean(),
+		})
+		.nullable(),
 	documentCount: z.number(),
 	layoutCount: z.number(),
 	expected: z.number().nullable(),
@@ -57,6 +71,15 @@ const documentTypeJson = z.object({
 	missing: z.array(z.string()),
 	lastPeriod: z.string().nullable(),
 });
+
+/** Keeps `open` — an implementation detail of the interface — out of the tool. */
+function rangeJson(
+	range: RecurrenceRange | null,
+): { start: string; end: string; derived: boolean } | null {
+	return range
+		? { start: range.start, end: range.end, derived: range.derived }
+		: null;
+}
 
 const periodJson = z.object({
 	period: z.string(),
@@ -166,6 +189,7 @@ export function registerCollectionTools(
 					paperOriginal: row.paperOriginal,
 					startPeriod: row.startPeriod,
 					endPeriod: row.endPeriod,
+					range: rangeJson(row.range),
 					documentCount: row.documentCount,
 					layoutCount: row.layoutCount,
 					expected: row.stats?.expected ?? null,
@@ -212,6 +236,7 @@ export function registerCollectionTools(
 					paperOriginal: detail.paperOriginal,
 					startPeriod: detail.startPeriod,
 					endPeriod: detail.endPeriod,
+					range: rangeJson(detail.range),
 					documentCount: detail.documentCount,
 					layoutCount: detail.layoutCount,
 					expected: detail.stats?.expected ?? null,
@@ -437,7 +462,9 @@ export function registerCollectionTools(
 				startPeriod: z.iso
 					.date()
 					.optional()
-					.describe("First period covered; defaults to the document date."),
+					.describe(
+						"First period covered; left out, the range starts at the oldest document of the type.",
+					),
 			},
 			outputSchema: {
 				id: z.string(),
@@ -459,8 +486,9 @@ export function registerCollectionTools(
 						? {
 								recurrence: {
 									periodicity: input.periodicity,
-									startPeriod:
-										input.startPeriod ?? new Date().toISOString().slice(0, 10),
+									// Nothing is guessed: without a first period the range is
+									// read from the documents of the type.
+									startPeriod: input.startPeriod ?? null,
 								},
 							}
 						: {}),

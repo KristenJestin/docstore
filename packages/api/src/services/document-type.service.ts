@@ -75,6 +75,7 @@ import {
 import type {
 	Periodicity,
 	RecurrencePeriod,
+	RecurrenceRange,
 	RecurrenceStats,
 } from "@docstore/shared/recurrence";
 import {
@@ -284,6 +285,63 @@ export async function documentTypeMembers(
 	return [...byId.values()];
 }
 
+/** The three recurrence columns the effective range is resolved from. */
+type RecurrenceBounds = Pick<
+	DocumentTypeRow,
+	"periodicity" | "startPeriod" | "endPeriod"
+>;
+
+/**
+ * Effective range of the recurrence, both bounds resolved.
+ *
+ * `startPeriod` and `endPeriod` are optional: whatever is missing is read from
+ * the member documents. The range starts at the oldest member when no first
+ * period was set, and an open recurrence runs to the current period — further
+ * still when a member is filed ahead of it. `null` means there is nothing to
+ * enumerate: the type is not recurring, or it has neither a first period nor a
+ * single member, and a red cell reaching back to 1970 helps nobody.
+ *
+ * `end` is the logical bound of the recurrence. The timeline stops at the
+ * current period on top of it, so a recurrence closing in the future never
+ * paints periods nobody could have filed yet.
+ */
+export function effectiveRecurrenceRange(
+	type: RecurrenceBounds,
+	members: readonly DocumentTypeMember[],
+	today: string = todayIso(),
+): RecurrenceRange | null {
+	const periodicity = type.periodicity;
+	if (!periodicity) return null;
+
+	let oldest: string | null = null;
+	let newest: string | null = null;
+	for (const member of members) {
+		const start = periodStartOf(periodicity, member.anchor);
+		if (oldest === null || start < oldest) oldest = start;
+		if (newest === null || start > newest) newest = start;
+	}
+
+	const explicitStart = type.startPeriod
+		? periodStartOf(periodicity, type.startPeriod)
+		: null;
+	const start = explicitStart ?? oldest;
+	if (start === null) return null;
+
+	const current = periodStartOf(periodicity, today);
+	const explicitEnd = type.endPeriod
+		? periodStartOf(periodicity, type.endPeriod)
+		: null;
+	const end =
+		explicitEnd ?? (newest !== null && newest > current ? newest : current);
+
+	return {
+		start,
+		end,
+		derived: explicitStart === null,
+		open: explicitEnd === null,
+	};
+}
+
 /** Member identifiers, for the `documentTypeId` filter of `document.list`. */
 export async function documentTypeMemberDocumentIds(
 	db: Db,
@@ -291,33 +349,31 @@ export async function documentTypeMemberDocumentIds(
 ): Promise<string[]> {
 	const row = await requireDocumentType(db, documentTypeId);
 	const members = await documentTypeMembers(db, row);
-	if (!row.periodicity || !row.startPeriod) {
+	const range = effectiveRecurrenceRange(row, members);
+	const periodicity = row.periodicity;
+	if (!periodicity || !range) {
 		return members.map((member) => member.documentId);
 	}
-	const periodicity = row.periodicity;
-	const first = periodStartOf(periodicity, row.startPeriod);
-	const last = row.endPeriod ? periodStartOf(periodicity, row.endPeriod) : null;
 	return members
 		.filter((member) => {
 			const start = periodStartOf(periodicity, member.anchor);
-			return start >= first && (last === null || start <= last);
+			return start >= range.start && start <= range.end;
 		})
 		.map((member) => member.documentId);
 }
 
 /**
- * Timeline period by period. `pending` = period whose due date (expected date
- * + `graceDays`) has not passed yet. Empty for a non-recurring type.
+ * Timeline period by period, over the effective range only. `pending` = period
+ * whose due date (expected date + `graceDays`) has not passed yet. Empty for a
+ * non-recurring type, and for a recurrence nothing bounds yet.
  */
-export async function documentTypeTimeline(
-	db: Db,
+function buildTimeline(
 	row: DocumentTypeRow,
-	today: string = todayIso(),
-): Promise<RecurrencePeriod[]> {
-	if (!row.periodicity || !row.startPeriod) return [];
-	const periodicity = row.periodicity;
-	const members = await documentTypeMembers(db, row);
-
+	periodicity: Periodicity,
+	members: readonly DocumentTypeMember[],
+	range: RecurrenceRange,
+	today: string,
+): RecurrencePeriod[] {
 	// A single document per period: the oldest one wins.
 	const byPeriod = new Map<string, DocumentTypeMember>();
 	for (const member of members) {
@@ -328,9 +384,11 @@ export async function documentTypeTimeline(
 		}
 	}
 
-	const upperBound =
-		row.endPeriod && row.endPeriod < today ? row.endPeriod : today;
-	const periods = enumeratePeriods(periodicity, row.startPeriod, upperBound);
+	// Nothing is enumerated past the current period: a period that has not begun
+	// is neither missing nor pending, it simply does not exist yet.
+	const currentPeriod = periodStartOf(periodicity, today);
+	const upperBound = range.end < currentPeriod ? range.end : currentPeriod;
+	const periods = enumeratePeriods(periodicity, range.start, upperBound);
 	const graceDays = row.graceDays ?? DEFAULT_GRACE_DAYS;
 
 	return periods.map((periodStart) => {
@@ -351,6 +409,44 @@ export async function documentTypeTimeline(
 			status,
 		};
 	});
+}
+
+/**
+ * Everything a recurring type needs read at once: its members are loaded a
+ * single time, and the range they resolve feeds both the timeline and what the
+ * interface shows above it.
+ */
+export interface RecurrenceView {
+	members: DocumentTypeMember[];
+	range: RecurrenceRange | null;
+	timeline: RecurrencePeriod[];
+}
+
+export async function recurrenceViewOf(
+	db: Db,
+	row: DocumentTypeRow,
+	today: string = todayIso(),
+): Promise<RecurrenceView> {
+	const members = await documentTypeMembers(db, row);
+	const range = effectiveRecurrenceRange(row, members, today);
+	const periodicity = row.periodicity;
+	return {
+		members,
+		range,
+		timeline:
+			periodicity && range
+				? buildTimeline(row, periodicity, members, range, today)
+				: [],
+	};
+}
+
+/** Timeline of a recurring type; empty when nothing bounds the recurrence. */
+export async function documentTypeTimeline(
+	db: Db,
+	row: DocumentTypeRow,
+	today: string = todayIso(),
+): Promise<RecurrencePeriod[]> {
+	return (await recurrenceViewOf(db, row, today)).timeline;
 }
 
 export function statsFromTimeline(
@@ -500,6 +596,7 @@ function toItem(
 	labels: Awaited<ReturnType<typeof labelsFor>>,
 	counts: Awaited<ReturnType<typeof countsFor>>,
 	stats: RecurrenceStats | null,
+	range: RecurrenceRange | null,
 ): DocumentTypeItem {
 	return {
 		...row,
@@ -517,6 +614,7 @@ function toItem(
 		layoutCount: counts.layouts.get(row.id) ?? 0,
 		documentCount: counts.documents.get(row.id) ?? 0,
 		stats,
+		range,
 	};
 }
 
@@ -562,17 +660,23 @@ export async function listDocumentTypes(
 
 	const items: DocumentTypeItem[] = [];
 	for (const row of rows) {
-		const stats = row.periodicity
-			? statsFromTimeline(await documentTypeTimeline(db, row, today))
-			: null;
-		items.push(toItem(row, labels, counts, stats));
+		if (!row.periodicity) {
+			items.push(toItem(row, labels, counts, null, null));
+			continue;
+		}
+		const view = await recurrenceViewOf(db, row, today);
+		items.push(
+			toItem(row, labels, counts, statsFromTimeline(view.timeline), view.range),
+		);
 	}
 	return items;
 }
 
 /**
- * Members whose period falls before `startPeriod`: they belong to the type but
- * sit outside the window the timeline enumerates, so nothing would show them.
+ * Members whose period falls before an **explicit** `startPeriod`: they belong
+ * to the type but sit outside the window the timeline enumerates, so nothing
+ * would show them. A recurrence without a first period has none of those: its
+ * range extends down to the oldest document instead.
  */
 function outOfRangeMembers(
 	row: DocumentTypeRow,
@@ -602,12 +706,11 @@ export async function getDocumentType(
 	id: string,
 ): Promise<DocumentTypeDetail> {
 	const row = await requireDocumentType(db, id);
-	const [labels, counts, timeline, layouts, members] = await Promise.all([
+	const [labels, counts, view, layouts] = await Promise.all([
 		labelsFor(db, [row]),
 		countsFor(db, [row.id]),
-		documentTypeTimeline(db, row),
+		recurrenceViewOf(db, row),
 		loadLayouts(db, row.id),
-		documentTypeMembers(db, row),
 	]);
 
 	return {
@@ -615,12 +718,13 @@ export async function getDocumentType(
 			row,
 			labels,
 			counts,
-			row.periodicity ? statsFromTimeline(timeline) : null,
+			row.periodicity ? statsFromTimeline(view.timeline) : null,
+			view.range,
 		),
 		layouts,
-		timeline,
-		memberCount: members.length,
-		outOfRange: outOfRangeMembers(row, members),
+		timeline: view.timeline,
+		memberCount: view.members.length,
+		outOfRange: outOfRangeMembers(row, view.members),
 	};
 }
 
@@ -694,12 +798,13 @@ function recurrenceColumns(
 			graceDays: null,
 		};
 	}
-	const startPeriod = periodStartOf(
-		recurrence.periodicity,
-		recurrence.startPeriod,
-	);
+	// No first period: the range starts at the oldest document of the type, and
+	// follows it as older ones arrive (`effectiveRecurrenceRange`).
+	const startPeriod = recurrence.startPeriod
+		? periodStartOf(recurrence.periodicity, recurrence.startPeriod)
+		: null;
 	const endPeriod = recurrence.endPeriod ?? null;
-	if (endPeriod && endPeriod < startPeriod) {
+	if (startPeriod && endPeriod && endPeriod < startPeriod) {
 		throw new ORPCError("BAD_REQUEST", {
 			message: "`endPeriod` must be on or after `startPeriod`.",
 		});
@@ -996,18 +1101,25 @@ export async function createDocumentTypeFromSuggestion(
 		paperOriginal: false,
 		recurrence: {
 			periodicity: input.periodicity,
-			startPeriod: input.startPeriod,
+			// Without a first period, the range follows the documents themselves.
+			startPeriod: input.startPeriod ?? null,
 			// An open recurrence: the point is to spot the next missing period.
 			endPeriod: input.endPeriod ?? null,
 		},
 	});
 
-	const [labels, counts, timeline] = await Promise.all([
+	const [labels, counts, view] = await Promise.all([
 		labelsFor(db, [created]),
 		countsFor(db, [created.id]),
-		documentTypeTimeline(db, created),
+		recurrenceViewOf(db, created),
 	]);
-	return toItem(created, labels, counts, statsFromTimeline(timeline));
+	return toItem(
+		created,
+		labels,
+		counts,
+		statsFromTimeline(view.timeline),
+		view.range,
+	);
 }
 
 /**
@@ -1264,7 +1376,7 @@ export async function documentTypeForDocument(
 	}
 	if (!match && doc.anchor && !doc.deletedAt) {
 		match = rows.find((row) => {
-			if (!row.periodicity || !row.startPeriod) return false;
+			if (!row.periodicity) return false;
 			if (overrides.get(row.id) === false) return false;
 			if (row.issuerPartyId === null && row.categoryId === null) return false;
 			const matchesParty =
@@ -1273,11 +1385,17 @@ export async function documentTypeForDocument(
 				row.categoryId === null || categoryIds.has(row.categoryId);
 			if (!matchesParty || !matchesCategory) return false;
 			const start = periodStartOf(row.periodicity, doc.anchor as string);
-			const first = periodStartOf(row.periodicity, row.startPeriod);
+			// Without a first period the range simply extends down to this
+			// document: only an explicit bound can leave it outside.
+			const first = row.startPeriod
+				? periodStartOf(row.periodicity, row.startPeriod)
+				: null;
 			const last = row.endPeriod
 				? periodStartOf(row.periodicity, row.endPeriod)
 				: null;
-			return start >= first && (last === null || start <= last);
+			return (
+				(first === null || start >= first) && (last === null || start <= last)
+			);
 		});
 		membership = "computed";
 	}

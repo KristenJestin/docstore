@@ -245,14 +245,11 @@ export function CreateTypeFromReasonButton({
 	const categoryId =
 		typeof meta.categoryId === "string" ? meta.categoryId : null;
 	const periodicity = meta.periodicity;
-	const startPeriod =
-		typeof meta.startPeriod === "string" ? meta.startPeriod : null;
 	const endPeriod = typeof meta.endPeriod === "string" ? meta.endPeriod : null;
 
 	const usable =
 		partyId !== null &&
 		categoryId !== null &&
-		startPeriod !== null &&
 		(periodicity === "weekly" ||
 			periodicity === "monthly" ||
 			periodicity === "quarterly" ||
@@ -265,11 +262,12 @@ export function CreateTypeFromReasonButton({
 
 	const onCreate = async () => {
 		try {
+			// No first period: the recurrence starts at the oldest of the documents
+			// the reason was raised from.
 			const created = await create.mutateAsync({
 				partyId,
 				categoryId,
 				periodicity,
-				startPeriod,
 				endPeriod,
 			});
 			toast.success(`Document type "${created.name}" created.`);

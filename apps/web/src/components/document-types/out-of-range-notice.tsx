@@ -20,9 +20,10 @@ export interface OutOfRangeNoticeProps {
  * Members older than `startPeriod` (`documentType.get().outOfRange`).
  *
  * They belong to the type but sit before the window the timeline enumerates, so
- * nothing else would ever show them (`docs/document-types.md` §2). Each row
- * offers the two ways out: widen the recurrence down to that period, or exclude
- * the document from it.
+ * nothing else would ever show them (`docs/document-types.md` §2). Only a type
+ * with an explicit first period has any: without one, the range extends down to
+ * the oldest document on its own. Each row offers the two ways out: widen the
+ * recurrence down to that period, or exclude the document from it.
  */
 export function OutOfRangeNotice({ detail }: OutOfRangeNoticeProps) {
 	const update = useMutation(orpc.documentType.update.mutationOptions());

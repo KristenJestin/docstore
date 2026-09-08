@@ -41,9 +41,9 @@ function useSuggestions() {
 				partyId: suggestion.partyId,
 				categoryId: suggestion.categoryId,
 				periodicity: suggestion.periodicity,
-				// The suggestion carries the observed range: the timeline then covers
-				// exactly the documents it was inferred from.
-				startPeriod: suggestion.startPeriod,
+				// No first period is written down: the timeline starts at the oldest
+				// document behind the suggestion, and follows it if an older one
+				// turns up later.
 				endPeriod: suggestion.endPeriod,
 			});
 			toast.success("Document type created from the suggestion.");

@@ -4,6 +4,7 @@ import { extractionResultSchema } from "./extraction";
 import {
 	periodicitySchema,
 	recurrencePeriodSchema,
+	recurrenceRangeSchema,
 	recurrenceStatsSchema,
 } from "./recurrence";
 import { ruleConditionSchema } from "./rule";
@@ -75,6 +76,7 @@ export const documentTypeSchema = z.object({
 	priority: z.int(),
 	/** `null` = the type is not recurring. */
 	periodicity: periodicitySchema.nullable(),
+	/** `null` = the recurrence starts at the oldest document of the type. */
 	startPeriod: z.string().nullable(),
 	endPeriod: z.string().nullable(),
 	expectedDay: z.int().nullable(),
@@ -146,13 +148,21 @@ export const documentTypeItemSchema = documentTypeSchema.extend({
 	documentCount: z.int().min(0),
 	/** Only computed for a recurring type. */
 	stats: recurrenceStatsSchema.nullable(),
+	/**
+	 * Periods actually covered, missing bounds filled in from the member
+	 * documents. `null` for a one-off type, and for a recurrence with neither an
+	 * explicit `startPeriod` nor a single member.
+	 */
+	range: recurrenceRangeSchema.nullable(),
 });
 export type DocumentTypeItem = z.infer<typeof documentTypeItemSchema>;
 
 /**
- * Member whose period falls before `startPeriod`: the document belongs to the
- * type but the recurrence does not cover it, so it appears nowhere on the
- * timeline. Surfaced so the user can widen `startPeriod` (or exclude it).
+ * Member whose period falls before an **explicit** `startPeriod`: the document
+ * belongs to the type but the recurrence does not cover it, so it appears
+ * nowhere on the timeline. Surfaced so the user can widen `startPeriod` (or
+ * exclude it). Without an explicit start nothing is ever out of range — the
+ * effective range simply extends down to the oldest document.
  */
 export const documentTypeOutOfRangeSchema = z.object({
 	documentId: z.string(),
@@ -172,7 +182,7 @@ export const documentTypeDetailSchema = documentTypeItemSchema.extend({
 	timeline: z.array(recurrencePeriodSchema),
 	/** Documents counted as members of the recurrence (overrides included). */
 	memberCount: z.int().min(0),
-	/** Members older than `startPeriod`; empty for a non-recurring type. */
+	/** Members older than an explicit `startPeriod`; empty otherwise. */
 	outOfRange: z.array(documentTypeOutOfRangeSchema),
 });
 export type DocumentTypeDetail = z.infer<typeof documentTypeDetailSchema>;
@@ -193,8 +203,11 @@ export type ListDocumentTypesInput = z.infer<typeof listDocumentTypesInput>;
 /** Recurrence block, shared by `create` and `createFromDocument`. */
 export const recurrenceInput = z.object({
 	periodicity: periodicitySchema,
-	/** Snapped to the first day of its period. */
-	startPeriod: dateOnly,
+	/**
+	 * Snapped to the first day of its period. Left empty, the recurrence starts
+	 * at the oldest document of the type, and follows it as older ones arrive.
+	 */
+	startPeriod: dateOnly.nullish(),
 	endPeriod: dateOnly.nullish(),
 	expectedDay: z.int().min(1).max(31).nullish(),
 	graceDays: z.int().min(0).max(365).optional(),
@@ -305,7 +318,8 @@ export const createDocumentTypeFromSuggestionInput = z.object({
 	partyId: z.string().min(1),
 	categoryId: z.string().min(1),
 	periodicity: periodicitySchema,
-	startPeriod: dateOnly,
+	/** Left empty, the range is read from the documents behind the suggestion. */
+	startPeriod: dateOnly.nullish(),
 	endPeriod: dateOnly.nullish(),
 	/** Defaults to `<Party> — <Category>`. */
 	name: z.string().trim().min(1).max(200).optional(),

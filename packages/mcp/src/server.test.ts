@@ -739,7 +739,12 @@ describe("document types, dossiers, reminders and relations", () => {
 			arguments: { documentTypeId },
 		});
 		const output = structured<{
-			type: { id: string; name: string; periodicity: string | null };
+			type: {
+				id: string;
+				name: string;
+				periodicity: string | null;
+				range: { start: string; end: string; derived: boolean } | null;
+			};
 			layouts: {
 				name: string;
 				isDefault: boolean;
@@ -754,6 +759,12 @@ describe("document types, dossiers, reminders and relations", () => {
 		}>(result);
 		expect(output.type.id).toBe(documentTypeId);
 		expect(output.type.periodicity).toBe("monthly");
+		// Both bounds were typed in: the range repeats them, and says so.
+		expect(output.type.range).toEqual({
+			start: twoMonthsAgo,
+			end: lastMonth,
+			derived: false,
+		});
 		expect(output.layouts).toHaveLength(1);
 		expect(output.layouts[0]).toMatchObject({
 			name: "Default",
