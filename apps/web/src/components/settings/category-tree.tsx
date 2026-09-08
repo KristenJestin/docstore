@@ -21,11 +21,13 @@ import {
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { cn } from "@docstore/ui/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
 	FolderInputIcon,
 	FolderTreeIcon,
 	PencilIcon,
 	PlusIcon,
+	ScanTextIcon,
 	SlidersHorizontalIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -98,6 +100,9 @@ interface TreeView {
 	onAddChild: (node: CategoryNode) => void;
 	onEdit: (node: CategoryNode) => void;
 	onMove: (node: CategoryNode) => void;
+	onExtractionRules: (node: CategoryNode) => void;
+	/** Category whose `Any <Category>` type is being opened. */
+	openingExtractionFor: string | null;
 	onDelete: (node: CategoryNode) => void;
 	onCancelDraft: () => void;
 	onSavedDraft: () => Promise<void>;
@@ -125,9 +130,36 @@ export function CategoryTree() {
 	const reorderCategories = useMutation(
 		orpc.category.reorder.mutationOptions(),
 	);
+	const ensureGeneric = useMutation(
+		orpc.documentType.ensureGenericForCategory.mutationOptions(),
+	);
+	const [openingId, setOpeningId] = useState<string | null>(null);
+	const navigate = useNavigate();
 
 	const tree = categories.data ?? [];
 	const flat = flatten(tree);
+
+	/**
+	 * Extraction rules live in the layout of a document type (SPEC §9). A
+	 * category that has no type of its own gets the generic `Any <Category>`
+	 * one, created on the first visit, and we land straight on its Layouts tab —
+	 * where the rules are.
+	 */
+	const openExtractionRules = async (node: CategoryNode) => {
+		setOpeningId(node.id);
+		try {
+			const type = await ensureGeneric.mutateAsync({ categoryId: node.id });
+			await navigate({
+				to: "/types/$typeId",
+				params: { typeId: type.id },
+				search: { tab: "layouts" },
+			});
+		} catch (error) {
+			toastApiError(error, "The extraction rules could not be opened.");
+		} finally {
+			setOpeningId(null);
+		}
+	};
 
 	/**
 	 * Reorder: `category.reorder` renumbers one sibling group in a single call,
@@ -164,6 +196,8 @@ export function CategoryTree() {
 			setEditingId(node.id);
 		},
 		onMove: setMoving,
+		onExtractionRules: (node) => void openExtractionRules(node),
+		openingExtractionFor: ensureGeneric.isPending ? openingId : null,
 		onDelete: setDeleting,
 		onCancelDraft: () => setDraft(null),
 		onSavedDraft: async () => {
@@ -406,6 +440,16 @@ function CategoryRow({
 					onClick={() => view.onMove(node)}
 				>
 					<FolderInputIcon />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Extraction rules of ${node.name}`}
+					title="Extraction rules for the documents of this category without a type"
+					disabled={view.openingExtractionFor === node.id}
+					onClick={() => view.onExtractionRules(node)}
+				>
+					<ScanTextIcon />
 				</Button>
 				<Button
 					variant="ghost"

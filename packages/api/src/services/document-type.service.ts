@@ -49,6 +49,7 @@ import type {
 	DocumentTypeOutOfRange,
 	DocumentTypeSuggestion,
 	DocumentTypeTitlePreview,
+	EnsureGenericDocumentTypeInput,
 	LayoutOverlap,
 	ListDocumentTypesInput,
 	PreviewDocumentTypeInput,
@@ -716,12 +717,19 @@ function recurrenceColumns(
 export async function createDocumentType(
 	db: Db,
 	input: CreateDocumentTypeInput,
+	/**
+	 * Internal flags, not part of the public input: `generic` is set by
+	 * {@link ensureGenericForCategory} alone, because an `Any <Category>` type
+	 * carries an invariant (one per category) the CRUD does not.
+	 */
+	options: { generic?: boolean } = {},
 ): Promise<DocumentTypeDto> {
 	await assertReferences(db, input);
 
 	const rows = await db
 		.insert(documentType)
 		.values({
+			...(options.generic ? { generic: true } : {}),
 			name: input.name,
 			description: input.description ?? null,
 			icon: input.icon ?? null,
@@ -914,6 +922,76 @@ export interface DocumentTypeServiceOptions {
  * sensitive) and applies it to that very document, which becomes its first
  * sample.
  */
+/**
+ * The `Any <Category>` type of a category, created on first use.
+ *
+ * Extraction rules only exist inside the layout of a document type (SPEC §9),
+ * which leaves nowhere to put them for a category nobody wants a type for —
+ * the one-off families, the folders that hold five documents and will never
+ * hold a sixth. This is that nowhere: a type carrying the category and nothing
+ * else. No issuer, no recurrence, no detection, so it never classifies
+ * anything and is never assigned to a document; the pipeline simply runs the
+ * extraction rules of its Default layout on the documents of that category
+ * that have no type of their own.
+ *
+ * Idempotent: the second call returns the type the first one created. The
+ * unique index on `(category_id) where generic` is what guarantees it even
+ * under a double click.
+ */
+export async function ensureGenericForCategory(
+	db: Db,
+	input: EnsureGenericDocumentTypeInput,
+): Promise<DocumentTypeDetail> {
+	const [categoryRow] = await db
+		.select({ name: category.name })
+		.from(category)
+		.where(eq(category.id, input.categoryId))
+		.limit(1);
+	if (!categoryRow) {
+		throw new ORPCError("NOT_FOUND", {
+			message: `Category "${input.categoryId}" not found.`,
+		});
+	}
+
+	const existing = await db
+		.select({ id: documentType.id })
+		.from(documentType)
+		.where(
+			and(
+				eq(documentType.generic, true),
+				eq(documentType.categoryId, input.categoryId),
+			),
+		)
+		.limit(1);
+	// Someone may have switched it off; opening its extraction rules is asking
+	// for it back.
+	if (existing[0]) {
+		await db
+			.update(documentType)
+			.set({ enabled: true })
+			.where(eq(documentType.id, existing[0].id));
+		return getDocumentType(db, existing[0].id);
+	}
+
+	const created = await createDocumentType(
+		db,
+		{
+			name: `Any ${categoryRow.name}`,
+			description: `Extraction rules for the documents filed under ${categoryRow.name} without a document type of their own.`,
+			categoryId: input.categoryId,
+			tagIds: [],
+			sensitiveDefault: false,
+			paperOriginal: false,
+			// Nothing detects it and nothing is assigned by it: only its layout
+			// matters.
+			detection: null,
+			titleTemplate: null,
+		},
+		{ generic: true },
+	);
+	return getDocumentType(db, created.id);
+}
+
 export async function createDocumentTypeFromDocument(
 	db: Db,
 	input: CreateDocumentTypeFromDocumentInput,

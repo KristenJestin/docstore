@@ -244,6 +244,30 @@ and the rule runs when its layout is selected. There is no global rule and no
 
 Deleting a layout deletes its extraction rules with it (cascade).
 
+### Extracting without a type: `Any <Category>`
+
+That rule — no extraction outside a type — leaves nowhere to put the rules for
+a category nobody wants a type for: the one-off families, the folders that hold
+five documents and will never hold a sixth. The generic type is that nowhere.
+
+**Settings → Categories**, the *Extraction rules* action on a category row,
+opens (creating it on the first visit) the type `Any <Category>` on its Layouts
+tab. It carries the category and nothing else: no issuer, no subject, no
+recurrence, no `detection`. `document_type.generic` marks it, and a unique index
+on `(category_id) where generic` keeps it to one per category —
+`documentType.ensureGenericForCategory({ categoryId })` is idempotent, and
+switches the type back on if it had been disabled.
+
+During `analyze`, after the rules have run (so a `set_category` automation is
+taken into account), a document with a category and **no type** gets the
+extraction rules of the default layout of the nearest generic type — the one on
+its own category, otherwise the one on an ancestor, exactly like a custom field
+offered on a parent. The values land with the source `rule`, and nothing else
+moves: no `document_type_id`, no `layout_id`, no category, no party. The
+document still has no type, which is the whole point. A document that carries a
+type is left to its own layout, and a disabled generic type extracts nothing —
+that switch is how the extraction is turned off.
+
 ## 5. Detection and rules
 
 `detection` is the very same condition tree as the rule engine (SPEC §3), so it
@@ -290,6 +314,8 @@ applies to `rule.run({ ruleId, force? })` for a disabled automation;
   from the same heuristic: an issuer + category pair covering at least two
   distinct periods, with the periodicity inferred from the median gap. Nothing
   is ever created automatically.
+- `documentType.ensureGenericForCategory({ categoryId })` returns the
+  `Any <Category>` type of a category, creating it on first use (see §4).
 - `documentType.preview({ id | draft, documentId })` reports what applying
   would do, without writing a single row.
 
@@ -319,7 +345,10 @@ Every one of these refuses a document sitting in the trash (`CONFLICT`,
   (by `sort_order`) as the default;
 - every extraction rule without a layout joins the Default layout of a generic
   type `Any <Category>`: one per category, created disabled, without issuer and
-  without detection. A rule without category lands in `Any document`;
+  without detection. A rule without category lands in `Any document`.
+  `0030_document-type-generic` flags those rows `generic` and enables them, so
+  they are the ones `ensureGenericForCategory` finds again and the ones the
+  pipeline runs (see §4) instead of the dead weight they had been since;
 - `extraction_rule.layout_id` becomes `NOT NULL` and cascades on delete;
   `extraction_rule.category_ids` is dropped;
 - the `run_extraction` actions, and the `set_field` ones carrying an

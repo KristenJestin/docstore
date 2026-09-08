@@ -73,6 +73,11 @@ export const documentTypeSchema = z.object({
 	detectionConfidence: z.number().min(0).max(1),
 	enabled: z.boolean(),
 	priority: z.int(),
+	/**
+	 * `Any <Category>`: holds the extraction rules of a category that has no
+	 * type of its own. Never detected, never assigned to a document.
+	 */
+	generic: z.boolean(),
 	/** `null` = the type is not recurring. */
 	periodicity: periodicitySchema.nullable(),
 	startPeriod: z.string().nullable(),
@@ -251,6 +256,13 @@ export const reorderDocumentTypesInput = z.object({
 });
 export type ReorderDocumentTypesInput = z.infer<
 	typeof reorderDocumentTypesInput
+>;
+
+export const ensureGenericDocumentTypeInput = z.object({
+	categoryId: z.string().min(1),
+});
+export type EnsureGenericDocumentTypeInput = z.infer<
+	typeof ensureGenericDocumentTypeInput
 >;
 
 export const createDocumentTypeFromDocumentInput = z.object({

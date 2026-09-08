@@ -13,6 +13,7 @@ import {
 	real,
 	text,
 	timestamp,
+	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createId } from "../id";
 import { category } from "./category";
@@ -68,6 +69,14 @@ export const documentType = pgTable(
 		enabled: boolean("enabled").notNull().default(true),
 		/** Ascending detection order: 0 is evaluated before 1. */
 		priority: integer("priority").notNull().default(0),
+		/**
+		 * `Any <Category>`: the type that exists only to hold extraction rules for
+		 * a category that has no type of its own (SPEC §9). It never detects
+		 * anything and is never assigned to a document — the pipeline just runs
+		 * the extraction rules of its default layout on the documents of its
+		 * category. At most one per category.
+		 */
+		generic: boolean("generic").notNull().default(false),
 
 		/* Recurrence (all null for a non-recurring type). */
 		periodicity: periodicityEnum("periodicity"),
@@ -94,6 +103,11 @@ export const documentType = pgTable(
 		index("document_type_category_id_idx").on(table.categoryId),
 		index("document_type_issuer_party_id_idx").on(table.issuerPartyId),
 		index("document_type_periodicity_idx").on(table.periodicity),
+		// One generic type per category: `ensureGenericForCategory` reuses it
+		// instead of piling up an `Any Invoice` per visit.
+		uniqueIndex("document_type_generic_category_idx")
+			.on(table.categoryId)
+			.where(sql`${table.generic}`),
 	],
 );
 

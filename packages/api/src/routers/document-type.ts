@@ -15,6 +15,7 @@ import {
 	documentTypeSchema,
 	documentTypeSuggestionSchema,
 	documentTypeTitlePreviewSchema,
+	ensureGenericDocumentTypeInput,
 	listDocumentTypesInput,
 	previewDocumentTypeInput,
 	previewDocumentTypeResultSchema,
@@ -46,6 +47,7 @@ import {
 	type DocumentTypeServiceOptions,
 	deleteDocumentType,
 	detectDocumentType,
+	ensureGenericForCategory,
 	getDocumentType,
 	listDocumentTypes,
 	previewDocumentType,
@@ -135,6 +137,20 @@ export const documentTypeRouter = {
 				input,
 				ingestionOptions(context),
 			),
+		),
+
+	ensureGenericForCategory: writeProcedure
+		.route({
+			method: "POST",
+			path: "/document-types/generic",
+			tags: TAGS,
+			summary:
+				"Get (creating it on first use) the `Any <Category>` type holding the extraction rules of a category",
+		})
+		.input(ensureGenericDocumentTypeInput)
+		.output(documentTypeDetailSchema)
+		.handler(({ input, context }) =>
+			ensureGenericForCategory(context.db, input),
 		),
 
 	createFromSuggestion: writeProcedure

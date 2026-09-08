@@ -290,6 +290,140 @@ describe("applyDocumentType", () => {
 	});
 });
 
+describe("generic types — extraction without a type", () => {
+	let fieldId: string;
+
+	/** `Any <Category>` type with a Default layout carrying one extraction. */
+	async function seedGeneric(
+		targetCategoryId: string,
+		overrides: Partial<typeof documentType.$inferInsert> = {},
+	): Promise<string> {
+		const types = await db
+			.insert(documentType)
+			.values({
+				name: "Any Payslip",
+				categoryId: targetCategoryId,
+				generic: true,
+				...overrides,
+			})
+			.returning({ id: documentType.id });
+		const genericId = types[0]?.id ?? "";
+
+		const layouts = await db
+			.insert(documentTypeLayout)
+			.values({
+				documentTypeId: genericId,
+				name: "Default",
+				isDefault: true,
+			})
+			.returning({ id: documentTypeLayout.id });
+
+		await db.insert(extractionRule).values({
+			name: "Amount",
+			layoutId: layouts[0]?.id ?? "",
+			target: { kind: "field", fieldId },
+			strategy: {
+				kind: "regex",
+				pattern: "Total\\s*:\\s*(\\d[\\d\\s.,]*\\d)",
+				group: 1,
+			},
+			postprocess: ["number_fr"],
+		});
+		return genericId;
+	}
+
+	async function valuesOf(documentId: string) {
+		return db
+			.select()
+			.from(documentFieldValue)
+			.where(eq(documentFieldValue.documentId, documentId));
+	}
+
+	beforeEach(async () => {
+		const fields = await db
+			.insert(customField)
+			.values({
+				name: "Total",
+				slug: "total-generic",
+				type: "money",
+				options: { currency: "EUR" },
+			})
+			.returning({ id: customField.id });
+		fieldId = fields[0]?.id ?? "";
+	});
+
+	test("runs on a document of the category that has no type", async () => {
+		await seedGeneric(categoryId);
+		const id = await insertDocument({
+			categoryId,
+			content: "Bulletin de paie — Total : 1 234,56 €",
+		});
+
+		await analyzeDocument(db, id);
+
+		const values = await valuesOf(id);
+		expect(values[0]?.value).toEqual({
+			kind: "money",
+			amount: 1234.56,
+			currency: "EUR",
+		});
+		expect(values[0]?.source).toBe("rule");
+		// The generic type stays out of the document: no assignment, no layout.
+		const row = await loadDocument(id);
+		expect(row.documentTypeId).toBeNull();
+		expect(row.layoutId).toBeNull();
+	});
+
+	test("a subcategory is served by the generic type of its parent", async () => {
+		await seedGeneric(categoryId);
+		const children = await db
+			.insert(category)
+			.values({ name: "Bonus", slug: "bonus", parentId: categoryId })
+			.returning({ id: category.id });
+		const id = await insertDocument({
+			categoryId: children[0]?.id ?? "",
+			content: "Prime — Total : 300,00 €",
+		});
+
+		await analyzeDocument(db, id);
+		expect((await valuesOf(id))[0]?.value).toMatchObject({ amount: 300 });
+	});
+
+	test("a document that carries a type is left to its own layout", async () => {
+		await seedGeneric(categoryId);
+		const documentTypeId = await insertType();
+		const id = await insertDocument({
+			categoryId,
+			documentTypeId,
+			content: "Bulletin de paie — Total : 1 234,56 €",
+		});
+
+		await analyzeDocument(db, id);
+		expect(await valuesOf(id)).toHaveLength(0);
+	});
+
+	test("a disabled generic type extracts nothing", async () => {
+		await seedGeneric(categoryId, { enabled: false });
+		const id = await insertDocument({
+			categoryId,
+			content: "Bulletin de paie — Total : 1 234,56 €",
+		});
+
+		await analyzeDocument(db, id);
+		expect(await valuesOf(id)).toHaveLength(0);
+	});
+
+	test("a document without a category extracts nothing", async () => {
+		await seedGeneric(categoryId);
+		const id = await insertDocument({
+			content: "Bulletin de paie — Total : 1 234,56 €",
+		});
+
+		await analyzeDocument(db, id);
+		expect(await valuesOf(id)).toHaveLength(0);
+	});
+});
+
 describe("applyDocumentType — layouts", () => {
 	async function insertLayout(
 		documentTypeId: string,

@@ -24,7 +24,11 @@ import {
 import type { RuleTrigger } from "@docstore/shared/rule";
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { IngestionContext } from "./context";
-import { applyDocumentType, detectDocumentTypes } from "./document-type";
+import {
+	applyDocumentType,
+	applyGenericExtraction,
+	detectDocumentTypes,
+} from "./document-type";
 import { applyRules } from "./rules";
 import { getReviewSettings } from "./settings";
 import type { DocumentSubject } from "./subject";
@@ -427,6 +431,19 @@ export async function analyzeDocument(
 		...(options.ingestion ? { ingestion: options.ingestion } : {}),
 	});
 	if (applied) reasons.push(...applied.reviewReasons);
+
+	// No type, but a category: the generic `Any <Category>` type is where the
+	// extraction rules of that category live (SPEC §9). Nothing is assigned —
+	// only the values are written. After the rules, because a `set_category`
+	// action is one of the things that can give the document its category.
+	if (!options.skipProposals) {
+		reasons.push(
+			...(await applyGenericExtraction(db, documentId, {
+				confidenceThreshold: settings.confidenceThreshold,
+				...(options.ingestion ? { ingestion: options.ingestion } : {}),
+			})),
+		);
+	}
 
 	// Final state, after the rules have been applied.
 	const rows = await db
