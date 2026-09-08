@@ -238,7 +238,7 @@ const PERIOD_RE = new RegExp(
 );
 
 /** "Période du 1er janvier 2025 au 31/01/2025" -> normalized bounds. */
-export function detectPeriods(text: string): PeriodCandidate[] {
+export function detectExplicitPeriods(text: string): PeriodCandidate[] {
 	const periods: PeriodCandidate[] = [];
 	for (const match of text.matchAll(PERIOD_RE)) {
 		const from = match[1];
@@ -257,6 +257,120 @@ export function detectPeriods(text: string): PeriodCandidate[] {
 		});
 	}
 	return periods;
+}
+
+/* ------------------------------------------------------------------ */
+/* Meter readings                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Words qualifying a reading: "relevé précédent", "ancien index"… */
+const READING_QUALIFIER = String.raw`(?:pr[ée]c[ée]dent[e]?|ant[ée]rieur[e]?|ancien(?:ne)?|actuel(?:le)?|nouveau|nouvel(?:le)?|dernier|derni[èe]re|initial[e]?|final[e]?|de\s+d[ée]but|de\s+fin|previous|current|last)`;
+
+/** The reading itself, in the two languages the pipeline reads. */
+const READING_LABEL = String.raw`(?:relev[ée]s?|index|lecture|reading)`;
+
+/**
+ * A reading and the date it was taken, whichever side the qualifier sits on:
+ * "relevé du 12/03/2026", "relevé précédent 10/09/2025", "ancien index :
+ * 10/09/2025", "index au 12 mars 2026".
+ */
+const READING_RE = new RegExp(
+	String.raw`(?:${READING_QUALIFIER}\s+)?${READING_LABEL}(?:\s+${READING_QUALIFIER})?\s*:?\s*(?:du\s+|le\s+|au\s+|on\s+|of\s+)?(${ANY_DATE})`,
+	"gi",
+);
+
+/**
+ * Period covered by a water or energy bill, read off its two meter readings.
+ *
+ * These bills rarely say "du … au …": they print the two readings that bound
+ * the consumption, in whichever order the supplier likes ("relevé du
+ * 12/03/2026" next to "relevé précédent 10/09/2025"). Two dates is what makes
+ * a period, so the earliest and the latest are taken as its bounds — not the
+ * order they appear in.
+ *
+ * `null` with fewer than two distinct reading dates: one reading is a date, not
+ * a period.
+ */
+export function detectReadingPeriod(text: string): PeriodCandidate | null {
+	const readings: { date: string; raw: string; index: number }[] = [];
+	for (const match of text.matchAll(READING_RE)) {
+		const raw = match[1];
+		if (!raw) continue;
+		const parsed = parseFrenchDate(raw);
+		if (!parsed) continue;
+		readings.push({
+			date: parsed.date,
+			raw,
+			index: (match.index ?? 0) + match[0].lastIndexOf(raw),
+		});
+	}
+
+	const dates = [...new Set(readings.map((reading) => reading.date))].sort();
+	const start = dates[0];
+	const end = dates.at(-1);
+	if (!start || !end || start === end) return null;
+
+	return {
+		start,
+		end,
+		raw: `${start} … ${end}`,
+		index: Math.min(...readings.map((reading) => reading.index)),
+	};
+}
+
+/* ------------------------------------------------------------------ */
+/* Yearly documents                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Statements naming a whole year: "année 2025", "au titre de l'année 2025",
+ * "revenus 2025", "exercice 2025", "tax year 2025".
+ *
+ * The year is required to look like one (`19xx`/`20xx`), so an amount or a
+ * meter index never passes for one.
+ */
+const YEAR_PERIOD_RE =
+	/\b(?:ann[ée]e|revenus|exercice|p[ée]riode\s+fiscale|tax\s+year|fiscal\s+year|year)\s*(?:fiscale?\s*)?(?:de\s+|d['’]\s*|:\s*)?((?:19|20)\d{2})\b/gi;
+
+/**
+ * The whole year a document covers, when its text names one.
+ *
+ * A tax notice, an annual statement or a yearly summary carries no "du … au …"
+ * and often no date at all: what it says is "au titre de l'année 2025", and
+ * that is a period — the whole of 2025.
+ */
+export function detectYearPeriod(text: string): PeriodCandidate | null {
+	for (const match of text.matchAll(YEAR_PERIOD_RE)) {
+		const year = match[1];
+		if (!year) continue;
+		return {
+			start: `${year}-01-01`,
+			end: `${year}-12-31`,
+			raw: match[0],
+			index: match.index ?? 0,
+		};
+	}
+	return null;
+}
+
+/**
+ * Covered period of a document, best statement first.
+ *
+ * An explicit "du … au …" wins. Failing one, the two meter readings of a
+ * utility bill bound the consumption, and a document naming a year covers that
+ * year. Only the first of the three that answers is returned: they describe
+ * the same thing, and a bill that spells its period out has no need of its
+ * readings.
+ */
+export function detectPeriods(text: string): PeriodCandidate[] {
+	const explicit = detectExplicitPeriods(text);
+	if (explicit.length > 0) return explicit;
+
+	const reading = detectReadingPeriod(text);
+	if (reading) return [reading];
+
+	const yearly = detectYearPeriod(text);
+	return yearly ? [yearly] : [];
 }
 
 /**
@@ -329,11 +443,15 @@ export interface DocumentDateInput {
 /**
  * Date of a document read off its text, with where it comes from.
  *
- * An explicit label wins over everything. Failing one, the first date that is
- * not a bound of the covered period is taken — those describe the period, not
- * the document — and only that last resort is a guess worth flagging. A date
- * that *is* a bound of a period the document carries is the period's own date,
- * read from a "du … au …" statement: it is trusted like a labelled one.
+ * An explicit label wins over everything. Failing one, a document whose whole
+ * period is the year its text names is dated by that year — "au titre de
+ * l'année 2025" is the only date a tax notice carries, and pinning it to a
+ * printing date would file it under the wrong year. Failing that, the first
+ * date that is not a bound of the covered period is taken — those describe the
+ * period, not the document — and only that last resort is a guess worth
+ * flagging. A date that *is* a bound of a period the document carries is the
+ * period's own date, read from a "du … au …" statement: it is trusted like a
+ * labelled one.
  */
 export function pickDocumentDate(
 	input: DocumentDateInput,
@@ -343,6 +461,27 @@ export function pickDocumentDate(
 		return {
 			candidate: labelled,
 			source: "labelled",
+			confidence: LABELLED_DATE_CONFIDENCE,
+		};
+	}
+
+	// Only when that year really is the document's period: a payslip that
+	// happens to mention "année 2025" keeps its own date.
+	const yearly = detectYearPeriod(input.text);
+	const noPeriod = !input.periodStart && !input.periodEnd;
+	if (
+		yearly &&
+		(noPeriod ||
+			(input.periodStart === yearly.start && input.periodEnd === yearly.end))
+	) {
+		return {
+			candidate: {
+				date: yearly.start,
+				precision: "year",
+				raw: yearly.raw,
+				index: yearly.index,
+			},
+			source: "period",
 			confidence: LABELLED_DATE_CONFIDENCE,
 		};
 	}
