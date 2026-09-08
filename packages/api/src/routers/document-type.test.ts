@@ -16,6 +16,11 @@ import {
 	type TestDb,
 	truncateAll,
 } from "@docstore/db/test-utils";
+import {
+	periodKeyOf,
+	periodStartOf,
+	todayIso,
+} from "@docstore/shared/recurrence";
 import { eq } from "drizzle-orm";
 import {
 	createTestClient,
@@ -1551,6 +1556,99 @@ describe("documentType — documentCount", () => {
 			2,
 		);
 		expect((await client.documentType.list({}))[0]?.documentCount).toBe(2);
+	});
+});
+
+describe("documentType — derived recurrence range", () => {
+	/** Recurrence with no bound at all: everything is read from the documents. */
+	function openInput() {
+		return {
+			name: "EDF invoice",
+			issuerPartyId: partyId,
+			categoryId,
+			recurrence: { periodicity: "monthly" as const, graceDays: 0 },
+		};
+	}
+
+	test("the range starts at the oldest document when no first period is set", async () => {
+		await seedPeriodDocument("2024-02-01");
+		await seedPeriodDocument("2024-05-01");
+		const created = await client.documentType.create(openInput());
+		expect(created.startPeriod).toBeNull();
+
+		const detail = await client.documentType.get({ id: created.id });
+		expect(detail.range).toEqual({
+			start: "2024-02-01",
+			end: periodStartOf("monthly", todayIso()),
+			derived: true,
+			open: true,
+		});
+		// Nothing before the oldest document: no red cell back to 1970.
+		expect(detail.timeline[0]?.period).toBe("2024-02");
+		expect(detail.timeline.at(-1)?.period).toBe(
+			periodKeyOf("monthly", todayIso()),
+		);
+		expect(detail.stats?.missing).toContain("2024-03");
+		expect(detail.stats?.missing).not.toContain("2024-01");
+		expect(detail.outOfRange).toEqual([]);
+
+		const listed = await client.documentType.list({});
+		expect(listed[0]?.range?.derived).toBe(true);
+	});
+
+	test("an older document widens the range instead of falling out of it", async () => {
+		await seedPeriodDocument("2024-02-01");
+		const created = await client.documentType.create(openInput());
+
+		await seedPeriodDocument("2023-11-01", { title: "Invoice 2023-11" });
+		const detail = await client.documentType.get({ id: created.id });
+		expect(detail.range?.start).toBe("2023-11-01");
+		expect(detail.timeline[0]?.period).toBe("2023-11");
+		expect(detail.outOfRange).toEqual([]);
+	});
+
+	test("a derived start still stops at an explicit last period", async () => {
+		await seedPeriodDocument("2024-02-01");
+		await seedPeriodDocument("2024-08-01");
+		const created = await client.documentType.create({
+			...openInput(),
+			recurrence: {
+				periodicity: "monthly",
+				endPeriod: "2024-04-30",
+				graceDays: 0,
+			},
+		});
+
+		const detail = await client.documentType.get({ id: created.id });
+		expect(detail.range).toEqual({
+			start: "2024-02-01",
+			end: "2024-04-01",
+			derived: true,
+			open: false,
+		});
+		expect(detail.timeline.map((entry) => entry.period)).toEqual([
+			"2024-02",
+			"2024-03",
+			"2024-04",
+		]);
+		expect(detail.stats?.missing).toEqual(["2024-03", "2024-04"]);
+	});
+
+	test("no first period and no member: no range, no timeline, no gap", async () => {
+		const created = await client.documentType.create({
+			name: "Nothing filed yet",
+			recurrence: { periodicity: "monthly", graceDays: 0 },
+		});
+
+		const detail = await client.documentType.get({ id: created.id });
+		expect(detail.range).toBeNull();
+		expect(detail.timeline).toEqual([]);
+		expect(detail.stats).toEqual({
+			expected: 0,
+			present: 0,
+			missing: [],
+			lastPeriod: null,
+		});
 	});
 });
 

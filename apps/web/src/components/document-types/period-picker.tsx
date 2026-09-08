@@ -1,4 +1,4 @@
-import type { Periodicity } from "@docstore/shared/recurrence";
+import type { Periodicity, RecurrenceRange } from "@docstore/shared/recurrence";
 import { YearGrid } from "@docstore/ui/components/calendar";
 import {
 	InputGroup,
@@ -163,6 +163,19 @@ export function periodRangeLabel(
 		year: "numeric",
 	});
 	return { from: format.format(start), to: format.format(end) };
+}
+
+/**
+ * "Jan 2024 → today": the effective range of a recurrence, as the API resolved
+ * it. An open recurrence runs to the current period, which reads better as
+ * "today" than as the key of a period nobody typed in.
+ */
+export function formatRecurrenceRange(
+	range: RecurrenceRange,
+	periodicity: Periodicity,
+): string {
+	const to = range.open ? "today" : formatPeriod(range.end, periodicity);
+	return `${formatPeriod(range.start, periodicity)} → ${to}`;
 }
 
 export interface PeriodPickerProps {

@@ -66,7 +66,9 @@ Filling in the recurrence block turns the type into what a Series used to be.
 - `periodicity`: `weekly`, `monthly`, `quarterly`, `semiannual` or
   `yearly`. A half-year runs from 1 January to 30 June, then from 1 July to 31
   December.
-- `start_period` is snapped to the first day of its period (Monday for a week).
+- `start_period` is optional, and snapped to the first day of its period
+  (Monday for a week). Left empty, the recurrence starts at the oldest of its
+  member documents and follows it as older ones are filed.
 - `end_period` is optional: an open recurrence keeps looking for the next
   period.
 - `expected_day` is the expected day of arrival: a day of the month, or an ISO
@@ -92,14 +94,40 @@ The period of a document is its `period_start`, falling back to its
 `present`, `missing` (its due date, expected date + `grace_days`, has passed)
 or `pending`.
 
+### Effective range
+
+Neither bound is required, so the range the recurrence actually covers is
+resolved from the members, once, by `effectiveRecurrenceRange(type, members)`:
+
+- it starts at `start_period`, or at the period of the **oldest member** when no
+  first period was set;
+- it ends at `end_period`, or — the recurrence being open — at the current
+  period, stretched further when a member is filed ahead of it;
+- it does not exist at all when nothing bounds it: a recurrence with no first
+  period and no member has an empty timeline, no stats and no reminder, rather
+  than a wall of red cells reaching back to 1970.
+
+Everything reads the same range: the timeline, `stats.expected/present/missing`,
+the `period_gap` reminders, the `documentTypeId` filter of `document.list` and
+the bounds a suggestion is created with. The timeline stops at the current
+period on top of it, so a recurrence closing in the future never paints periods
+nobody could have filed yet.
+
+`documentType.get()` and `documentType.list()` hand the range over as
+`range: { start, end, derived, open }` — `derived` says the start was read from
+the oldest document — and so do the MCP tools `list_document_types` and
+`get_document_type` (`{ start, end, derived }`). The interface shows it above
+the timeline ("Jan 2024 → today, from the oldest document").
+
 Missing periods produce `period_gap` reminders (`reminder.generate`), and feed
 `documentType.get().timeline` and `documentType.list().stats`.
 
-A member older than `start_period` belongs to the type but falls outside the
-window the timeline enumerates, so nothing would ever show it.
+A member older than an **explicit** `start_period` belongs to the type but falls
+outside the window the timeline enumerates, so nothing would ever show it.
 `documentType.get().outOfRange` lists those documents (`{ documentId, title,
 period, periodStart }`, oldest first), so the interface can offer to widen
-`start_period` or to exclude them.
+`start_period` or to exclude them. Without an explicit first period nothing is
+ever out of range: the range extends down to the document instead.
 
 `documentCount` counts what the type page lists: the documents carrying the
 type, plus the ones forced in by an override, minus the excluded ones and the
@@ -314,6 +342,9 @@ applies to `rule.run({ ruleId, force? })` for a disabled automation;
   from the same heuristic: an issuer + category pair covering at least two
   distinct periods, with the periodicity inferred from the median gap. Nothing
   is ever created automatically.
+
+Neither of them writes a `start_period`: no date is guessed, and the range
+follows the documents themselves.
 - `documentType.ensureGenericForCategory({ categoryId })` returns the
   `Any <Category>` type of a category, creating it on first use (see §4).
 - `documentType.preview({ id | draft, documentId })` reports what applying

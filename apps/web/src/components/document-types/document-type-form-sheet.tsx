@@ -123,6 +123,7 @@ export interface DocumentTypeDraft {
 	/** `false` = the type is not recurring; the block below is then ignored. */
 	recurring: boolean;
 	periodicity: Periodicity;
+	/** `null` = the recurrence starts at the oldest document of the type. */
 	startPeriod: string | null;
 	endPeriod: string | null;
 	expectedDay: string;
@@ -146,7 +147,8 @@ export function emptyDocumentTypeDraft(): DocumentTypeDraft {
 		enabled: true,
 		recurring: false,
 		periodicity: "monthly",
-		startPeriod: toPeriodStart(todayIso(), "monthly"),
+		// No first period by default: the range is read from the documents.
+		startPeriod: null,
 		endPeriod: null,
 		expectedDay: "",
 		graceDays: String(DEFAULT_GRACE_DAYS),
@@ -170,7 +172,7 @@ function toDraft(type: DocumentTypeDto | DocumentTypeItem): DocumentTypeDraft {
 		enabled: type.enabled,
 		recurring: type.periodicity !== null,
 		periodicity: type.periodicity ?? "monthly",
-		startPeriod: type.startPeriod ?? toPeriodStart(todayIso(), "monthly"),
+		startPeriod: type.startPeriod,
 		endPeriod: type.endPeriod,
 		expectedDay: type.expectedDay === null ? "" : String(type.expectedDay),
 		graceDays: String(type.graceDays ?? DEFAULT_GRACE_DAYS),
@@ -235,11 +237,7 @@ export function DocumentTypeFormSheet({
 
 	const nameError =
 		draft.name.trim().length === 0 ? "A name is required." : null;
-	const startError =
-		draft.recurring && draft.startPeriod === null
-			? "A start period is required."
-			: null;
-	const canSubmit = !nameError && !startError;
+	const canSubmit = !nameError;
 
 	/** Switching the periodicity re-snaps both bounds to the new period. */
 	const setPeriodicity = (periodicity: Periodicity) => {
@@ -270,20 +268,19 @@ export function DocumentTypeFormSheet({
 			titleTemplate: draft.titleTemplate.trim() || null,
 			detection: detectionOpen ? draft.detection : null,
 			enabled: draft.enabled,
-			recurrence:
-				draft.recurring && draft.startPeriod
-					? {
-							periodicity: draft.periodicity,
-							startPeriod: draft.startPeriod,
-							endPeriod: draft.endPeriod,
-							expectedDay: draft.expectedDay.trim()
-								? Number(draft.expectedDay)
-								: null,
-							graceDays: draft.graceDays.trim()
-								? Number(draft.graceDays)
-								: DEFAULT_GRACE_DAYS,
-						}
-					: null,
+			recurrence: draft.recurring
+				? {
+						periodicity: draft.periodicity,
+						startPeriod: draft.startPeriod,
+						endPeriod: draft.endPeriod,
+						expectedDay: draft.expectedDay.trim()
+							? Number(draft.expectedDay)
+							: null,
+						graceDays: draft.graceDays.trim()
+							? Number(draft.graceDays)
+							: DEFAULT_GRACE_DAYS,
+					}
+				: null,
 		};
 		try {
 			const saved = documentType
@@ -562,12 +559,11 @@ export function DocumentTypeFormSheet({
 									<FormField
 										label="First period"
 										htmlFor={`${ids}-start`}
-										required
-										errors={startError ? [startError] : undefined}
 										hint={
 											<PeriodHint
 												value={draft.startPeriod}
 												periodicity={draft.periodicity}
+												fallback="Defaults to the oldest document of this type."
 											/>
 										}
 									>

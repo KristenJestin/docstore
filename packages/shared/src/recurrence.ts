@@ -270,6 +270,27 @@ export const recurrenceStatsSchema = z.object({
 });
 export type RecurrenceStats = z.infer<typeof recurrenceStatsSchema>;
 
+/**
+ * Effective range of a recurrence: the periods the timeline enumerates, the
+ * stats count and the reminders watch.
+ *
+ * Both bounds of a document type are optional. What is missing is read from the
+ * member documents: the range starts at the oldest one, and an open recurrence
+ * runs to the current period (further still when a member is filed ahead of
+ * it). A type with no explicit start and no member has no range at all.
+ */
+export const recurrenceRangeSchema = z.object({
+	/** First day of the first period covered (`YYYY-MM-DD`). */
+	start: z.string(),
+	/** First day of the last period covered (`YYYY-MM-DD`). */
+	end: z.string(),
+	/** `true` when `start` was read from the oldest member, not from `startPeriod`. */
+	derived: z.boolean(),
+	/** `true` when nothing closes the recurrence: `end` follows the calendar. */
+	open: z.boolean(),
+});
+export type RecurrenceRange = z.infer<typeof recurrenceRangeSchema>;
+
 export const recurrencePeriodSchema = z.object({
 	/** Readable key of the period. */
 	period: z.string(),

@@ -34,7 +34,11 @@ import { DocumentTypeDetection } from "@/components/document-types/document-type
 import { DocumentTypeFormSheet } from "@/components/document-types/document-type-form-sheet";
 import { DocumentTypeLayouts } from "@/components/document-types/document-type-layouts";
 import { OutOfRangeNotice } from "@/components/document-types/out-of-range-notice";
-import { RecurrenceTimeline } from "@/components/document-types/recurrence-timeline";
+import { formatRecurrenceRange } from "@/components/document-types/period-picker";
+import {
+	RecurrenceRangeNote,
+	RecurrenceTimeline,
+} from "@/components/document-types/recurrence-timeline";
 import { RegenerateTitlesButton } from "@/components/document-types/regenerate-titles-button";
 import { DocumentRow } from "@/components/documents/document-row";
 import { EmptyState } from "@/components/empty-state";
@@ -244,11 +248,20 @@ function DocumentTypeDetailPage() {
 							{detail.periodicity && detail.stats ? (
 								<Card>
 									<CardHeader className="flex flex-wrap items-center justify-between gap-2">
-										<MonoLabel>Timeline</MonoLabel>
+										<div className="flex min-w-0 flex-col gap-1">
+											<MonoLabel>Timeline</MonoLabel>
+											<RecurrenceRangeNote
+												range={detail.range}
+												periodicity={detail.periodicity}
+											/>
+										</div>
 										<RecurrenceProgress stats={detail.stats} />
 									</CardHeader>
 									<CardContent>
-										<RecurrenceTimeline timeline={detail.timeline} />
+										<RecurrenceTimeline
+											timeline={detail.timeline}
+											range={detail.range}
+										/>
 									</CardContent>
 								</Card>
 							) : null}
@@ -381,8 +394,21 @@ function DocumentTypeDetailPage() {
 									{detail.periodicity ? (
 										<>
 											<InfoRow
+												label="Range"
+												value={
+													detail.range
+														? `${formatRecurrenceRange(
+																detail.range,
+																detail.periodicity,
+															)}${detail.range.derived ? " (derived)" : ""}`
+														: "—"
+												}
+											/>
+											<InfoRow
 												label="First period"
-												value={detail.startPeriod ?? "—"}
+												value={
+													detail.startPeriod ?? "Oldest document of the type"
+												}
 											/>
 											<InfoRow
 												label="Last period"
