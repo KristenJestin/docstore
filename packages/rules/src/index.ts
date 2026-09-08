@@ -18,6 +18,7 @@ export {
 	STRONG_IDENTIFIER_CONFIDENCE,
 	titleContextOf,
 	WEAK_IDENTIFIER_CONFIDENCE,
+	yearBounds,
 } from "./actions";
 export {
 	type ConditionResult,
@@ -34,6 +35,7 @@ export {
 	detectDates,
 	detectExplicitPeriods,
 	detectIssueDate,
+	detectNoticeYear,
 	detectPeriods,
 	detectReadingPeriod,
 	detectYearPeriod,

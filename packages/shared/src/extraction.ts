@@ -22,6 +22,12 @@ export type ExtractionTargetKind = z.infer<typeof extractionTargetKindSchema>;
 export const extractionTargetSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("field"), fieldId: z.string().min(1) }),
 	z.object({ kind: z.literal("document_date") }),
+	/**
+	 * Covered period. The extracted value bounds it according to its precision:
+	 * a day is a single day, a month the whole month, and a bare year
+	 * ("2025", or a date with `year` precision) the whole year — a tax notice
+	 * prints its year and nothing else.
+	 */
 	z.object({ kind: z.literal("period") }),
 	z.object({ kind: z.literal("valid_until") }),
 	z.object({ kind: z.literal("title") }),

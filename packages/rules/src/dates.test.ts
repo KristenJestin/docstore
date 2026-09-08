@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	detectDates,
 	detectIssueDate,
+	detectNoticeYear,
 	detectPeriods,
 	detectReadingPeriod,
 	detectYearPeriod,
@@ -244,6 +245,102 @@ describe("detectYearPeriod — yearly documents", () => {
 		expect(detectPeriods(text)[0]).toMatchObject({
 			start: "2025-08-01",
 			end: "2025-08-31",
+		});
+	});
+});
+
+/**
+ * A tax notice names two years: the one it is issued under and the one it
+ * covers. The period is the covered one — filing the 2026 notice under 2026
+ * puts it a year away from the income it taxes.
+ */
+describe("detectYearPeriod — notice year vs covered year", () => {
+	const TAX_NOTICE = [
+		"DIRECTION GÉNÉRALE DES FINANCES PUBLIQUES",
+		"Avis d'impôt 2026",
+		"Impôt sur le revenu — Année 2026",
+		"Revenus de l'année 2025",
+		"Date de mise en recouvrement : 31/07/2026",
+	].join("\n");
+
+	const CFE = [
+		"Avis d'impôt 2025",
+		"Cotisation foncière des entreprises — Année 2025",
+		"Montant à payer : 512,00 €",
+	].join("\n");
+
+	const TAXE_FONCIERE = [
+		"Avis d'impôt 2025",
+		"Taxes foncières — Année 2025",
+		"Commune de Nantes",
+	].join("\n");
+
+	const ENGLISH_NOTICE = [
+		"HM Revenue & Customs",
+		"Tax notice 2026",
+		"Income year 2025",
+	].join("\n");
+
+	test.each([
+		["tax notice", TAX_NOTICE, "2025"],
+		["CFE", CFE, "2025"],
+		["taxe foncière", TAXE_FONCIERE, "2025"],
+		["English notice", ENGLISH_NOTICE, "2025"],
+		["single line", "Avis d'impôt 2026 sur les revenus de 2025", "2025"],
+		["au titre de", "Avis d'impôt 2026 — au titre de l'année 2025", "2025"],
+	])("%s covers %p, not the notice year", (_name, text, year) => {
+		expect(detectYearPeriod(text)).toMatchObject({
+			start: `${year}-01-01`,
+			end: `${year}-12-31`,
+		});
+		expect(detectPeriods(text)[0]).toMatchObject({
+			start: `${year}-01-01`,
+			end: `${year}-12-31`,
+		});
+	});
+
+	test("the notice year is read on its own, as a year-precision date", () => {
+		expect(detectNoticeYear(TAX_NOTICE)).toMatchObject({
+			date: "2026-01-01",
+			precision: "year",
+		});
+		expect(detectNoticeYear(ENGLISH_NOTICE)).toMatchObject({
+			date: "2026-01-01",
+			precision: "year",
+		});
+		expect(detectNoticeYear(CFE)).toMatchObject({ date: "2025-01-01" });
+		expect(detectNoticeYear("Bulletin de paie — année 2025")).toBeNull();
+	});
+
+	test("the notice year dates the document, the covered year is its period", () => {
+		const period = detectPeriods(TAX_NOTICE)[0];
+		expect(period).toMatchObject({ start: "2025-01-01", end: "2025-12-31" });
+		expect(
+			pickDocumentDate({
+				text: TAX_NOTICE,
+				detectedDates: detectDates(TAX_NOTICE),
+				periodStart: period?.start ?? null,
+				periodEnd: period?.end ?? null,
+			}),
+		).toMatchObject({
+			source: "labelled",
+			confidence: LABELLED_DATE_CONFIDENCE,
+			candidate: { date: "2026-01-01", precision: "year" },
+		});
+	});
+
+	test("a notice covering its own year is dated by that year", () => {
+		const period = detectPeriods(TAXE_FONCIERE)[0];
+		expect(
+			pickDocumentDate({
+				text: TAXE_FONCIERE,
+				detectedDates: detectDates(TAXE_FONCIERE),
+				periodStart: period?.start ?? null,
+				periodEnd: period?.end ?? null,
+			}),
+		).toMatchObject({
+			source: "period",
+			candidate: { date: "2025-01-01", precision: "year" },
 		});
 	});
 });

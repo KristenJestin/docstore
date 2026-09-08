@@ -322,15 +322,64 @@ export function detectReadingPeriod(text: string): PeriodCandidate | null {
 /* Yearly documents                                                     */
 /* ------------------------------------------------------------------ */
 
+const YEAR = String.raw`(?:19|20)\d{2}`;
+
 /**
- * Statements naming a whole year: "année 2025", "au titre de l'année 2025",
- * "revenus 2025", "exercice 2025", "tax year 2025".
+ * Statements naming a whole year: "année 2025", "exercice 2025", "revenus
+ * 2025", "tax year 2025".
  *
  * The year is required to look like one (`19xx`/`20xx`), so an amount or a
  * meter index never passes for one.
  */
-const YEAR_PERIOD_RE =
-	/\b(?:ann[ée]e|revenus|exercice|p[ée]riode\s+fiscale|tax\s+year|fiscal\s+year|year)\s*(?:fiscale?\s*)?(?:de\s+|d['’]\s*|:\s*)?((?:19|20)\d{2})\b/gi;
+const YEAR_PERIOD_RE = new RegExp(
+	String.raw`\b(?:ann[ée]e|revenus|exercice|p[ée]riode\s+fiscale|tax\s+year|fiscal\s+year|year)\s*(?:fiscale?\s*)?(?:de\s+|d['’]\s*|:\s*)?(${YEAR})\b`,
+	"gi",
+);
+
+/**
+ * Labels naming the year the document *covers*: "revenus de 2025", "au titre
+ * de l'année 2025", "income year 2025".
+ *
+ * A French tax notice names two years — the year it was issued in ("avis
+ * d'impôt 2026") and the year of the income it taxes ("impôt sur les revenus
+ * de 2025") — and both are often spelled "année 20xx" somewhere on the page.
+ * These labels are the ones that state the *coverage*, so they answer before
+ * any bare "année 20xx".
+ */
+const COVERED_YEAR_RE = new RegExp(
+	String.raw`\b(?:` +
+		String.raw`au\s+titre\s+(?:de\s+l['’]\s*(?:ann[ée]e|exercice|imposition)|des\s+revenus|du\s+revenu|de)` +
+		String.raw`|revenus?(?:\s+(?:de|of|for))?(?:\s+l['’]\s*ann[ée]e)?` +
+		String.raw`|income\s+(?:year|for(?:\s+the\s+year)?)` +
+		String.raw`|for\s+the\s+year|year\s+covered|p[ée]riode\s+couverte` +
+		String.raw`)\s*(?:d['’]\s*|:\s*)?(${YEAR})\b`,
+	"gi",
+);
+
+/**
+ * Year a tax notice is *issued* under: "avis d'impôt 2026", "avis
+ * d'imposition 2026", "tax notice 2026".
+ *
+ * Never a period: the 2026 notice taxes the income of 2025. It is a date, and
+ * that is all {@link pickDocumentDate} uses it for.
+ */
+const NOTICE_YEAR_RE = new RegExp(
+	String.raw`\b(?:avis\s+(?:d['’]\s*imposition|d['’]\s*imp[ôo]ts?|de\s+situation\s+d[ée]clarative)|tax\s+notice|notice\s+of\s+assessment)\s*(?:pour\s+|for\s+)?(?:l['’]\s*ann[ée]e\s*)?(${YEAR})\b`,
+	"gi",
+);
+
+/** First year captured by `regex`, with where it was read. */
+function firstYear(
+	text: string,
+	regex: RegExp,
+): { year: string; raw: string; index: number } | null {
+	for (const match of text.matchAll(regex)) {
+		const year = match[1];
+		if (!year) continue;
+		return { year, raw: match[0], index: match.index ?? 0 };
+	}
+	return null;
+}
 
 /**
  * The whole year a document covers, when its text names one.
@@ -338,19 +387,38 @@ const YEAR_PERIOD_RE =
  * A tax notice, an annual statement or a yearly summary carries no "du … au …"
  * and often no date at all: what it says is "au titre de l'année 2025", and
  * that is a period — the whole of 2025.
+ *
+ * When the text names both years, the covered one wins: "avis d'impôt 2026 sur
+ * les revenus de 2025" is a document about 2025, and filing it under 2026 puts
+ * it a year away from the payslips it goes with.
  */
 export function detectYearPeriod(text: string): PeriodCandidate | null {
-	for (const match of text.matchAll(YEAR_PERIOD_RE)) {
-		const year = match[1];
-		if (!year) continue;
-		return {
-			start: `${year}-01-01`,
-			end: `${year}-12-31`,
-			raw: match[0],
-			index: match.index ?? 0,
-		};
-	}
-	return null;
+	const named =
+		firstYear(text, COVERED_YEAR_RE) ?? firstYear(text, YEAR_PERIOD_RE);
+	if (!named) return null;
+	return {
+		start: `${named.year}-01-01`,
+		end: `${named.year}-12-31`,
+		raw: named.raw,
+		index: named.index,
+	};
+}
+
+/**
+ * Year the document was issued under, when it is a notice naming one.
+ *
+ * Dated to 1 January with `year` precision: the notice says which year it
+ * belongs to, not which day it was printed.
+ */
+export function detectNoticeYear(text: string): DateCandidate | null {
+	const named = firstYear(text, NOTICE_YEAR_RE);
+	if (!named) return null;
+	return {
+		date: `${named.year}-01-01`,
+		precision: "year",
+		raw: named.raw,
+		index: named.index,
+	};
 }
 
 /**
@@ -423,6 +491,16 @@ export const LABELLED_DATE_CONFIDENCE = 0.9;
  */
 export const INFERRED_DATE_CONFIDENCE = 0.6;
 
+/** The year both bounds cover exactly, `null` for any other period. */
+function wholeYearOf(
+	start: string | null | undefined,
+	end: string | null | undefined,
+): string | null {
+	if (!start || !end) return null;
+	const year = start.slice(0, 4);
+	return start === `${year}-01-01` && end === `${year}-12-31` ? year : null;
+}
+
 export interface DocumentDatePick {
 	candidate: DateCandidate;
 	/** Never `manual`: this function only ever reads the document. */
@@ -469,6 +547,22 @@ export function pickDocumentDate(
 	// happens to mention "année 2025" keeps its own date.
 	const yearly = detectYearPeriod(input.text);
 	const noPeriod = !input.periodStart && !input.periodEnd;
+
+	// A notice names the year it was issued under next to the year it covers
+	// ("avis d'impôt 2026 sur les revenus de 2025"). The covered year is the
+	// period; the notice year is the only date the document carries.
+	const covered =
+		wholeYearOf(input.periodStart, input.periodEnd) ??
+		(noPeriod && yearly ? yearly.start.slice(0, 4) : null);
+	const notice = detectNoticeYear(input.text);
+	if (covered && notice && notice.date.slice(0, 4) !== covered) {
+		return {
+			candidate: notice,
+			source: "labelled",
+			confidence: LABELLED_DATE_CONFIDENCE,
+		};
+	}
+
 	if (
 		yearly &&
 		(noPeriod ||

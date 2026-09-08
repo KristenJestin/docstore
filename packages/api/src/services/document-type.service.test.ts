@@ -1,7 +1,28 @@
-import { describe, expect, test } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	test,
+} from "bun:test";
+import {
+	createTestDb,
+	type TestDb,
+	truncateAll,
+} from "@docstore/db/test-utils";
+import {
+	createDocumentTypeInput,
+	updateDocumentTypeInput,
+} from "@docstore/shared/document-type";
 
 import type { DocumentTypeMember } from "./document-type.service";
-import { effectiveRecurrenceRange } from "./document-type.service";
+import {
+	createDocumentType,
+	effectiveRecurrenceRange,
+	updateDocumentType,
+} from "./document-type.service";
+import { createTag } from "./tag.service";
 
 /**
  * Effective range of a recurrence (`docs/document-types.md` §2). Both bounds
@@ -137,5 +158,87 @@ describe("effectiveRecurrenceRange", () => {
 			derived: true,
 			open: true,
 		});
+	});
+});
+
+/**
+ * Renaming a type is a patch, not a rewrite (`docs/document-types.md` §1).
+ *
+ * The update input used to be derived from the create one with `.partial()`,
+ * which keeps the defaults: a form sending nothing but the new name also sent
+ * `tagIds: []` and `sensitiveDefault: false`, and the type came back stripped.
+ */
+describe("updateDocumentType — a patch leaves the rest alone", () => {
+	let db: TestDb;
+
+	beforeAll(async () => {
+		db = await createTestDb();
+	});
+
+	afterAll(async () => {
+		await db.$client.end();
+	});
+
+	beforeEach(async () => {
+		await truncateAll(db);
+	});
+
+	async function seedType() {
+		const urgent = await createTag(db, { name: "urgent" });
+		const created = await createDocumentType(
+			db,
+			createDocumentTypeInput.parse({
+				name: "EDF bill",
+				tagIds: [urgent.id],
+				sensitiveDefault: true,
+				paperOriginal: true,
+				detection: {
+					op: "and",
+					children: [{ field: "content", cmp: "contains", value: "EDF" }],
+				},
+				detectionConfidence: 0.75,
+				enabled: false,
+				priority: 42,
+			}),
+		);
+		return { created, tagId: urgent.id };
+	}
+
+	test("renaming keeps the tags, the sensitivity and the detection", async () => {
+		const { created, tagId } = await seedType();
+		expect(created.tagIds).toEqual([tagId]);
+
+		// Exactly what the rename form sends, parsed by the real schema.
+		const updated = await updateDocumentType(
+			db,
+			updateDocumentTypeInput.parse({
+				id: created.id,
+				name: "EDF electricity bill",
+			}),
+		);
+
+		expect(updated.name).toBe("EDF electricity bill");
+		expect(updated.tagIds).toEqual([tagId]);
+		expect(updated.sensitiveDefault).toBe(true);
+		expect(updated.paperOriginal).toBe(true);
+		expect(updated.detection).toEqual(created.detection);
+		expect(updated.detectionConfidence).toBe(0.75);
+		expect(updated.enabled).toBe(false);
+		expect(updated.priority).toBe(42);
+	});
+
+	test("a field explicitly sent is still written", async () => {
+		const { created } = await seedType();
+		const updated = await updateDocumentType(
+			db,
+			updateDocumentTypeInput.parse({
+				id: created.id,
+				tagIds: [],
+				sensitiveDefault: false,
+			}),
+		);
+		expect(updated.tagIds).toEqual([]);
+		expect(updated.sensitiveDefault).toBe(false);
+		expect(updated.name).toBe("EDF bill");
 	});
 });

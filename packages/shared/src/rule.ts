@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dateOnlySchema } from "./common";
 import { datePrecisionSchema, documentPartyRoleSchema } from "./document";
 import { extractionResultSchema } from "./extraction";
 
@@ -194,9 +195,18 @@ export const ruleActionSchema = z.discriminatedUnion("type", [
 		/** Absent = date detected automatically in the text. */
 		extractionRuleId: z.string().min(1).optional(),
 	}),
+	/**
+	 * Covered period. Three ways to say it, most explicit first: literal bounds,
+	 * the `year` shortcut (1 January – 31 December, for the yearly documents
+	 * whose text never spells a period out), an extraction rule. With none of
+	 * them, the period detected in the text is used.
+	 */
 	z.object({
 		type: z.literal("set_period"),
 		extractionRuleId: z.string().min(1).optional(),
+		periodStart: dateOnlySchema.optional(),
+		periodEnd: dateOnlySchema.optional(),
+		year: z.int().min(1900).max(2999).optional(),
 	}),
 	z.object({
 		type: z.literal("set_valid_until"),

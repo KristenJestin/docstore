@@ -219,7 +219,16 @@ export const recurrenceInput = z.object({
 });
 export type RecurrenceInput = z.infer<typeof recurrenceInput>;
 
-export const createDocumentTypeInput = z.object({
+/**
+ * Every writable field of a document type, **without a default**.
+ *
+ * `create` layers the defaults on top; `update` takes the map as it is. Zod
+ * keeps `.default()` through `.partial()`, so an update schema derived from
+ * the create one silently rewrites every defaulted field: a patch carrying
+ * nothing but `{ name }` used to wipe the tags of the type. Same field map,
+ * same reason as `updatePartyInput`.
+ */
+const documentTypeFields = {
 	name: z.string().trim().min(1).max(200),
 	description: z.string().trim().max(2000).nullish(),
 	icon: iconNameSchema.nullish(),
@@ -227,10 +236,10 @@ export const createDocumentTypeInput = z.object({
 	categoryId: z.string().min(1).nullish(),
 	issuerPartyId: z.string().min(1).nullish(),
 	subjectPartyId: z.string().min(1).nullish(),
-	tagIds: z.array(z.string().min(1)).default([]),
-	sensitiveDefault: z.boolean().default(false),
+	tagIds: z.array(z.string().min(1)),
+	sensitiveDefault: z.boolean(),
 	/** Numbers every document this type is applied to (SPEC §2). */
-	paperOriginal: z.boolean().default(false),
+	paperOriginal: z.boolean(),
 	titleTemplate: z.string().trim().max(300).nullish(),
 	detection: ruleConditionSchema.nullish(),
 	detectionConfidence: z.number().min(0).max(1).optional(),
@@ -238,10 +247,19 @@ export const createDocumentTypeInput = z.object({
 	priority: z.int().min(0).max(10_000).optional(),
 	/** `null` (or absent) = no recurrence. */
 	recurrence: recurrenceInput.nullish(),
+};
+
+export const createDocumentTypeInput = z.object({
+	...documentTypeFields,
+	tagIds: documentTypeFields.tagIds.default([]),
+	sensitiveDefault: documentTypeFields.sensitiveDefault.default(false),
+	paperOriginal: documentTypeFields.paperOriginal.default(false),
 });
 export type CreateDocumentTypeInput = z.infer<typeof createDocumentTypeInput>;
 
-export const updateDocumentTypeInput = createDocumentTypeInput
+/** Partial patch: no default is applied, an absent field is left unchanged. */
+export const updateDocumentTypeInput = z
+	.object(documentTypeFields)
 	.partial()
 	.extend({ id: z.string().min(1) });
 export type UpdateDocumentTypeInput = z.infer<typeof updateDocumentTypeInput>;

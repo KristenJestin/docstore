@@ -55,6 +55,34 @@ function lastDayOfMonth(date: string): string {
 	return `${date.slice(0, 7)}-${String(last).padStart(2, "0")}`;
 }
 
+/** The whole of a year: 1 January – 31 December. */
+export function yearBounds(year: number | string): {
+	start: string;
+	end: string;
+} {
+	return { start: `${year}-01-01`, end: `${year}-12-31` };
+}
+
+/**
+ * Bounds of the period an extracted value stands for.
+ *
+ * A day is its own period, a month runs to its last day, and a year covers
+ * itself: a tax notice or an annual statement carries "2025" and nothing more,
+ * which is a period all the same.
+ */
+function periodBounds(
+	value: string,
+	precision: DatePrecision | undefined,
+): { start: string; end: string } {
+	if (precision === "year" || /^\d{4}$/.test(value)) {
+		return yearBounds(value.slice(0, 4));
+	}
+	if (precision === "month") {
+		return { start: value, end: lastDayOfMonth(value) };
+	}
+	return { start: value, end: value };
+}
+
 /** Rendering context for a title template, built from the evaluated subject. */
 export function titleContextOf(subject: RuleSubject) {
 	const issuer = subject.parties.find((party) => party.role === "issuer");
@@ -113,12 +141,11 @@ export function operationFromExtraction(
 				confidence: result.confidence,
 			};
 		case "period": {
-			const date = String(result.value);
-			const isMonth = result.precision === "month";
+			const bounds = periodBounds(String(result.value), result.precision);
 			return {
 				type: "set_period",
-				start: date,
-				end: isMonth ? lastDayOfMonth(date) : date,
+				start: bounds.start,
+				end: bounds.end,
 				confidence: result.confidence,
 			};
 		}
@@ -247,6 +274,31 @@ export function planActions(
 				break;
 			}
 			case "set_period": {
+				// Literal bounds win, then the `year` shortcut: both are typed in by
+				// hand and say exactly what the period is, where an extraction rule
+				// and the detection only read the text.
+				if (
+					action.periodStart !== undefined ||
+					action.periodEnd !== undefined
+				) {
+					operations.push({
+						type: "set_period",
+						start: action.periodStart ?? null,
+						end: action.periodEnd ?? null,
+						confidence: LITERAL_CONFIDENCE,
+					});
+					break;
+				}
+				if (action.year !== undefined) {
+					const bounds = yearBounds(action.year);
+					operations.push({
+						type: "set_period",
+						start: bounds.start,
+						end: bounds.end,
+						confidence: LITERAL_CONFIDENCE,
+					});
+					break;
+				}
 				if (action.extractionRuleId) {
 					const operation = fromExtraction(action.extractionRuleId);
 					if (operation) operations.push(operation);
