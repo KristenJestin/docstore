@@ -283,4 +283,62 @@ test.describe("document types", () => {
 			{ timeout: 20_000 },
 		);
 	});
+
+	test("a category opens its extraction rules on a generic type", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Generic Type User");
+
+		// --- A category with no document type of its own ----------------------
+		const categoryName = runName("extraction category");
+		await page.goto("/settings/categories");
+		await page.getByRole("button", { name: "New category" }).first().click();
+		await page
+			.getByRole("textbox", { name: "New category name" })
+			.fill(categoryName);
+		await page.getByRole("button", { name: "Create", exact: true }).click();
+		await expect(
+			page.getByRole("button", { name: `Rename ${categoryName}` }),
+		).toHaveCount(1);
+
+		// --- "Extraction rules" lands on the Layouts tab of `Any <Category>` ---
+		await page
+			.getByRole("button", { name: `Extraction rules of ${categoryName}` })
+			.click();
+		await expect(page).toHaveURL(/\/types\/dty_[^/]+\?tab=layouts/, {
+			timeout: 30_000,
+		});
+		const typeUrl = page.url();
+		await expect(
+			page.getByRole("heading", { name: `Any ${categoryName}` }),
+		).toBeVisible();
+		await expect(page.getByRole("tab", { name: "Layouts" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		// The type owns the Default layout every type is created with: that is
+		// where its extraction rules go.
+		await expect(
+			page.getByRole("button", { name: "Sample document" }),
+		).toBeVisible();
+
+		// --- Asking again reuses the same type, it never creates a second ------
+		await page.goto("/settings/categories");
+		await page
+			.getByRole("button", { name: `Extraction rules of ${categoryName}` })
+			.click();
+		await expect(page).toHaveURL(typeUrl, { timeout: 30_000 });
+
+		// The generic type is named after the category, so the run prefix only
+		// reaches it once it is renamed: this is what hands it to the cleanup.
+		const typeName = runName("any category");
+		await page.getByRole("button", { name: "Edit" }).first().click();
+		const sheet = page.getByRole("dialog");
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(typeName);
+		await sheet.getByRole("button", { name: "Save" }).click();
+		await expect(sheet).toBeHidden();
+		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
+	});
 });
