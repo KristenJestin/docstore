@@ -1055,7 +1055,16 @@ export async function updateDocument(
 /* Physical archiving (ASN)                                             */
 /* ------------------------------------------------------------------ */
 
-/** Next free archive serial number: `max(asn) + 1`, `1` on an empty store. */
+/**
+ * Next free archive serial number: `max(asn) + 1`, `1` on an empty store.
+ *
+ * The maximum runs over the rows that are still there, trash included: a
+ * trashed document keeps its number, because restoring it must put it back in
+ * the binder under the number written on the sheet. Only
+ * `document.deletePermanently` frees a number — the row goes, the maximum
+ * drops, and the last number is handed out again. `allocateAsn` computes the
+ * same maximum inside its own `update`, so the two never disagree.
+ */
 export async function nextAsn(db: Db): Promise<NextAsnResult> {
 	const [row] = await db
 		.select({ max: sql<number | null>`max(${document.asn})` })
@@ -1299,7 +1308,11 @@ export async function deleteDocumentPermanently(
 			: [file.storageKey],
 	);
 
-	// `document_file` and `document_party` are deleted by cascade.
+	// `document_file` and `document_party` are deleted by cascade. So is the
+	// ASN, which goes with the row: the sheet is out of the binder for good, so
+	// its number is free again and `nextAsn` hands it out to the next document.
+	// Trashing does not do this — a trashed document keeps its number, because
+	// restoring it has to put it back under the number written on the sheet.
 	await db.delete(document).where(eq(document.id, id));
 
 	if (options.onDeleteFiles) {
