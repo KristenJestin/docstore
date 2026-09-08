@@ -468,6 +468,8 @@ export interface DemoLayout {
 		fieldSlug: string;
 		label: string;
 		valuePattern: string;
+		/** Regex flags of the label; nothing is added on its behalf. */
+		flags?: string;
 	}[];
 }
 
@@ -502,6 +504,8 @@ const NET_PAY_EXTRACTION = {
 	fieldSlug: "net-pay",
 	label: "NET (À|A) PAYER",
 	valuePattern: "(\\d[\\d\\s.,]*\\d)",
+	// The payslips print "Net à payer": the `i` is spelled out, never implied.
+	flags: "i",
 };
 
 const TOTAL_TTC_EXTRACTION = {
@@ -509,6 +513,7 @@ const TOTAL_TTC_EXTRACTION = {
 	fieldSlug: "total-amount",
 	label: "TOTAL TTC",
 	valuePattern: "(\\d[\\d\\s.,]*\\d)",
+	flags: "i",
 };
 
 export const DEMO_DOCUMENT_TYPES: DemoDocumentType[] = [

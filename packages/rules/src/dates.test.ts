@@ -3,6 +3,8 @@ import {
 	detectDates,
 	detectIssueDate,
 	detectPeriods,
+	detectReadingPeriod,
+	detectYearPeriod,
 	INFERRED_DATE_CONFIDENCE,
 	LABELLED_DATE_CONFIDENCE,
 	monthFromName,
@@ -147,6 +149,105 @@ describe("detectPeriods — payslips", () => {
 	});
 });
 
+describe("detectReadingPeriod — water and energy bills", () => {
+	test("two readings bound the consumption, whatever their order", () => {
+		const text = [
+			"Facture d'eau — consommation",
+			"Relevé du 12/03/2026 : index 1 284 m³",
+			"Relevé précédent 10/09/2025 : index 1 191 m³",
+		].join("\n");
+		expect(detectReadingPeriod(text)).toMatchObject({
+			start: "2025-09-10",
+			end: "2026-03-12",
+		});
+		expect(detectPeriods(text)[0]).toMatchObject({
+			start: "2025-09-10",
+			end: "2026-03-12",
+		});
+	});
+
+	test("the earlier reading first changes nothing", () => {
+		const text =
+			"Relevé précédent du 10/09/2025\nRelevé actuel du 12 mars 2026";
+		expect(detectReadingPeriod(text)).toMatchObject({
+			start: "2025-09-10",
+			end: "2026-03-12",
+		});
+	});
+
+	test("reads the index wording of an energy bill", () => {
+		const text = [
+			"Électricité — votre consommation",
+			"Ancien index : 10/09/2025 — 4 812 kWh",
+			"Nouvel index : 12/03/2026 — 6 044 kWh",
+		].join("\n");
+		expect(detectReadingPeriod(text)).toMatchObject({
+			start: "2025-09-10",
+			end: "2026-03-12",
+		});
+	});
+
+	test("a single reading is a date, not a period", () => {
+		expect(
+			detectReadingPeriod("Relevé du 12/03/2026 : index 1 284"),
+		).toBeNull();
+		expect(
+			detectReadingPeriod("Relevé du 12/03/2026\nRelevé le 12/03/2026"),
+		).toBeNull();
+	});
+
+	test("an explicit du … au … wins over the readings", () => {
+		const text = [
+			"Facture d'eau du 01/01/2026 au 31/03/2026",
+			"Relevé du 12/03/2026",
+			"Relevé précédent 10/09/2025",
+		].join("\n");
+		expect(detectPeriods(text)[0]).toMatchObject({
+			start: "2026-01-01",
+			end: "2026-03-31",
+		});
+	});
+
+	test("a text without readings proposes nothing", () => {
+		expect(detectReadingPeriod("Facture du 12/03/2026, total 42,00 €")).toBe(
+			null,
+		);
+	});
+});
+
+describe("detectYearPeriod — yearly documents", () => {
+	test.each([
+		["Avis d'impôt — année 2025", "2025"],
+		["Impôt sur les revenus 2025", "2025"],
+		["Établi au titre de l'année 2025", "2025"],
+		["Statement for tax year 2025", "2025"],
+		["Exercice 2025 — récapitulatif annuel", "2025"],
+		["Revenus de 2025", "2025"],
+	])("reads %p", (text, year) => {
+		expect(detectYearPeriod(text)).toMatchObject({
+			start: `${year}-01-01`,
+			end: `${year}-12-31`,
+		});
+		expect(detectPeriods(text)[0]).toMatchObject({
+			start: `${year}-01-01`,
+			end: `${year}-12-31`,
+		});
+	});
+
+	test("a bare four-digit number is not a year statement", () => {
+		expect(detectYearPeriod("Montant total : 2025 €")).toBeNull();
+		expect(detectYearPeriod("Index 2025 kWh")).toBeNull();
+	});
+
+	test("an explicit period wins over the year named in the text", () => {
+		const text = "Bulletin de paie du 01/08/2025 au 31/08/2025 — année 2025";
+		expect(detectPeriods(text)[0]).toMatchObject({
+			start: "2025-08-01",
+			end: "2025-08-31",
+		});
+	});
+});
+
 describe("detectIssueDate", () => {
 	test.each([
 		["Payé le 05/09/2026", "2026-09-05"],
@@ -226,5 +327,37 @@ describe("pickDocumentDate", () => {
 
 	test("nothing to read means nothing to propose", () => {
 		expect(pick("No date at all in this text.")).toBeNull();
+	});
+
+	test("a yearly document is dated by its year, with year precision", () => {
+		const text =
+			"Avis d'impôt sur les revenus 2025\nMontant à payer : 1 240,00 €";
+		expect(
+			pick(text, { start: "2025-01-01", end: "2025-12-31" }),
+		).toMatchObject({
+			source: "period",
+			confidence: LABELLED_DATE_CONFIDENCE,
+			candidate: { date: "2025-01-01", precision: "year" },
+		});
+	});
+
+	test("the year statement loses to a labelled date", () => {
+		const text = "Attestation au titre de l'année 2025 — établie le 12/02/2026";
+		expect(
+			pick(text, { start: "2025-01-01", end: "2025-12-31" }),
+		).toMatchObject({
+			source: "labelled",
+			candidate: { date: "2026-02-12", precision: "day" },
+		});
+	});
+
+	test("a document whose period is not that year keeps its own date", () => {
+		const text = "Bulletin de paie du 01/08/2025 au 31/08/2025 — année 2025";
+		expect(
+			pick(text, { start: "2025-08-01", end: "2025-08-31" }),
+		).toMatchObject({
+			source: "period",
+			candidate: { date: "2025-08-01", precision: "day" },
+		});
 	});
 });

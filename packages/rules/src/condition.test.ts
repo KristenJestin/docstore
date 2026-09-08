@@ -108,14 +108,32 @@ describe("comparators", () => {
 		);
 	});
 
-	test("regex accepts flags and ignores case by default", () => {
+	test("regex is case-sensitive unless the leaf carries the i flag", () => {
+		// The content reads "Bulletin de paie…": a lowercase pattern must not
+		// match it on its own.
 		expect(
 			matches({
 				field: "content",
 				cmp: "regex",
 				value: "bulletin de (paie|salaire)",
 			}),
+		).toBe(false);
+		expect(
+			matches({
+				field: "content",
+				cmp: "regex",
+				value: "bulletin de (paie|salaire)",
+				flags: "i",
+			}),
 		).toBe(true);
+		expect(
+			matches({
+				field: "content",
+				cmp: "regex",
+				value: "Bulletin de (paie|salaire)",
+			}),
+		).toBe(true);
+		// An empty flags string says the same thing as no flags at all.
 		expect(
 			matches({
 				field: "content",

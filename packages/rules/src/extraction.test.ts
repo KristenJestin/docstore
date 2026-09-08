@@ -107,6 +107,21 @@ describe("regex strategy", () => {
 		const result = run({ kind: "regex", pattern: "([a-z", group: 0 });
 		expect(result.raw).toBeNull();
 	});
+
+	test("the pattern is case-sensitive unless the rule carries `i`", () => {
+		// The text reads "FACTURE N° 2024-001".
+		expect(
+			run({ kind: "regex", pattern: "facture n°\\s*(\\S+)", group: 1 }).raw,
+		).toBeNull();
+		expect(
+			run({
+				kind: "regex",
+				pattern: "facture n°\\s*(\\S+)",
+				group: 1,
+				flags: "i",
+			}).raw,
+		).toBe("2024-001");
+	});
 });
 
 describe("anchor strategy", () => {

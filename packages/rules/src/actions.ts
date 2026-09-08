@@ -175,11 +175,24 @@ export function planActions(
 					confidence: LITERAL_CONFIDENCE,
 				});
 				break;
+			case "set_category":
+				operations.push({
+					type: "set_category",
+					categoryId: action.categoryId,
+					confidence: LITERAL_CONFIDENCE,
+				});
+				break;
 			case "add_tag":
 				operations.push({ type: "add_tag", tagId: action.tagId });
 				break;
 			case "remove_tag":
 				operations.push({ type: "remove_tag", tagId: action.tagId });
+				break;
+			case "add_to_dossier":
+				operations.push({
+					type: "add_to_dossier",
+					dossierId: action.dossierId,
+				});
 				break;
 			case "link_party":
 				operations.push({

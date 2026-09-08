@@ -62,6 +62,23 @@ export const DEFAULT_LEAF: RuleConditionLeaf = {
 	value: "",
 };
 
+/**
+ * Applies a comparator to a leaf.
+ *
+ * Switching to `regex` writes `flags: "i"` rather than leaving the field
+ * empty: matching without regard to case is what people expect of a search
+ * box, but the engine adds nothing on its own, so the choice has to be spelled
+ * out in the leaf. Unticking the toggle then really is case-sensitive.
+ */
+export function withComparator(
+	leaf: RuleConditionLeaf,
+	cmp: string,
+): RuleConditionLeaf {
+	const next: RuleConditionLeaf = { ...leaf, cmp: cmp as RuleComparator };
+	if (next.cmp === "regex" && next.flags === undefined) next.flags = "i";
+	return next;
+}
+
 /** The editor always works on a group: a bare leaf is wrapped in an `and`. */
 export function asConditionGroup(node: RuleCondition): RuleConditionGroup {
 	return isConditionGroup(node) ? node : { op: "and", children: [node] };
@@ -321,7 +338,7 @@ function ConditionLeafEditor({
 		const cmp = allowed.includes(leaf.cmp)
 			? leaf.cmp
 			: (allowed[0] as RuleComparator);
-		onChange({ field, cmp, value: undefined });
+		onChange(withComparator({ ...leaf, field, value: undefined }, cmp));
 	};
 
 	return (
@@ -385,9 +402,9 @@ function ConditionLeafEditor({
 				<Select
 					items={RULE_COMPARATOR_LABELS}
 					value={leaf.cmp}
-					onValueChange={(cmp) =>
-						onChange({ ...leaf, cmp: cmp as RuleComparator })
-					}
+					onValueChange={(cmp) => {
+						if (cmp) onChange(withComparator(leaf, cmp));
+					}}
 				>
 					<SelectTrigger
 						id={`${ids}-cmp`}

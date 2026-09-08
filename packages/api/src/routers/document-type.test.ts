@@ -753,6 +753,56 @@ describe("documentType.createFromDocument", () => {
 	});
 });
 
+describe("documentType.ensureGenericForCategory", () => {
+	test("creates the Any <Category> type once, with its Default layout", async () => {
+		const created = await client.documentType.ensureGenericForCategory({
+			categoryId,
+		});
+		expect(created.name).toBe("Any Invoice");
+		expect(created.generic).toBe(true);
+		expect(created.categoryId).toBe(categoryId);
+		expect(created.issuerPartyId).toBeNull();
+		expect(created.subjectPartyId).toBeNull();
+		expect(created.periodicity).toBeNull();
+		// Nothing detects it: it exists to hold extraction rules, not to classify.
+		expect(created.detection).toBeNull();
+		expect(created.layouts).toHaveLength(1);
+		expect(created.layouts[0]).toMatchObject({
+			name: "Default",
+			isDefault: true,
+		});
+
+		const again = await client.documentType.ensureGenericForCategory({
+			categoryId,
+		});
+		expect(again.id).toBe(created.id);
+		const types = await client.documentType.list({});
+		expect(types.filter((type) => type.generic)).toHaveLength(1);
+	});
+
+	test("switches a disabled generic type back on", async () => {
+		const created = await client.documentType.ensureGenericForCategory({
+			categoryId,
+		});
+		await client.documentType.toggle({ id: created.id, enabled: false });
+
+		const reopened = await client.documentType.ensureGenericForCategory({
+			categoryId,
+		});
+		expect(reopened.id).toBe(created.id);
+		expect(reopened.enabled).toBe(true);
+	});
+
+	test("404 on an unknown category", async () => {
+		await expectOrpcError(
+			client.documentType.ensureGenericForCategory({
+				categoryId: "cat_absent",
+			}),
+			"NOT_FOUND",
+		);
+	});
+});
+
 describe("documentType.apply", () => {
 	test("writes the category, the issuer, the tags and the title", async () => {
 		const created = await client.documentType.create({

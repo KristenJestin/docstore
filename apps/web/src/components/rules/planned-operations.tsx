@@ -2,6 +2,7 @@ import type { PlannedOperation } from "@docstore/shared/rule";
 import { Badge } from "@docstore/ui/components/badge";
 import { useQuery } from "@tanstack/react-query";
 
+import { useCategoryOptions } from "@/components/documents/category-picker";
 import {
 	DATE_PRECISION_LABELS,
 	DOCUMENT_PARTY_ROLE_LABELS,
@@ -43,6 +44,10 @@ export function PlannedOperationList({
 			input: { recurringOnly: false, includeDisabled: true },
 		}),
 	);
+	const dossiers = useQuery(
+		orpc.dossier.list.queryOptions({ input: { includeClosed: true } }),
+	);
+	const { byId: categoriesById } = useCategoryOptions();
 
 	const tagName = (id: string) =>
 		tags.data?.find((tag) => tag.id === id)?.name ?? id;
@@ -52,6 +57,9 @@ export function PlannedOperationList({
 		parties.data?.items.find((party) => party.id === id)?.name ?? id;
 	const documentTypeName = (id: string) =>
 		documentTypes.data?.find((type) => type.id === id)?.name ?? id;
+	const dossierName = (id: string) =>
+		dossiers.data?.find((dossier) => dossier.id === id)?.name ?? id;
+	const categoryName = (id: string) => categoriesById.get(id)?.path ?? id;
 
 	if (operations.length === 0) {
 		return (
@@ -79,6 +87,8 @@ export function PlannedOperationList({
 							fieldName,
 							partyName,
 							documentTypeName,
+							dossierName,
+							categoryName,
 						})}
 					</span>
 					<Confidence operation={operation} />
@@ -93,6 +103,8 @@ interface OperationNames {
 	fieldName: (id: string) => string;
 	partyName: (id: string) => string;
 	documentTypeName: (id: string) => string;
+	dossierName: (id: string) => string;
+	categoryName: (id: string) => string;
 }
 
 function describe(operation: PlannedOperation, names: OperationNames): string {
@@ -101,6 +113,10 @@ function describe(operation: PlannedOperation, names: OperationNames): string {
 			return names.tagName(operation.tagId);
 		case "remove_tag":
 			return names.tagName(operation.tagId);
+		case "set_category":
+			return names.categoryName(operation.categoryId);
+		case "add_to_dossier":
+			return names.dossierName(operation.dossierId);
 		case "link_party":
 			return `${names.partyName(operation.partyId)} · ${
 				DOCUMENT_PARTY_ROLE_LABELS[operation.role]

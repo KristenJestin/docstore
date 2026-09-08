@@ -90,6 +90,120 @@ describe("analyzeDocument — review reasons wording", () => {
 		expect(reason?.ref).toBe(otherId);
 		expect(reason?.message).not.toContain(otherId);
 	});
+
+	test("a possible duplicate is informational and never queues a document", async () => {
+		// The two other guards would queue the document on their own: this test
+		// is about the duplicate note, not about them.
+		await writeSetting(db, "review.requireCategory", false);
+		await writeSetting(db, "review.requireIssuer", false);
+		await insertDocument({
+			title: "EDF invoice — March",
+			documentDate: "2026-03-01",
+		});
+		const id = await insertDocument({
+			title: "EDF invoice — March",
+			documentDate: "2026-03-01",
+		});
+
+		const reasons = await analyzeDocument(db, id);
+		expect(reasons.map((reason) => reason.code)).toContain("possibleDuplicate");
+		expect(reasons.some(isBlockingReviewReason)).toBe(false);
+
+		// `computeReviewReasons` keeps the note and leaves the document active.
+		await db
+			.update(document)
+			.set({ status: "review" })
+			.where(eq(document.id, id));
+		const recomputed = await computeReviewReasons(db, id);
+		expect(recomputed.map((reason) => reason.code)).toContain(
+			"possibleDuplicate",
+		);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
+});
+
+describe("analyzeDocument — household members are never the issuer", () => {
+	/** Valid French IBAN, formatted as a payslip prints it. */
+	const IBAN = "FR76 3000 6000 0112 3456 7890 189";
+	/** Valid SIRET (Luhn). */
+	const SIRET = "90000001900027";
+
+	async function insertParty(
+		name: string,
+		values: Partial<typeof party.$inferInsert>,
+	): Promise<string> {
+		const rows = await db
+			.insert(party)
+			.values({ type: "company", name, ...values })
+			.returning({ id: party.id });
+		return rows[0]?.id ?? "";
+	}
+
+	async function linksOf(documentId: string) {
+		return db
+			.select({ partyId: documentParty.partyId, role: documentParty.role })
+			.from(documentParty)
+			.where(eq(documentParty.documentId, documentId));
+	}
+
+	test("a member matched by IBAN is proposed as subject", async () => {
+		const camille = await insertParty("Camille Moreau", {
+			type: "person",
+			isHouseholdMember: true,
+			identifiers: { iban: [IBAN.replace(/\s/g, "")] },
+		});
+		const id = await insertDocument({
+			content: `Bulletin de paie — virement sur ${IBAN}`,
+		});
+
+		await analyzeDocument(db, id);
+		expect(await linksOf(id)).toEqual([{ partyId: camille, role: "subject" }]);
+	});
+
+	test("the employer takes the issuer slot, the member the subject one", async () => {
+		const camille = await insertParty("Camille Moreau", {
+			type: "person",
+			isHouseholdMember: true,
+			identifiers: { iban: [IBAN.replace(/\s/g, "")] },
+		});
+		const employer = await insertParty("Nordwind Digital", {
+			identifiers: { siret: SIRET },
+		});
+		const id = await insertDocument({
+			content: `Bulletin de paie — SIRET ${SIRET} — virement sur ${IBAN}`,
+		});
+
+		await analyzeDocument(db, id);
+		const links = await linksOf(id);
+		expect(links).toHaveLength(2);
+		expect(links).toContainEqual({ partyId: employer, role: "issuer" });
+		expect(links).toContainEqual({ partyId: camille, role: "subject" });
+	});
+
+	test("a member alone leaves the issuer missing rather than wrong", async () => {
+		await writeSetting(db, "review.requireIssuer", true);
+		await insertParty("Camille Moreau", {
+			type: "person",
+			isHouseholdMember: true,
+			identifiers: { iban: [IBAN.replace(/\s/g, "")] },
+		});
+		const id = await insertDocument({
+			content: `Attestation — RIB ${IBAN}`,
+		});
+
+		const reasons = await analyzeDocument(db, id);
+		expect(reasons.map((reason) => reason.code)).toContain("missingIssuer");
+	});
+
+	test("a company matched by IBAN is still an issuer", async () => {
+		const supplier = await insertParty("Nordwind Digital", {
+			identifiers: { iban: [IBAN.replace(/\s/g, "")] },
+		});
+		const id = await insertDocument({ content: `Facture — IBAN ${IBAN}` });
+
+		await analyzeDocument(db, id);
+		expect(await linksOf(id)).toEqual([{ partyId: supplier, role: "issuer" }]);
+	});
 });
 
 describe("analyzeDocument — recurringCandidate", () => {

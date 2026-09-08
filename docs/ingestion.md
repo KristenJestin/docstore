@@ -136,6 +136,27 @@ explode:
 The first three are read off the central directory before a single byte is
 inflated, so a zip bomb is turned away rather than survived.
 
+### The period `analyze` reads off the text
+
+Three statements, tried in that order, and only the first one that answers is
+used:
+
+1. **"du … au …"** (also `jusqu'au`, `from … to …`, `through`) — the document
+   spells its period out.
+2. **Two meter readings.** A water or energy bill rarely says "du … au …": it
+   prints the readings that bound the consumption, in whichever order the
+   supplier likes — "Relevé du 12/03/2026" next to "Relevé précédent
+   10/09/2025", or "Ancien index" / "Nouvel index". The earliest and the latest
+   become the bounds. One reading alone is a date, not a period.
+3. **A named year** — "année 2025", "au titre de l'année 2025", "revenus 2025",
+   "exercice 2025", "tax year 2025" — covers the whole of it, 1 January to
+   31 December. A four-digit number on its own never counts.
+
+A document whose period *is* the year its text names is dated by that year,
+with `datePrecision: "year"`, unless it carries a labelled date ("payé le",
+"établi le", "issued on"), which always wins. A payslip that happens to mention
+"année 2025" alongside its own monthly period keeps its own date.
+
 ### When the pipeline gives up
 
 A document sits in `processing` while its job is being retried. After the last
@@ -173,6 +194,19 @@ list because no automatic pass writes them in the first place.
 
 `manualFields` is returned by `document.get` (and by the MCP `get_document`), so
 the interface can show which values are pinned against the pipeline.
+
+### Reasons that do not hold a document back
+
+Some review reasons are notes, not blockers: they are shown next to the
+document but never send it to `review` on their own —
+`recurringCandidate`, `typeCandidate`, `extractionMissed`, `ambiguousLayout`,
+`possibleDuplicate`, and a `lowConfidence` on `documentDate`.
+
+`possibleDuplicate` (same normalised title, same date) is the one that changed:
+it used to queue both documents. It is right often enough to be worth saying
+and wrong often enough not to be worth stopping for — the second copy of a
+form, or the two bills a supplier titles identically. The note carries `ref`,
+the id of the twin, so one click compares them.
 
 ### What approving a review does
 

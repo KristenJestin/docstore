@@ -36,7 +36,7 @@ import {
 } from "@docstore/shared/document-type";
 import { periodKeyOf, periodStartOf } from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { computeReviewReasons } from "./analyze";
 import { maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
@@ -46,7 +46,12 @@ import { applyOperations } from "./rules";
 import { revokeShareLinksForSensitive, setSensitive } from "./sensitive";
 import { getContentLocale } from "./settings";
 import type { DocumentSubject } from "./subject";
-import { buildSubject, loadExtractionInput, primaryFile } from "./subject";
+import {
+	buildSubject,
+	categoryChainIds,
+	loadExtractionInput,
+	primaryFile,
+} from "./subject";
 
 /**
  * Document types (SPEC §9).
@@ -447,6 +452,112 @@ export async function detectDocumentTypes(
 }
 
 /* ------------------------------------------------------------------ */
+/* Generic types: extraction without a type                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The `Any <Category>` type serving a category, nearest ancestor first.
+ *
+ * A generic type on `Invoice` also serves `Invoice / Subscription`, exactly
+ * like a custom field offered on a parent category. Disabled ones are skipped:
+ * that switch is how the extraction is turned off.
+ */
+export async function genericTypeForCategory(
+	db: Db,
+	categoryId: string | null,
+): Promise<DocumentTypeRow | null> {
+	if (!categoryId) return null;
+	const chain = await categoryChainIds(db, categoryId);
+	if (chain.length === 0) return null;
+
+	const rows = await db
+		.select()
+		.from(documentType)
+		.where(
+			and(
+				eq(documentType.generic, true),
+				eq(documentType.enabled, true),
+				inArray(documentType.categoryId, chain),
+			),
+		);
+	// `chain` runs from the category up to the root: the first hit is the
+	// closest generic type, not just any ancestor's.
+	for (const id of chain) {
+		const found = rows.find((row) => row.categoryId === id);
+		if (found) return found;
+	}
+	return null;
+}
+
+export interface GenericExtractionOptions {
+	confidenceThreshold?: number;
+	ingestion?: IngestionContext;
+	/** Subject already built, to avoid a second load. */
+	prepared?: DocumentSubject;
+}
+
+/**
+ * Runs the extraction rules of the generic type of a document's category.
+ *
+ * For the one-off families a type would be overkill for: the documents are
+ * filed under a category, nothing detects them, and there is still an amount
+ * or a date to read off every one of them. The values are written with the
+ * source `rule`, like any other automatic write, and **nothing else is
+ * touched** — no `document_type_id`, no `layout_id`, no category, no party. The
+ * document keeps having no type, which is the point.
+ *
+ * Does nothing for a document that already carries a type: its own layout
+ * decides, and running both would have two sets of rules fighting over the
+ * same fields.
+ */
+export async function applyGenericExtraction(
+	db: Db,
+	documentId: string,
+	options: GenericExtractionOptions = {},
+): Promise<ReviewReason[]> {
+	const prepared = options.prepared ?? (await buildSubject(db, documentId));
+	if (!prepared) return [];
+	if (prepared.document.documentTypeId) return [];
+
+	const type = await genericTypeForCategory(db, prepared.document.categoryId);
+	if (!type) return [];
+
+	const layouts = await loadLayouts(db, type.id);
+	const selection = await selectLayout(
+		db,
+		documentId,
+		layouts,
+		prepared.subject,
+	);
+	const rules = await extractionRulesFor(db, { layoutId: selection.layoutId });
+	if (rules.length === 0) return [];
+
+	const locale = await getContentLocale(db);
+	const extractions = await runExtractionRules(db, documentId, rules);
+	const byId = new Map(rules.map((row) => [row.id, row]));
+	const operations = extractions
+		.map((result) => {
+			const row = byId.get(result.extractionRuleId);
+			return row
+				? operationFromExtraction(
+						toOutcome(row, result),
+						prepared.subject,
+						locale,
+					)
+				: null;
+		})
+		.filter((operation) => operation !== null);
+
+	const applied = await applyOperations(db, documentId, operations, {
+		...(options.confidenceThreshold !== undefined
+			? { confidenceThreshold: options.confidenceThreshold }
+			: {}),
+		...(options.ingestion ? { ingestion: options.ingestion } : {}),
+	});
+	return applied.reasons;
+}
+
+/* ------------------------------------------------------------------ */
 /* Applying a type                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -500,6 +611,46 @@ export function typeTitleContext(
 				}
 			: { periodKey: null }),
 	};
+}
+
+/**
+ * Confidence under which a Party the pipeline guessed is only a guess.
+ *
+ * An email or a domain match sits at 0.7 (`WEAK_IDENTIFIER_CONFIDENCE`): the
+ * mail was *sent* through a platform, the PDF carries the accountant's domain,
+ * and neither says who issued the document. A strong identifier (SIREN, SIRET,
+ * VAT, IBAN) sits at 0.9 and is left alone.
+ */
+export const WEAK_PARTY_CONFIDENCE = 0.8;
+
+/**
+ * Removes the Party a rule guessed in this role, when the type names another
+ * one and the guess was weak.
+ *
+ * Without this the document ends up with two issuers — the domain the text
+ * happened to carry, and the one the type states — and the wrong one wins
+ * wherever a single issuer is shown. A link someone made by hand (`manual`),
+ * or one a strong identifier earned, is never touched: the type is a default,
+ * not an eraser.
+ */
+async function dropWeakGuess(
+	db: Db,
+	documentId: string,
+	role: "issuer" | "subject",
+	partyId: string,
+): Promise<void> {
+	await db
+		.delete(documentParty)
+		.where(
+			and(
+				eq(documentParty.documentId, documentId),
+				eq(documentParty.role, role),
+				ne(documentParty.partyId, partyId),
+				eq(documentParty.source, "rule"),
+				isNotNull(documentParty.confidence),
+				lt(documentParty.confidence, WEAK_PARTY_CONFIDENCE),
+			),
+		);
 }
 
 /** `true` when the title still is the one derived from the filename. */
@@ -566,6 +717,7 @@ export async function applyDocumentType(
 		links.push({ partyId: type.subjectPartyId, role: "subject" });
 	}
 	for (const link of links) {
+		await dropWeakGuess(db, documentId, link.role, link.partyId);
 		await db
 			.insert(documentParty)
 			.values({ documentId, ...link, source, confidence })

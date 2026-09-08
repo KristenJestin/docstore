@@ -24,7 +24,11 @@ import {
 import type { RuleTrigger } from "@docstore/shared/rule";
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { IngestionContext } from "./context";
-import { applyDocumentType, detectDocumentTypes } from "./document-type";
+import {
+	applyDocumentType,
+	applyGenericExtraction,
+	detectDocumentTypes,
+} from "./document-type";
 import { applyRules } from "./rules";
 import { getReviewSettings } from "./settings";
 import type { DocumentSubject } from "./subject";
@@ -51,45 +55,61 @@ function dedupe(reasons: ReviewReason[]): ReviewReason[] {
 	});
 }
 
-/** Links the matched Party as Issuer, if the document does not have one yet. */
-async function proposeIssuer(
+/** Human-readable role, for the review message. */
+const ROLE_LABELS = { issuer: "Issuer", subject: "Subject" } as const;
+
+/**
+ * Links the Parties matched by identifier, at most one per role.
+ *
+ * A household member is never the issuer of anything: their IBAN on a payslip
+ * is the account the money lands in, their name on a tax notice is who it is
+ * addressed to. Matching one proposes them as the **subject** instead, which
+ * leaves the issuer slot free for the company that actually sent the document
+ * (SPEC §2). Whichever role, a role the document already carries is left alone.
+ */
+async function proposeParties(
 	db: Db,
 	documentId: string,
 	prepared: DocumentSubject,
 	threshold: number,
 ): Promise<ReviewReason[]> {
-	const hasIssuer = prepared.subject.parties.some(
-		(item) => item.role === PROPOSED_ROLE,
-	);
-	const match = prepared.identifierMatches[0];
-	if (hasIssuer || !match) return [];
+	const reasons: ReviewReason[] = [];
 
-	await db
-		.insert(documentParty)
-		.values({
-			documentId,
+	for (const role of ["issuer", "subject"] as const) {
+		const taken = prepared.subject.parties.some((item) => item.role === role);
+		if (taken) continue;
+		const match = prepared.identifierMatches.find((item) =>
+			role === "subject" ? item.isHouseholdMember : !item.isHouseholdMember,
+		);
+		if (!match) continue;
+
+		await db
+			.insert(documentParty)
+			.values({
+				documentId,
+				partyId: match.partyId,
+				role,
+				source: "rule",
+				confidence: match.confidence,
+			})
+			.onConflictDoNothing();
+
+		prepared.subject.parties.push({
 			partyId: match.partyId,
-			role: PROPOSED_ROLE,
-			source: "rule",
-			confidence: match.confidence,
-		})
-		.onConflictDoNothing();
+			role,
+			name: match.partyName,
+		});
 
-	prepared.subject.parties.push({
-		partyId: match.partyId,
-		role: PROPOSED_ROLE,
-		name: match.partyName,
-	});
-
-	if (match.confidence >= threshold) return [];
-	return [
-		{
+		if (match.confidence >= threshold) continue;
+		reasons.push({
 			code: "lowConfidence",
-			message: `Issuer "${match.partyName}" proposed from a ${match.identifier.kind} identifier (confidence ${Math.round(match.confidence * 100)}%).`,
+			message: `${ROLE_LABELS[role]} "${match.partyName}" proposed from a ${match.identifier.kind} identifier (confidence ${Math.round(match.confidence * 100)}%).`,
 			confidence: match.confidence,
-			field: "issuer",
-		},
-	];
+			field: role,
+		});
+	}
+
+	return reasons;
 }
 
 /**
@@ -373,7 +393,7 @@ export async function analyzeDocument(
 
 	if (!options.skipProposals) {
 		reasons.push(
-			...(await proposeIssuer(
+			...(await proposeParties(
 				db,
 				documentId,
 				prepared,
@@ -411,6 +431,19 @@ export async function analyzeDocument(
 		...(options.ingestion ? { ingestion: options.ingestion } : {}),
 	});
 	if (applied) reasons.push(...applied.reviewReasons);
+
+	// No type, but a category: the generic `Any <Category>` type is where the
+	// extraction rules of that category live (SPEC §9). Nothing is assigned —
+	// only the values are written. After the rules, because a `set_category`
+	// action is one of the things that can give the document its category.
+	if (!options.skipProposals) {
+		reasons.push(
+			...(await applyGenericExtraction(db, documentId, {
+				confidenceThreshold: settings.confidenceThreshold,
+				...(options.ingestion ? { ingestion: options.ingestion } : {}),
+			})),
+		);
+	}
 
 	// Final state, after the rules have been applied.
 	const rows = await db
@@ -535,7 +568,9 @@ export async function computeReviewReasons(
 		(reason) =>
 			reason.code === "missingIssuer" ||
 			(reason.code === "lowConfidence" &&
-				(reason.field === "issuer" || reason.field === "party")),
+				(reason.field === "issuer" ||
+					reason.field === "subject" ||
+					reason.field === "party")),
 	);
 	const parties = needsPartyCheck
 		? await db
@@ -556,7 +591,7 @@ export async function computeReviewReasons(
 				(reason) =>
 					reason.code === "lowConfidence" &&
 					reason.field &&
-					!["category", "issuer", "party", "documentDate"].includes(
+					!["category", "issuer", "subject", "party", "documentDate"].includes(
 						reason.field,
 					),
 			)
@@ -619,12 +654,11 @@ export async function computeReviewReasons(
 		switch (reason.field) {
 			case "category":
 				return !isConfidenceSatisfied(current.categoryConfidence, threshold);
-			case "issuer": {
-				const issuerParties = parties.filter(
-					(item) => item.role === PROPOSED_ROLE,
-				);
-				if (issuerParties.length === 0) return true;
-				return issuerParties.some(
+			case "issuer":
+			case "subject": {
+				const inRole = parties.filter((item) => item.role === reason.field);
+				if (inRole.length === 0) return true;
+				return inRole.some(
 					(item) => !isConfidenceSatisfied(item.confidence, threshold),
 				);
 			}

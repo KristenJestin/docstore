@@ -126,8 +126,10 @@ export const ALWAYS_TRUE_CONDITION: RuleCondition = { op: "and", children: [] };
 
 export const RULE_ACTION_TYPES = [
 	"set_document_type",
+	"set_category",
 	"add_tag",
 	"remove_tag",
+	"add_to_dossier",
 	"link_party",
 	"set_field",
 	"set_document_date",
@@ -157,8 +159,22 @@ export const ruleActionSchema = z.discriminatedUnion("type", [
 		type: z.literal("set_document_type"),
 		documentTypeId: z.string().min(1),
 	}),
+	/**
+	 * Files the document under a category without giving it a type. A recurring
+	 * family belongs in a document type; this is for the one-off families a type
+	 * would only get in the way of (SPEC §9, "Types vs automations").
+	 */
+	z.object({
+		type: z.literal("set_category"),
+		categoryId: z.string().min(1),
+	}),
 	z.object({ type: z.literal("add_tag"), tagId: z.string().min(1) }),
 	z.object({ type: z.literal("remove_tag"), tagId: z.string().min(1) }),
+	/** Adds the document to a cross-cutting collection (SPEC §2). */
+	z.object({
+		type: z.literal("add_to_dossier"),
+		dossierId: z.string().min(1),
+	}),
 	z.object({
 		type: z.literal("link_party"),
 		partyId: z.string().min(1),
@@ -210,8 +226,14 @@ export const plannedOperationSchema = z.discriminatedUnion("type", [
 		documentTypeId: z.string(),
 		confidence: z.number().nullable(),
 	}),
+	z.object({
+		type: z.literal("set_category"),
+		categoryId: z.string(),
+		confidence: z.number().nullable(),
+	}),
 	z.object({ type: z.literal("add_tag"), tagId: z.string() }),
 	z.object({ type: z.literal("remove_tag"), tagId: z.string() }),
+	z.object({ type: z.literal("add_to_dossier"), dossierId: z.string() }),
 	z.object({
 		type: z.literal("link_party"),
 		partyId: z.string(),

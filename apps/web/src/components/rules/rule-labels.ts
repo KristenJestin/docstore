@@ -120,14 +120,17 @@ export const AUTOMATIONS_DESCRIPTION =
 /**
  * Actions offered by the automation editor, in the order of the picker.
  *
- * Filing a recurring document is the job of a document type: `set_category` is
- * gone, and extracting into a field belongs to the extraction rules of a layout
- * (`run_extraction` gone, `set_field` literal only).
+ * Extracting into a field belongs to the extraction rules of a layout
+ * (`run_extraction` gone, `set_field` literal only). `set_category` is back for
+ * the one-off families a document type would only get in the way of: a
+ * recurring family still belongs in a type.
  */
 export const UI_RULE_ACTION_TYPES = [
 	"set_document_type",
+	"set_category",
 	"add_tag",
 	"remove_tag",
+	"add_to_dossier",
 	"link_party",
 	"set_field",
 	"set_document_date",
@@ -141,8 +144,10 @@ export type UiRuleActionType = (typeof UI_RULE_ACTION_TYPES)[number];
 
 export const RULE_ACTION_TYPE_LABELS: Record<UiRuleActionType, string> = {
 	set_document_type: "Set the document type",
+	set_category: "Set the category",
 	add_tag: "Add a tag",
 	remove_tag: "Remove a tag",
+	add_to_dossier: "Add to a dossier",
 	link_party: "Link a party",
 	set_field: "Set a custom field",
 	set_document_date: "Set the document date",
@@ -347,7 +352,12 @@ export const TITLE_PLACEHOLDERS: { token: string; hint: string }[] = [
 	{ token: "{filename}", hint: "Original file name" },
 ];
 
-/** `null` when the pattern compiles, the error message otherwise. */
+/**
+ * `null` when the pattern compiles, the error message otherwise.
+ *
+ * Compiled with the flags as they are stored: the engine adds none either, so
+ * a pattern without `i` is case-sensitive on both sides.
+ */
 export function regexError(
 	pattern: string,
 	flags: string | undefined,
@@ -356,11 +366,29 @@ export function regexError(
 		return null;
 	}
 	try {
-		new RegExp(pattern, flags && flags.length > 0 ? flags : "i");
+		new RegExp(pattern, flags ?? "");
 		return null;
 	} catch (error) {
 		return error instanceof Error
 			? error.message
 			: "Invalid regular expression";
 	}
+}
+
+/** The `i` of a flags string, as the editors expose it: a checkbox. */
+export function isCaseInsensitive(flags: string | undefined): boolean {
+	return (flags ?? "").includes("i");
+}
+
+/**
+ * Adds or removes `i`, keeping the other flags in place. Returns `undefined`
+ * when nothing is left, so a leaf without flags stays free of an empty string.
+ */
+export function withCaseInsensitive(
+	flags: string | undefined,
+	enabled: boolean,
+): string | undefined {
+	const rest = (flags ?? "").replace(/i/g, "");
+	const next = enabled ? `i${rest}` : rest;
+	return next.length > 0 ? next : undefined;
 }

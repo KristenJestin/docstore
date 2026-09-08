@@ -88,6 +88,39 @@ describe("document.nextAsn / assignAsn / byAsn", () => {
 		expect(await client.document.nextAsn({})).toEqual({ next: 43 });
 	});
 
+	test("a trashed document keeps its number, which stays taken", async () => {
+		const id = await seedDocument("Deed");
+		expect((await client.document.assignAsn({ id })).asn).toBe(1);
+
+		await client.document.trash({ id });
+		expect((await client.document.get({ id })).asn).toBe(1);
+		// The sheet is still in the binder under 1: the next document gets 2.
+		expect(await client.document.nextAsn({})).toEqual({ next: 2 });
+
+		const next = await seedDocument("Insurance");
+		expect((await client.document.assignAsn({ id: next })).asn).toBe(2);
+
+		// Restoring puts it back under the number written on the sheet.
+		await client.document.restore({ id });
+		expect((await client.document.get({ id })).asn).toBe(1);
+	});
+
+	test("deleting for good frees the number", async () => {
+		const first = await seedDocument("Deed");
+		const second = await seedDocument("Insurance");
+		await client.document.assignAsn({ id: first });
+		await client.document.assignAsn({ id: second });
+		expect(await client.document.nextAsn({})).toEqual({ next: 3 });
+
+		await client.document.trash({ id: second });
+		await client.document.deletePermanently({ id: second });
+
+		// The row is gone, so 2 is free again and handed out to the next one.
+		expect(await client.document.nextAsn({})).toEqual({ next: 2 });
+		const third = await seedDocument("Warranty");
+		expect((await client.document.assignAsn({ id: third })).asn).toBe(2);
+	});
+
 	test("an unknown ASN is a NOT_FOUND", async () => {
 		await expectOrpcError(client.document.byAsn({ asn: 99 }), "NOT_FOUND");
 	});

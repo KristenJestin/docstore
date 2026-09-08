@@ -113,6 +113,32 @@ describe("planActions", () => {
 		]);
 	});
 
+	test("plans `set_category` with a literal confidence", () => {
+		const operations = planActions(
+			rule([{ type: "set_category", categoryId: "cat_9" }]),
+			subject(),
+			empty,
+		);
+		expect(operations).toEqual([
+			{
+				type: "set_category",
+				categoryId: "cat_9",
+				confidence: LITERAL_CONFIDENCE,
+			},
+		]);
+	});
+
+	test("plans `add_to_dossier`", () => {
+		const operations = planActions(
+			rule([{ type: "add_to_dossier", dossierId: "dos_1" }]),
+			subject(),
+			empty,
+		);
+		expect(operations).toEqual([
+			{ type: "add_to_dossier", dossierId: "dos_1" },
+		]);
+	});
+
 	test("link_party carries maximum confidence", () => {
 		const operations = planActions(
 			rule([{ type: "link_party", partyId: "prt_9", role: "issuer" }]),
