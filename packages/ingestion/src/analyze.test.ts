@@ -13,6 +13,7 @@ import {
 } from "@docstore/db/schema/custom-field";
 import { document, documentParty } from "@docstore/db/schema/document";
 import { documentType } from "@docstore/db/schema/document-type";
+import { duplicateIgnore } from "@docstore/db/schema/duplicate-ignore";
 import { party } from "@docstore/db/schema/party";
 import type { TestDb } from "@docstore/db/test-utils";
 import { createTestDb, truncateAll } from "@docstore/db/test-utils";
@@ -484,6 +485,56 @@ describe("computeReviewReasons", () => {
 		const reasons = await computeReviewReasons(db, id);
 		expect(reasons.map((reason) => reason.code)).toEqual(["missingCategory"]);
 		expect((await loadDocument(id)).status).toBe("review");
+	});
+
+	test('drops `possibleDuplicate` once the pair is dismissed ("Keep both")', async () => {
+		const otherId = await insertDocument({ title: "Other" });
+		const id = await insertDocument({
+			status: "review",
+			reviewReasons: [
+				{
+					code: "possibleDuplicate",
+					message: "…",
+					field: "title",
+					ref: otherId,
+				},
+			],
+		});
+		expect(await computeReviewReasons(db, id)).toHaveLength(1);
+
+		// Normalized so `documentId < otherDocumentId`, exactly like
+		// `document.ignoreDuplicate` stores it.
+		const [a, b] = id < otherId ? [id, otherId] : [otherId, id];
+		await db
+			.insert(duplicateIgnore)
+			.values({ documentId: a, otherDocumentId: b });
+
+		expect(await computeReviewReasons(db, id)).toEqual([]);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
+
+	test("drops `possibleDuplicate` once the other document is trashed", async () => {
+		const otherId = await insertDocument({ title: "Other" });
+		const id = await insertDocument({
+			status: "review",
+			reviewReasons: [
+				{
+					code: "possibleDuplicate",
+					message: "…",
+					field: "title",
+					ref: otherId,
+				},
+			],
+		});
+		expect(await computeReviewReasons(db, id)).toHaveLength(1);
+
+		await db
+			.update(document)
+			.set({ deletedAt: new Date() })
+			.where(eq(document.id, otherId));
+
+		expect(await computeReviewReasons(db, id)).toEqual([]);
+		expect((await loadDocument(id)).status).toBe("active");
 	});
 
 	test("returns an empty array for an unknown document", async () => {

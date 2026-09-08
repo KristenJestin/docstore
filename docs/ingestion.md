@@ -231,6 +231,12 @@ Only what someone typed is manual: `document.update` (which also fills
 (`review.rejectAssignment`) removes it outright and stays available on a
 confirmed one, since confirming no longer disguises it as a hand entry.
 
+The `possibleDuplicate` reason (same title and date as another document, see
+`findTitleDateDuplicate`) is never resolved by a plain "Approve": the
+interface offers "Open the other document", "Merge into it"
+(`document.mergeAsVersion`), "Keep both" (`document.ignoreDuplicate` +
+`review.recompute`) and "Trash this one" (`document.trash`) next to it instead.
+
 ## 1. Polling cadence
 
 pg-boss only schedules one cron expression per queue name, and cron does not go

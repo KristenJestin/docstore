@@ -20,15 +20,18 @@ import {
 	TooltipTrigger,
 } from "@docstore/ui/components/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowRightIcon,
 	CircleHelpIcon,
+	CopyCheckIcon,
 	DownloadIcon,
 	ExternalLinkIcon,
 	HashIcon,
+	LayersIcon,
 	LayoutTemplateIcon,
 	RefreshCwIcon,
+	Trash2Icon,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -821,6 +824,9 @@ function ReviewReasonAction({
 }) {
 	const meta = reason.meta ?? {};
 
+	if (reason.code === "possibleDuplicate") {
+		return <PossibleDuplicateActions documentId={documentId} reason={reason} />;
+	}
 	if (reason.code === "recurringCandidate") {
 		return <CreateTypeFromReasonButton documentId={documentId} meta={meta} />;
 	}
@@ -854,6 +860,149 @@ function ReviewReasonAction({
 		);
 	}
 	return null;
+}
+
+/**
+ * Title quoted at the end of the `possibleDuplicate` message
+ * (`analyzeDocument` in `packages/ingestion`), used as a fallback while
+ * `document.get` of the other document has not answered yet.
+ */
+function parseDuplicateTitle(message: string): string | null {
+	const match = message.match(/“([^”]+)”/);
+	return match?.[1] ?? null;
+}
+
+/**
+ * Actions of a `possibleDuplicate` reason (SPEC §9): unlike the other reasons,
+ * "Approve" here reads as if it might destroy something, so the reason offers
+ * its own explicit resolutions, none of which touch the rest of the document.
+ */
+function PossibleDuplicateActions({
+	documentId,
+	reason,
+}: {
+	documentId: string;
+	reason: ReviewReason;
+}) {
+	const confirm = useConfirm();
+	const navigate = useNavigate();
+	const documentError = useDocumentErrorToast();
+
+	const otherId = reason.ref ?? null;
+
+	const other = useQuery({
+		...orpc.document.get.queryOptions({ input: { id: otherId ?? "" } }),
+		enabled: otherId !== null,
+	});
+	const merge = useMutation(orpc.document.mergeAsVersion.mutationOptions());
+	const ignore = useMutation(orpc.document.ignoreDuplicate.mutationOptions());
+	const recompute = useMutation(orpc.review.recompute.mutationOptions());
+	const trash = useMutation(orpc.document.trash.mutationOptions());
+
+	if (!otherId) {
+		return null;
+	}
+
+	const otherTitle = other.data?.title ?? parseDuplicateTitle(reason.message);
+
+	const onMerge = async () => {
+		const ok = await confirm({
+			title: "Merge this document?",
+			description: `This document will be attached as a version of “${otherTitle ?? "the other document"}” and moved to the trash.`,
+			confirmLabel: "Merge",
+		});
+		if (!ok) {
+			return;
+		}
+		try {
+			await merge.mutateAsync({ documentId, intoDocumentId: otherId });
+			toast.success("Document merged as a version.");
+			navigate({
+				to: "/documents/$documentId",
+				params: { documentId: otherId },
+			});
+		} catch (error) {
+			documentError(error, "The document could not be merged.", documentId);
+		}
+	};
+
+	const onKeepBoth = async () => {
+		try {
+			await ignore.mutateAsync({ documentId, otherDocumentId: otherId });
+			await recompute.mutateAsync({ id: documentId });
+			toast.success("Both documents kept.");
+		} catch (error) {
+			documentError(error, "The pair could not be ignored.", documentId);
+		}
+	};
+
+	const onTrash = async () => {
+		const ok = await confirm({
+			title: "Move this document to the trash?",
+			description: 'It stays restorable from the "Trash" filter.',
+			confirmLabel: "Move to trash",
+		});
+		if (!ok) {
+			return;
+		}
+		try {
+			await trash.mutateAsync({ id: documentId });
+			toast.success("Document moved to the trash.");
+		} catch (error) {
+			documentError(error, "The operation failed.", documentId);
+		}
+	};
+
+	return (
+		<div className="flex w-full flex-col gap-1.5">
+			<div className="flex flex-wrap gap-1.5">
+				<Button
+					variant="outline"
+					size="sm"
+					nativeButton={false}
+					render={
+						<Link
+							to="/documents/$documentId"
+							params={{ documentId: otherId }}
+						/>
+					}
+				>
+					<ExternalLinkIcon />
+					{otherTitle ? `Open “${otherTitle}”` : "Open the other document"}
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={merge.isPending}
+					onClick={onMerge}
+				>
+					<LayersIcon />
+					Merge into it
+				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
+					disabled={ignore.isPending || recompute.isPending}
+					onClick={onKeepBoth}
+				>
+					<CopyCheckIcon />
+					Keep both
+				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
+					disabled={trash.isPending}
+					onClick={onTrash}
+				>
+					<Trash2Icon />
+					Trash this one
+				</Button>
+			</div>
+			<p className="text-muted-foreground text-xs">
+				Nothing is deleted until you choose.
+			</p>
+		</div>
+	);
 }
 
 /** Two `DatePicker`s joined by an arrow: covered period, validity. */

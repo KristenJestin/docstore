@@ -6,6 +6,7 @@ import {
 	documentType,
 	documentTypeLayout,
 } from "@docstore/db/schema/document-type";
+import { duplicateIgnore } from "@docstore/db/schema/duplicate-ignore";
 import { party } from "@docstore/db/schema/party";
 import { pickDocumentDate } from "@docstore/rules";
 import type { ReviewReason } from "@docstore/shared/document";
@@ -22,7 +23,7 @@ import {
 	SUGGEST_MIN_SAMPLES,
 } from "@docstore/shared/recurrence";
 import type { RuleTrigger } from "@docstore/shared/rule";
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { IngestionContext } from "./context";
 import {
 	applyDocumentType,
@@ -531,12 +532,88 @@ async function isFallbackLayout(
 	return rows[0]?.isDefault ?? true;
 }
 
+/** Normalizes a pair so `documentId < otherDocumentId`, as `duplicateIgnore` stores it. */
+function normalizedDuplicatePair(
+	documentId: string,
+	otherDocumentId: string,
+): { documentId: string; otherDocumentId: string } {
+	return documentId < otherDocumentId
+		? { documentId, otherDocumentId }
+		: { documentId: otherDocumentId, otherDocumentId: documentId };
+}
+
+/**
+ * `ref`s of the `possibleDuplicate` reasons among `reasons` that no longer
+ * hold: the pair was dismissed through `document.ignoreDuplicate`, or the
+ * other document is gone (trashed directly, or absorbed by
+ * `document.mergeAsVersion`, which trashes it).
+ */
+async function resolvedDuplicateRefs(
+	db: Db,
+	documentId: string,
+	reasons: ReviewReason[],
+): Promise<Set<string>> {
+	const refs = [
+		...new Set(
+			reasons
+				.filter((reason) => reason.code === "possibleDuplicate")
+				.map((reason) => reason.ref)
+				.filter((ref): ref is string => typeof ref === "string"),
+		),
+	];
+	if (refs.length === 0) return new Set();
+
+	const pairs = refs.map((ref) => normalizedDuplicatePair(documentId, ref));
+	const [ignoredRows, otherRows] = await Promise.all([
+		db
+			.select({
+				documentId: duplicateIgnore.documentId,
+				otherDocumentId: duplicateIgnore.otherDocumentId,
+			})
+			.from(duplicateIgnore)
+			.where(
+				or(
+					...pairs.map((pair) =>
+						and(
+							eq(duplicateIgnore.documentId, pair.documentId),
+							eq(duplicateIgnore.otherDocumentId, pair.otherDocumentId),
+						),
+					),
+				),
+			),
+		db
+			.select({ id: document.id, deletedAt: document.deletedAt })
+			.from(document)
+			.where(inArray(document.id, refs)),
+	]);
+	const ignoredKeys = new Set(
+		ignoredRows.map((row) => `${row.documentId}:${row.otherDocumentId}`),
+	);
+	const otherById = new Map(otherRows.map((row) => [row.id, row]));
+
+	const resolved = new Set<string>();
+	for (const ref of refs) {
+		const pair = normalizedDuplicatePair(documentId, ref);
+		const other = otherById.get(ref);
+		const ignored = ignoredKeys.has(
+			`${pair.documentId}:${pair.otherDocumentId}`,
+		);
+		const otherGone = !other || other.deletedAt !== null;
+		if (ignored || otherGone) {
+			resolved.add(ref);
+		}
+	}
+	return resolved;
+}
+
 /**
  * Recomputes the review reasons of a document from its current state, without
  * re-running the proposals or the rules: `missingCategory`/`missingIssuer` are
  * dropped once satisfied, `lowConfidence` reasons whose underlying value moved
- * past the threshold (or was taken over manually) are dropped too, and
- * `recurringCandidate` is dropped as soon as a document type covers its couple.
+ * past the threshold (or was taken over manually) are dropped too,
+ * `recurringCandidate` is dropped as soon as a document type covers its
+ * couple, and `possibleDuplicate` is dropped once the pair is dismissed
+ * (`document.ignoreDuplicate`, "Keep both") or the other document is gone.
  *
  * Used after a rule run (manual trigger or applied automatically) fills in
  * data that used to be missing, so the review reasons and status stay in
@@ -630,6 +707,16 @@ export async function computeReviewReasons(
 		? await isFallbackLayout(db, current.layoutId)
 		: false;
 
+	// A `possibleDuplicate` is resolved once the pair has been dismissed
+	// through `document.ignoreDuplicate` ("Keep both"), or the other document
+	// it pointed at is gone (trashed by "Trash this one", or absorbed by
+	// "Merge into it", which trashes it too).
+	const resolvedDuplicates = await resolvedDuplicateRefs(
+		db,
+		documentId,
+		current.reviewReasons,
+	);
+
 	const settings = await getReviewSettings(db);
 	const threshold = settings.confidenceThreshold;
 
@@ -649,6 +736,11 @@ export async function computeReviewReasons(
 		// The type has been applied (or the layout picked): the proposal is moot.
 		if (reason.code === "typeCandidate") return !current.documentTypeId;
 		if (reason.code === "unknownLayout") return layoutStillUnknown;
+		if (reason.code === "possibleDuplicate") {
+			return (
+				typeof reason.ref !== "string" || !resolvedDuplicates.has(reason.ref)
+			);
+		}
 		if (reason.code !== "lowConfidence") return true;
 
 		switch (reason.field) {
