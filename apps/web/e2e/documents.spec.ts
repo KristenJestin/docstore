@@ -5,6 +5,7 @@ import { zipSync } from "fflate";
 import { signUp } from "./helpers/auth";
 import { runName, runSlug } from "./helpers/cleanup";
 import {
+	ensureFreshFixtureDocument,
 	INVOICE_SIRET_FIXTURE,
 	purgeExistingDocument,
 	TEXT_LAYER_FIXTURE,
@@ -302,7 +303,80 @@ test.describe("documents", () => {
 			timeout: PROCESSING_TIMEOUT_MS,
 		});
 	});
+
+	test('same title and date raise "Possible duplicate", and "Keep both" clears it', async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Duplicate Title User");
+
+		const dupTitle = runName("gas contract renewal");
+		const dupDate = "2025-02-10";
+
+		// --- First document: two different files, so this is not "Identical
+		//     file" — only the title and the date will match. -------------------
+		const firstId = await ensureFreshFixtureDocument(page, TEXT_LAYER_FIXTURE);
+		await page.goto(`/documents/${firstId}`);
+		await setTitleAndDate(page, dupTitle, dupDate);
+
+		// --- Second document, same title and date -------------------------------
+		const secondId = await ensureFreshFixtureDocument(
+			page,
+			INVOICE_SIRET_FIXTURE,
+		);
+		await page.goto(`/documents/${secondId}`);
+		await setTitleAndDate(page, dupTitle, dupDate);
+
+		// --- `document.update` alone does not re-run `analyze`: reprocessing
+		//     does, and that is what raises the reason on the second document. --
+		await page.getByRole("button", { name: "Reprocess" }).first().click();
+		const duplicateReason = page
+			.getByRole("listitem")
+			.filter({ hasText: "Possible duplicate" });
+		await expect(duplicateReason).toBeVisible({
+			timeout: PROCESSING_TIMEOUT_MS,
+		});
+		await expect(duplicateReason).toContainText(
+			"Nothing is deleted until you choose.",
+		);
+
+		// --- Explicit actions next to it, not just "Approve" ---------------------
+		await expect(
+			duplicateReason.getByRole("button", { name: dupTitle }),
+		).toBeVisible();
+		await expect(
+			duplicateReason.getByRole("button", { name: "Merge into it" }),
+		).toBeVisible();
+		await expect(
+			duplicateReason.getByRole("button", { name: "Trash this one" }),
+		).toBeVisible();
+
+		// --- "Keep both" resolves the pair without approving the document --------
+		await duplicateReason.getByRole("button", { name: "Keep both" }).click();
+		await expect(page.getByText("Both documents kept.")).toBeVisible();
+		await expect(duplicateReason).toHaveCount(0);
+	});
 });
+
+/** Sets the title (inline edit) and the document date of the open document page. */
+async function setTitleAndDate(
+	page: Page,
+	title: string,
+	date: string,
+): Promise<void> {
+	await page.getByRole("button", { name: "Edit title" }).click();
+	const titleInput = page.getByRole("textbox", { name: "Document title" });
+	await titleInput.fill(title);
+	await titleInput.press("Enter");
+	await expect(page.getByRole("button", { name: "Edit title" })).toHaveText(
+		title,
+	);
+
+	const documentDate = page.getByRole("textbox", { name: "Document date" });
+	await expect(documentDate).toBeVisible({ timeout: 20_000 });
+	await documentDate.fill(date);
+	await documentDate.press("Enter");
+	await expect(documentDate).not.toHaveValue("");
+}
 
 /** Bytes of an OCR fixture, for the in-memory archives built above. */
 function readFixtureBytes(file: string): Uint8Array {
