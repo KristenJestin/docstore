@@ -42,6 +42,7 @@ export function DocumentTitleCell({
 			<DocumentThumbnail
 				thumbnailKey={item.thumbnailKey}
 				sensitive={item.sensitive}
+				mime={item.mime}
 				size={size}
 			/>
 			<div className="min-w-0">

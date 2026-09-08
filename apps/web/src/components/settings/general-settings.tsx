@@ -1,10 +1,16 @@
+import {
+	ARCHIVE_MODE_HINTS,
+	ARCHIVE_MODE_LABELS,
+} from "@docstore/shared/archive";
 import type {
+	ArchiveMode,
 	AsnAutoAssignMode,
 	ContentLocale,
 	SettingKey,
 	Settings,
 } from "@docstore/shared/settings";
 import {
+	ARCHIVE_MODES,
 	ASN_AUTO_ASSIGN_MODES,
 	CONTENT_LOCALES,
 } from "@docstore/shared/settings";
@@ -49,6 +55,7 @@ const SETTING_LABELS: Record<SettingKey, string> = {
 	"reminders.expiryLeadDays": "Expiry reminders",
 	"asn.autoAssign": "Automatic ASN",
 	"content.locale": "Content language",
+	"intake.archives": "Archives",
 };
 
 /** Wording of the content languages, in the language they stand for. */
@@ -227,6 +234,39 @@ export function GeneralSettings() {
 									{CONTENT_LOCALES.map((locale) => (
 										<SelectItem key={locale} value={locale}>
 											{CONTENT_LOCALE_LABELS[locale]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						}
+					/>
+				</div>
+			</SettingsPanel>
+
+			<SettingsPanel
+				title="Archives"
+				description="What a ZIP dropped on any intake door becomes: an upload, an upload link, a watched folder, a mailbox or the API."
+			>
+				<div className="divide-y divide-border">
+					<SettingsRow
+						label="Archives"
+						htmlFor={`${fieldId}-archives`}
+						description={ARCHIVE_MODE_HINTS[data["intake.archives"]]}
+						control={
+							<Select
+								items={ARCHIVE_MODE_LABELS}
+								value={data["intake.archives"]}
+								onValueChange={(value) =>
+									void save("intake.archives", value as ArchiveMode)
+								}
+							>
+								<SelectTrigger id={`${fieldId}-archives`} className="w-44">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{ARCHIVE_MODES.map((mode) => (
+										<SelectItem key={mode} value={mode}>
+											{ARCHIVE_MODE_LABELS[mode]}
 										</SelectItem>
 									))}
 								</SelectContent>

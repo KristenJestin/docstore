@@ -36,9 +36,9 @@ export async function uploadFixture(
 		dialog.getByRole("heading", { name: "Add documents" }),
 	).toBeVisible();
 
+	// There is no "Upload" button any more: picking the file starts it.
 	await dialog.locator('input[type="file"]').setInputFiles(file);
 	await expect(dialog.getByText(path.basename(file))).toBeVisible();
-	await dialog.getByRole("button", { name: /^Upload 1 file/ }).click();
 
 	// The dialog polls the pipeline itself: the row only offers "Open" once the
 	// document left `processing`, which is why the timeout is generous.

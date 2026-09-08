@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { zipSync } from "fflate";
 
 import { signUp } from "./helpers/auth";
 import { runName, runSlug } from "./helpers/cleanup";
 import {
+	INVOICE_SIRET_FIXTURE,
 	purgeExistingDocument,
+	TEXT_LAYER_FIXTURE,
 	uploadFixture,
 } from "./helpers/fixture-document";
 
@@ -212,7 +216,131 @@ test.describe("documents", () => {
 		await expect(banner).toHaveCount(0);
 		await expect(page.getByRole("button", { name: "Trash" })).toBeVisible();
 	});
+
+	test("dropping a file on the page uploads it without any button", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Drop User");
+		await page.getByRole("link", { name: "Documents" }).first().click();
+		await expect(
+			page.getByRole("heading", { name: "Documents" }),
+		).toBeVisible();
+
+		await dropOnPage(page, [
+			{
+				name: "invoice-siret.pdf",
+				mimeType: "application/pdf",
+				bytes: readFixtureBytes(INVOICE_SIRET_FIXTURE),
+			},
+		]);
+
+		const dialog = page.getByRole("dialog");
+		await expect(
+			dialog.getByRole("heading", { name: "Add documents" }),
+		).toBeVisible();
+		// The whole point: nothing left to press between the drop and the result.
+		await expect(dialog.getByRole("button", { name: /^Upload/ })).toHaveCount(
+			0,
+		);
+
+		await expect(
+			dialog
+				.getByRole("button", { name: "Open", exact: true })
+				.or(dialog.getByRole("button", { name: "Open the original" }))
+				.or(dialog.getByRole("button", { name: "Restore" })),
+		).toBeVisible({ timeout: PROCESSING_TIMEOUT_MS });
+	});
+
+	test("a ZIP asks what to do, then expands into one row per entry", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Archive User");
+		await page.getByRole("link", { name: "Documents" }).first().click();
+		await expect(
+			page.getByRole("heading", { name: "Documents" }),
+		).toBeVisible();
+
+		const zip = zipSync({
+			"text-layer.pdf": readFixtureBytes(TEXT_LAYER_FIXTURE),
+			"invoice-siret.pdf": readFixtureBytes(INVOICE_SIRET_FIXTURE),
+			"__MACOSX/._text-layer.pdf": new TextEncoder().encode("fork"),
+		});
+
+		await page
+			.getByRole("button", { name: "Add", exact: true })
+			.first()
+			.click();
+		const dialog = page.getByRole("dialog");
+		await dialog.locator('input[type="file"]').setInputFiles({
+			name: `${runSlug("batch")}.zip`,
+			mimeType: "application/zip",
+			buffer: Buffer.from(zip),
+		});
+
+		// The archive pauses on the three modes, prefilled from the setting.
+		await expect(
+			dialog.getByText("What should happen to this archive?"),
+		).toBeVisible();
+		await dialog.getByRole("button", { name: "Extract", exact: true }).click();
+
+		// One child row per usable entry, plus the junk one reported as skipped.
+		await expect(
+			dialog.getByText("text-layer.pdf", { exact: true }),
+		).toBeVisible({
+			timeout: PROCESSING_TIMEOUT_MS,
+		});
+		await expect(
+			dialog.getByText("invoice-siret.pdf", { exact: true }),
+		).toBeVisible({ timeout: PROCESSING_TIMEOUT_MS });
+		await expect(
+			dialog.getByText("__MACOSX/._text-layer.pdf", { exact: true }),
+		).toBeVisible();
+		await expect(dialog.getByText(/Skipped/).first()).toBeVisible();
+
+		// Every entry settles on its own; nothing else to press.
+		await expect(dialog.getByText(/Processing…/)).toHaveCount(0, {
+			timeout: PROCESSING_TIMEOUT_MS,
+		});
+	});
 });
+
+/** Bytes of an OCR fixture, for the in-memory archives built above. */
+function readFixtureBytes(file: string): Uint8Array {
+	return new Uint8Array(readFileSync(file));
+}
+
+/**
+ * A real file drop on the window, which is what `useFileDrop` listens to:
+ * Playwright has no drop helper for files coming from outside the page, so the
+ * `DataTransfer` is built in the page and the three events are dispatched.
+ */
+async function dropOnPage(
+	page: Page,
+	files: { name: string; mimeType: string; bytes: Uint8Array }[],
+): Promise<void> {
+	await page.evaluate(
+		(payload) => {
+			const transfer = new DataTransfer();
+			for (const file of payload) {
+				transfer.items.add(
+					new File([new Uint8Array(file.bytes)], file.name, {
+						type: file.mimeType,
+					}),
+				);
+			}
+			for (const type of ["dragenter", "dragover", "drop"]) {
+				window.dispatchEvent(
+					new DragEvent(type, {
+						bubbles: true,
+						cancelable: true,
+						dataTransfer: transfer,
+					}),
+				);
+			}
+		},
+		files.map((file) => ({ ...file, bytes: [...file.bytes] })),
+	);
+}
 
 /**
  * Sidebar "Documents" counter, read once two consecutive samples agree: a

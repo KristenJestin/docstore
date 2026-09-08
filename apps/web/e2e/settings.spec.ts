@@ -24,9 +24,9 @@ async function purgeFixtureDocument(page: Page): Promise<void> {
 	await expect(
 		dialog.getByRole("heading", { name: "Add documents" }),
 	).toBeVisible();
+	// Picking the file is the whole gesture: the upload starts on its own.
 	await dialog.locator('input[type="file"]').setInputFiles(FIXTURE);
 	await expect(dialog.getByText("text-layer.pdf")).toBeVisible();
-	await dialog.getByRole("button", { name: /^Upload 1 file/ }).click();
 
 	const created = dialog.getByRole("button", { name: "Open", exact: true });
 	const duplicate = dialog.getByRole("button", { name: "Open the original" });
@@ -98,6 +98,23 @@ test.describe("settings", () => {
 			.getByRole("option", { name: "English (United Kingdom)" })
 			.click();
 		await expect(contentLanguage).toContainText("English (United Kingdom)");
+
+		// --- General: what a ZIP becomes at every intake door ------------------
+		const archives = page.getByRole("combobox", { name: "Archives" });
+		await expect(archives).toContainText("Extract");
+
+		await archives.click();
+		await page.getByRole("option", { name: "Both" }).click();
+		await expect(page.getByText("Archives saved.")).toBeVisible();
+
+		await page.reload();
+		await expect(archives).toContainText("Both");
+
+		// Back to the shipped default: the upload tracker prefills its three
+		// buttons from this setting, and the documents spec expects "Extract".
+		await archives.click();
+		await page.getByRole("option", { name: "Extract" }).click();
+		await expect(archives).toContainText("Extract");
 
 		// --- Categories: a root, a child, then a rename -----------------------
 		const rootName = runName("root");
@@ -228,13 +245,14 @@ test.describe("settings", () => {
 		await page.goto(`/u/${token}`);
 		await expect(page.getByRole("heading", { name: linkName })).toBeVisible();
 
+		// The public page sends on pick too: no button to press.
 		await page.locator('input[type="file"]').setInputFiles(FIXTURE);
-		await expect(page.getByText("text-layer.pdf")).toBeVisible();
-		await page.getByRole("button", { name: /^Send 1 file/ }).click();
-
 		await expect(page.getByTestId("upload-result")).toContainText(
-			"1 file received",
+			"text-layer.pdf",
 			{ timeout: 30_000 },
 		);
+		await expect(page.getByText("1 file received")).toBeVisible({
+			timeout: 30_000,
+		});
 	});
 });

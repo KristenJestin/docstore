@@ -1,5 +1,6 @@
+import { ARCHIVE_MIME_ALIASES } from "@docstore/shared/archive";
 import { cn } from "@docstore/ui/lib/utils";
-import { FileTextIcon, LockIcon } from "lucide-react";
+import { FileArchiveIcon, FileTextIcon, LockIcon } from "lucide-react";
 import { useState } from "react";
 
 import { fileIdFromThumbnailKey, fileThumbnailUrl } from "@/lib/file-urls";
@@ -17,8 +18,17 @@ export interface DocumentThumbnailProps {
 	fileId?: string | null;
 	/** A padlock replaces the default icon for a sensitive document. */
 	sensitive?: boolean;
+	/** Type of that file: an archive is drawn as one, never rendered. */
+	mime?: string | null;
 	size?: keyof typeof SIZE_CLASSES;
 	className?: string;
+}
+
+/** True for a file the pipeline never renders a thumbnail for. */
+function isArchive(mime: string | null | undefined): boolean {
+	if (!mime) return false;
+	const normalized = (mime.split(";")[0] ?? "").trim().toLowerCase();
+	return (ARCHIVE_MIME_ALIASES as readonly string[]).includes(normalized);
 }
 
 /**
@@ -29,10 +39,14 @@ export function DocumentThumbnail({
 	thumbnailKey,
 	fileId,
 	sensitive = false,
+	mime,
 	size = "md",
 	className,
 }: DocumentThumbnailProps) {
-	const resolvedId = fileId ?? fileIdFromThumbnailKey(thumbnailKey);
+	const archive = isArchive(mime);
+	const resolvedId = archive
+		? null
+		: (fileId ?? fileIdFromThumbnailKey(thumbnailKey));
 	// Remembering the failed id (instead of a boolean) resets the fallback on
 	// its own whenever the thumbnail changes.
 	const [failedId, setFailedId] = useState<string | null>(null);
@@ -44,7 +58,11 @@ export function DocumentThumbnail({
 	);
 
 	if (!resolvedId || failedId === resolvedId) {
-		const Icon = sensitive ? LockIcon : FileTextIcon;
+		const Icon = sensitive
+			? LockIcon
+			: archive
+				? FileArchiveIcon
+				: FileTextIcon;
 		return (
 			<span aria-hidden className={frame}>
 				<Icon className="size-4 text-muted-foreground" strokeWidth={1.5} />

@@ -86,6 +86,7 @@ export function DocumentCommandGroups() {
 					<DocumentThumbnail
 						thumbnailKey={item.thumbnailKey}
 						sensitive={item.sensitive}
+						mime={item.mime}
 						size="sm"
 					/>
 				),
