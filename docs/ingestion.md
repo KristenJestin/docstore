@@ -196,6 +196,19 @@ list because no automatic pass writes them in the first place.
 `manualFields` is returned by `document.get` (and by the MCP `get_document`), so
 the interface can show which values are pinned against the pipeline.
 
+### Reasons that do not hold a document back
+
+Some review reasons are notes, not blockers: they are shown next to the
+document but never send it to `review` on their own —
+`recurringCandidate`, `typeCandidate`, `extractionMissed`, `ambiguousLayout`,
+`possibleDuplicate`, and a `lowConfidence` on `documentDate`.
+
+`possibleDuplicate` (same normalised title, same date) is the one that changed:
+it used to queue both documents. It is right often enough to be worth saying
+and wrong often enough not to be worth stopping for — the second copy of a
+form, or the two bills a supplier titles identically. The note carries `ref`,
+the id of the twin, so one click compares them.
+
 ### What approving a review does
 
 `review.approve` accepts what the pipeline proposed. It stamps the current time

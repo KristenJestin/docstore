@@ -148,6 +148,14 @@ export const INFORMATIONAL_REVIEW_REASON_CODES = [
 	"typeCandidate",
 	"extractionMissed",
 	"ambiguousLayout",
+	/**
+	 * Same title and same date as another document. Often it *is* the same file
+	 * arriving twice, but just as often it is the second copy of a form, or the
+	 * October and November bills a supplier titles identically. Holding both
+	 * back turns a normal month into a queue to clear, so the document says so
+	 * and links to its twin instead.
+	 */
+	"possibleDuplicate",
 ] as const;
 
 /**

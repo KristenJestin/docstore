@@ -90,6 +90,36 @@ describe("analyzeDocument — review reasons wording", () => {
 		expect(reason?.ref).toBe(otherId);
 		expect(reason?.message).not.toContain(otherId);
 	});
+
+	test("a possible duplicate is informational and never queues a document", async () => {
+		// The two other guards would queue the document on their own: this test
+		// is about the duplicate note, not about them.
+		await writeSetting(db, "review.requireCategory", false);
+		await writeSetting(db, "review.requireIssuer", false);
+		await insertDocument({
+			title: "EDF invoice — March",
+			documentDate: "2026-03-01",
+		});
+		const id = await insertDocument({
+			title: "EDF invoice — March",
+			documentDate: "2026-03-01",
+		});
+
+		const reasons = await analyzeDocument(db, id);
+		expect(reasons.map((reason) => reason.code)).toContain("possibleDuplicate");
+		expect(reasons.some(isBlockingReviewReason)).toBe(false);
+
+		// `computeReviewReasons` keeps the note and leaves the document active.
+		await db
+			.update(document)
+			.set({ status: "review" })
+			.where(eq(document.id, id));
+		const recomputed = await computeReviewReasons(db, id);
+		expect(recomputed.map((reason) => reason.code)).toContain(
+			"possibleDuplicate",
+		);
+		expect((await loadDocument(id)).status).toBe("active");
+	});
 });
 
 describe("analyzeDocument — household members are never the issuer", () => {
