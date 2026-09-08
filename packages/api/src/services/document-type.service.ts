@@ -889,6 +889,9 @@ export async function updateDocumentType(
 	const current = await requireDocumentType(db, input.id);
 	await assertReferences(db, input);
 
+	// Only the keys the patch actually carries are written: `updateDocumentTypeInput`
+	// applies no default, so an absent field reads as `undefined` and the stored
+	// value (tags, sensitivity, detection…) survives a patch that ignores it.
 	const patch: Partial<typeof documentType.$inferInsert> = {};
 	if (input.name !== undefined) patch.name = input.name;
 	if (input.description !== undefined) {
