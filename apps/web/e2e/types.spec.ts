@@ -243,6 +243,60 @@ test.describe("document types", () => {
 		await expect(timeline.getByText("2024-H2", { exact: true })).toBeVisible();
 	});
 
+	test("a yearly type expected on 15 July is due in July, not December", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Expected Month User");
+
+		const typeName = runName("tax notice type");
+
+		await page.getByRole("link", { name: "Document types" }).first().click();
+		await page
+			.getByRole("button", { name: "New document type" })
+			.first()
+			.click();
+		const sheet = page.getByRole("dialog");
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(typeName);
+		await sheet.getByRole("switch", { name: "Recurring document" }).click();
+
+		// A monthly type has no expected month; a yearly one does.
+		await expect(
+			sheet.getByRole("combobox", { name: "Expected month" }),
+		).toHaveCount(0);
+		await sheet.getByRole("combobox", { name: "Periodicity" }).click();
+		await page.getByRole("option", { name: "Yearly" }).click();
+
+		// One closed year, so the timeline does not depend on today.
+		for (const label of ["First period", "Last period"]) {
+			const field = sheet.getByRole("textbox", { name: label, exact: true });
+			await field.fill("2025");
+			await field.press("Enter");
+		}
+
+		const month = sheet.getByRole("combobox", { name: "Expected month" });
+		await expect(month).toHaveText(/From the documents/);
+		await month.click();
+		await page.getByRole("option", { name: "July" }).click();
+		await sheet.getByRole("spinbutton", { name: "Expected day" }).fill("15");
+		await sheet.getByRole("spinbutton", { name: "Grace days" }).fill("15");
+		await sheet.getByRole("button", { name: "Create document type" }).click();
+		await expect(sheet).toBeHidden();
+
+		// --- The period is due on 15 July + 15 days ----------------------------
+		await page.getByRole("link", { name: typeName }).click();
+		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
+		const timeline = page.getByTestId("recurrence-timeline");
+		await expect(timeline).toBeVisible({ timeout: 15_000 });
+		await expect(timeline.getByTitle("Due on 2025-07-30")).toBeVisible();
+		await page.getByRole("tab", { name: "Overview" }).click();
+		await expect(
+			page.getByText("Expected month", { exact: true }),
+		).toBeVisible();
+		await expect(page.getByText("July", { exact: true })).toBeVisible();
+	});
+
 	test("a recurring type without a first period derives its range", async ({
 		page,
 	}) => {
