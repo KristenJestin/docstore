@@ -186,9 +186,21 @@ describe("document.mergeAsVersion", () => {
 		// trash: it no longer shows up in the relations of the kept one.
 		expect(result.target.relations).toHaveLength(0);
 
-		const trashed = await client.document.get({ id: duplicate });
-		expect(trashed.deletedAt).not.toBeNull();
-		expect(trashed.files).toHaveLength(0);
+		// The absorbed id now leads to the kept document (issue #2); the row
+		// itself sits in the trash, emptied of its files.
+		const redirected = await client.document.get({ id: duplicate });
+		expect(redirected.id).toBe(kept);
+		expect(redirected.redirectedFrom).toBe(duplicate);
+		const [trashed] = await db
+			.select({ deletedAt: document.deletedAt })
+			.from(document)
+			.where(eq(document.id, duplicate));
+		expect(trashed?.deletedAt).not.toBeNull();
+		const remaining = await db
+			.select({ id: documentFile.id })
+			.from(documentFile)
+			.where(eq(documentFile.documentId, duplicate));
+		expect(remaining).toHaveLength(0);
 
 		// Restoring it brings the relation back into view, both ways.
 		await client.document.restore({ id: duplicate });

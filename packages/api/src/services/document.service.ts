@@ -9,6 +9,7 @@ import {
 	documentFile,
 	documentParty,
 } from "@docstore/db/schema/document";
+import { documentTombstone } from "@docstore/db/schema/document-tombstone";
 import { documentType } from "@docstore/db/schema/document-type";
 import { documentDossier } from "@docstore/db/schema/dossier";
 import { duplicateIgnore } from "@docstore/db/schema/duplicate-ignore";
@@ -797,6 +798,10 @@ export async function getDocument(db: Db, id: string): Promise<DocumentDetail> {
  * `intoDocumentId`. Its files join the kept document as attachments — changing
  * `kind` also frees the sha256 uniqueness of originals —, a `version_of`
  * relation is created and the duplicate goes to the trash.
+ *
+ * A `merged` tombstone records where the duplicate went, so its id keeps
+ * leading to the kept document (issue #2), and ids already merged into the
+ * duplicate are pointed straight at the kept document as well.
  */
 export async function mergeAsVersion(
 	db: Db,
@@ -831,6 +836,26 @@ export async function mergeAsVersion(
 			.update(document)
 			.set({ deletedAt: new Date() })
 			.where(eq(document.id, input.documentId));
+
+		await tx
+			.insert(documentTombstone)
+			.values({
+				documentId: input.documentId,
+				reason: "merged",
+				mergedIntoId: input.intoDocumentId,
+			})
+			.onConflictDoUpdate({
+				target: documentTombstone.documentId,
+				set: {
+					reason: "merged",
+					mergedIntoId: input.intoDocumentId,
+					createdAt: new Date(),
+				},
+			});
+		await tx
+			.update(documentTombstone)
+			.set({ mergedIntoId: input.intoDocumentId })
+			.where(eq(documentTombstone.mergedIntoId, input.documentId));
 
 		return moved.length;
 	});
@@ -1251,11 +1276,14 @@ async function setDeletedAt(
 	deletedAt: Date | null,
 ): Promise<DocumentDto> {
 	await requireDocument(db, id);
-	const rows = await db
-		.update(document)
-		.set({ deletedAt })
-		.where(eq(document.id, id))
-		.returning(documentColumns);
+	const rows = await db.transaction(async (tx) => {
+		if (deletedAt === null) await forgetMerges(tx, [id]);
+		return tx
+			.update(document)
+			.set({ deletedAt })
+			.where(eq(document.id, id))
+			.returning(documentColumns);
+	});
 	const row = rows[0];
 	if (!row) {
 		throw new ORPCError("NOT_FOUND", {
@@ -1263,6 +1291,25 @@ async function setDeletedAt(
 		});
 	}
 	return row;
+}
+
+/**
+ * A restored document answers for itself again (issue #2): the redirect its
+ * merge left is dropped. Its files stay with the document it was merged into.
+ */
+async function forgetMerges(
+	tx: Pick<Db, "delete">,
+	ids: string[],
+): Promise<void> {
+	if (ids.length === 0) return;
+	await tx
+		.delete(documentTombstone)
+		.where(
+			and(
+				inArray(documentTombstone.documentId, ids),
+				eq(documentTombstone.reason, "merged"),
+			),
+		);
 }
 
 /**
@@ -1315,7 +1362,17 @@ export async function deleteDocumentPermanently(
 	// its number is free again and `nextAsn` hands it out to the next document.
 	// Trashing does not do this — a trashed document keeps its number, because
 	// restoring it has to put it back under the number written on the sheet.
-	await db.delete(document).where(eq(document.id, id));
+	//
+	// The id outlives the row (issue #2): a merged document keeps its `merged`
+	// tombstone and goes on redirecting, any other one gets a `deleted`
+	// tombstone so that reads answer 410 rather than 404.
+	await db.transaction(async (tx) => {
+		await tx
+			.insert(documentTombstone)
+			.values({ documentId: id, reason: "deleted" })
+			.onConflictDoNothing();
+		await tx.delete(document).where(eq(document.id, id));
+	});
 
 	if (options.onDeleteFiles) {
 		await options.onDeleteFiles(storageKeys);
@@ -1603,6 +1660,10 @@ export async function bulkDocuments(
 						and(inArray(document.id, found), isNotNull(document.deletedAt)),
 					)
 					.returning({ id: document.id });
+				await forgetMerges(
+					tx,
+					rows.map((row) => row.id),
+				);
 				return { updated: rows.length };
 			}
 			case "addTags": {

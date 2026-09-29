@@ -539,6 +539,26 @@ export const documentDetailSchema = documentSchema.extend({
 });
 export type DocumentDetail = z.infer<typeof documentDetailSchema>;
 
+/**
+ * `document.get` (and MCP `get_document`): the detail plus the stable URLs a
+ * citation can keep (issue #2), both built from the public base URL.
+ */
+export const documentGetResultSchema = documentDetailSchema.extend({
+	/** Page of the document in the web app: `<public URL>/documents/<id>`. */
+	webUrl: z.string(),
+	/**
+	 * Primary file of the document (the original, else the oldest file):
+	 * `<public URL>/d/<id>`, `?disposition=inline` to view it.
+	 */
+	fileUrl: z.string(),
+	/**
+	 * The id that was asked for when it was merged into this document, `null`
+	 * when the document answered for itself.
+	 */
+	redirectedFrom: z.string().nullable(),
+});
+export type DocumentGetResult = z.infer<typeof documentGetResultSchema>;
+
 export const setDocumentCategoryInput = z.object({
 	id: z.string().min(1),
 	categoryId: z.string().min(1).nullable(),
