@@ -311,7 +311,12 @@ export const runRules = emitsDocumentEvents(async function runRules(
 		await computeReviewReasons(db, documentId);
 		const after = await updatedAtOf(db, documentId);
 		if (after && before?.getTime() !== after.getTime()) {
-			documentEvents().updated(documentId);
+			// The rules that wrote, and what kind of write: never the values an
+			// extraction read off the OCR text (D15-05).
+			documentEvents().changed(documentId, "document.rules_applied", {
+				trigger: "manual",
+				rules: result.appliedRules,
+			});
 		}
 	}
 

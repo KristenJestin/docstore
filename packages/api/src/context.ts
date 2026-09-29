@@ -26,7 +26,12 @@ export type CreateContextResult = {
 	db: Db;
 	ingestion?: IngestionBinding;
 	/** Set when the caller authenticates with an API key (SPEC §6). */
-	apiKey?: { id: string; scopes: ApiKeyPrincipal["scopes"] };
+	apiKey?: {
+		id: string;
+		scopes: ApiKeyPrincipal["scopes"];
+		/** Name of the key, for the activity log; looked up when absent. */
+		name?: string;
+	};
 };
 
 /**
@@ -79,7 +84,11 @@ export async function createContext({
 			session,
 			db,
 			ingestion,
-			apiKey: { id: principal.id, scopes: principal.scopes },
+			apiKey: {
+				id: principal.id,
+				scopes: principal.scopes,
+				name: principal.name,
+			},
 		};
 	}
 

@@ -82,6 +82,7 @@ describe("key resolution", () => {
 		const principal = await resolveApiKey(db, secret);
 		expect(principal).toEqual({
 			id: key.id,
+			name: "Read",
 			userId: owner.id,
 			scopes: ["read"],
 		});

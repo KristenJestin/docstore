@@ -20,6 +20,7 @@ import {
 import { ORPCError } from "@orpc/server";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { TRASHED_DOCUMENT_MESSAGE } from "./document.service";
+import { recordServiceActivity } from "./document-events";
 import { assertFutureExpiry } from "./expiry";
 import { publicBaseUrl, randomToken } from "./upload-link.service";
 
@@ -367,6 +368,21 @@ export async function createShareLink(
 		});
 	}
 	const link = toShareLink(row, await loadTargetTitle(db, row));
+	// Never the token: the entry says what was shared and how (issue #15).
+	await recordServiceActivity(db, {
+		action: "share_link.created",
+		objectType: "share_link",
+		objectId: row.id,
+		objectLabel: link.targetTitle,
+		summary: {
+			documentId: row.documentId,
+			dossierId: row.dossierId,
+			expiresAt: row.expiresAt,
+			maxViews: row.maxViews,
+			allowDownload: row.allowDownload,
+			password: row.passwordHash !== null,
+		},
+	});
 	return { link, url: link.url };
 }
 
@@ -397,15 +413,31 @@ export async function revokeShareLink(db: Db, id: string): Promise<ShareLink> {
 		.where(eq(shareLink.id, id))
 		.returning();
 	const row = rows[0] ?? existing;
-	return toShareLink(row, await loadTargetTitle(db, row));
+	const link = toShareLink(row, await loadTargetTitle(db, row));
+	if (!existing.revokedAt) {
+		await recordServiceActivity(db, {
+			action: "share_link.revoked",
+			objectType: "share_link",
+			objectId: row.id,
+			objectLabel: link.targetTitle,
+			summary: { documentId: row.documentId, dossierId: row.dossierId },
+		});
+	}
+	return link;
 }
 
 export async function deleteShareLink(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
-	await requireRow(db, id);
+	const existing = await requireRow(db, id);
 	await db.delete(shareLink).where(eq(shareLink.id, id));
+	await recordServiceActivity(db, {
+		action: "share_link.deleted",
+		objectType: "share_link",
+		objectId: id,
+		summary: { documentId: existing.documentId, dossierId: existing.dossierId },
+	});
 	return { id, deleted: true };
 }
 

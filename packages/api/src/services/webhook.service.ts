@@ -16,6 +16,7 @@ import type {
 import { WEBHOOK_SECRET_LENGTH } from "@docstore/shared/webhook";
 import { ORPCError } from "@orpc/server";
 import { desc, eq, sql } from "drizzle-orm";
+import { recordServiceActivity } from "./document-events";
 
 /**
  * Outgoing webhooks (SPEC §2 "Misc").
@@ -87,6 +88,14 @@ export async function createWebhook(
 			message: "The webhook could not be created.",
 		});
 	}
+	// Never the secret.
+	await recordServiceActivity(db, {
+		action: "webhook.created",
+		objectType: "webhook",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { url: row.url, events: row.events, enabled: row.enabled },
+	});
 	return toWebhook(row);
 }
 
@@ -112,6 +121,20 @@ export async function updateWebhook(
 			message: `Webhook "${input.id}" not found.`,
 		});
 	}
+	const fields: Record<string, unknown> = {};
+	for (const field of ["name", "url", "events", "enabled"] as const) {
+		if (JSON.stringify(existing[field]) !== JSON.stringify(row[field])) {
+			fields[field] = { before: existing[field], after: row[field] };
+		}
+	}
+	if (existing.secret !== row.secret) fields.secret = { changed: true };
+	await recordServiceActivity(db, {
+		action: "webhook.updated",
+		objectType: "webhook",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { fields },
+	});
 	return toWebhook(row);
 }
 
@@ -119,8 +142,14 @@ export async function deleteWebhook(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
-	await requireRow(db, id);
+	const existing = await requireRow(db, id);
 	await db.delete(webhook).where(eq(webhook.id, id));
+	await recordServiceActivity(db, {
+		action: "webhook.deleted",
+		objectType: "webhook",
+		objectId: id,
+		objectLabel: existing.name,
+	});
 	return { id, deleted: true };
 }
 

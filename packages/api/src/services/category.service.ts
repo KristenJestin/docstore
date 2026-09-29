@@ -14,7 +14,12 @@ import { CATEGORY_MAX_DEPTH } from "@docstore/shared/category";
 import { slugify } from "@docstore/shared/common";
 import { ORPCError } from "@orpc/server";
 import { asc, count, eq, isNull, sql } from "drizzle-orm";
-import { documentEvents, emitsDocumentEvents } from "./document-events";
+import { fieldChanges } from "./activity.service";
+import {
+	documentEvents,
+	emitsDocumentEvents,
+	recordServiceActivity,
+} from "./document-events";
 
 type CategoryRow = typeof category.$inferSelect;
 
@@ -231,6 +236,13 @@ export async function createCategory(
 			message: "The category could not be created.",
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "category.created",
+		objectType: "category",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { parentId: row.parentId },
+	});
 	return row;
 }
 
@@ -263,6 +275,23 @@ export async function updateCategory(
 			message: `Category "${input.id}" not found.`,
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "category.updated",
+		objectType: "category",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: {
+			fields: fieldChanges(
+				{
+					name: current.name,
+					slug: current.slug,
+					icon: current.icon,
+					color: current.color,
+				},
+				{ name: row.name, slug: row.slug, icon: row.icon, color: row.color },
+			),
+		},
+	});
 	return row;
 }
 
@@ -425,6 +454,14 @@ export const deleteCategory = emitsDocumentEvents(async function deleteCategory(
 			.set({ categoryId: reassignTo })
 			.where(eq(document.categoryId, input.id))
 			.returning({ id: document.id });
+		documentEvents().cause("category.deleted");
+		documentEvents().activity({
+			action: "category.deleted",
+			objectType: "category",
+			objectId: current.id,
+			objectLabel: current.name,
+			summary: { reassignTo, documents: moved.length },
+		});
 		documentEvents().updated(...moved.map((row) => row.id));
 
 		for (const child of reparented) {

@@ -38,6 +38,7 @@ import type {
 } from "@docstore/shared/rule";
 import { RULE_RUN_RETENTION_DAYS } from "@docstore/shared/rule";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import { recordActivity } from "./activity";
 import type { IngestionContext } from "./context";
 import { applyDocumentType } from "./document-type";
 import { DocumentTypeNotFoundError } from "./errors";
@@ -92,10 +93,20 @@ export interface AppliedRuleResult {
 	durationMs: number;
 }
 
+/** A rule that wrote something, as the activity log names it (issue #15). */
+export interface AppliedRuleActivity {
+	id: string;
+	name: string;
+	/** Kinds of the operations applied (`add_tag`…), never their values. */
+	operations: string[];
+}
+
 export interface ApplyRulesResult {
 	documentId: string;
 	subject: RuleSubject;
 	rules: AppliedRuleResult[];
+	/** Rules that actually wrote, empty for a dry run. */
+	appliedRules: AppliedRuleActivity[];
 	matchedCount: number;
 	/** Review reasons coming from the rules (extractions and confidences). */
 	reviewReasons: ReviewReason[];
@@ -654,6 +665,7 @@ export async function applyRules(
 	// `content.locale` and not the English interface.
 	const locale = await getContentLocale(db);
 	const results: AppliedRuleResult[] = [];
+	const appliedRules: AppliedRuleActivity[] = [];
 	const reviewReasons: ReviewReason[] = [];
 	let matchedCount = 0;
 
@@ -745,6 +757,17 @@ export async function applyRules(
 			durationMs,
 		});
 
+		const written = outcome.applied.filter(
+			(operation) => operation.type !== "webhook",
+		);
+		if (!options.dryRun && written.length > 0) {
+			appliedRules.push({
+				id: row.id,
+				name: row.name,
+				operations: [...new Set(written.map((operation) => operation.type))],
+			});
+		}
+
 		if (!options.dryRun) {
 			await logRuleTrace(
 				db,
@@ -766,10 +789,31 @@ export async function applyRules(
 		if (row.stopOnMatch) break;
 	}
 
+	// A manual run is logged by `runRules` on behalf of whoever asked for it;
+	// the automatic triggers act as the pipeline (`system`, issue #15).
+	if (appliedRules.length > 0 && options.trigger !== "manual") {
+		const [target] = await db
+			.select({ title: document.title, sensitive: document.sensitive })
+			.from(document)
+			.where(eq(document.id, documentId))
+			.limit(1);
+		await recordActivity(db, [
+			{
+				action: "document.rules_applied",
+				objectType: "document",
+				objectId: documentId,
+				objectLabel: target?.title ?? null,
+				sensitive: target?.sensitive ?? false,
+				summary: { trigger: options.trigger, rules: appliedRules },
+			},
+		]);
+	}
+
 	return {
 		documentId,
 		subject: prepared.subject,
 		rules: results,
+		appliedRules,
 		matchedCount,
 		reviewReasons,
 	};

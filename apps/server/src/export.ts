@@ -4,7 +4,11 @@ import {
 } from "@docstore/api/services/export.service";
 import { contentDispositionFilename } from "@docstore/api/services/file.service";
 import type { Db } from "@docstore/db";
-import type { IngestionBinding } from "@docstore/ingestion";
+import {
+	type Actor,
+	type IngestionBinding,
+	runAsActor,
+} from "@docstore/ingestion";
 import { hasScope } from "@docstore/shared/api-key";
 import { exportDocumentsInput } from "@docstore/shared/export";
 import type { Hono } from "hono";
@@ -32,14 +36,28 @@ export function registerExportRoutes(
 ): void {
 	app.post("/api/export", async (c) => {
 		const principal = apiKeyPrincipal(c);
+		// Who exports, for the activity log (issue #15).
+		let actor: Actor;
 		if (!principal) {
 			const session = await auth.api.getSession({ headers: c.req.raw.headers });
 			if (!session?.user) return c.json({ error: "UNAUTHORIZED" }, 401);
+			actor = {
+				type: "user",
+				userId: session.user.id,
+				name: session.user.name,
+			};
 		} else if (!hasScope(principal.scopes, "read")) {
 			return c.json(
 				{ error: "FORBIDDEN", message: 'The "read" scope is required.' },
 				403,
 			);
+		} else {
+			actor = {
+				type: "api_key",
+				apiKeyId: principal.id,
+				userId: principal.userId,
+				name: principal.name ?? null,
+			};
 		}
 
 		let raw: unknown;
@@ -76,15 +94,17 @@ export function registerExportRoutes(
 
 		if (!ingestion) return c.json({ error: "STORAGE_UNAVAILABLE" }, 503);
 
-		const result = await exportDocuments(
-			{
-				db,
-				storage: exportStorage(
-					ingestion.ctx.storage,
-					ingestion.ctx.secureStorage,
-				),
-			},
-			input,
+		const result = await runAsActor(actor, () =>
+			exportDocuments(
+				{
+					db,
+					storage: exportStorage(
+						ingestion.ctx.storage,
+						ingestion.ctx.secureStorage,
+					),
+				},
+				input,
+			),
 		);
 
 		return new Response(result.stream, {

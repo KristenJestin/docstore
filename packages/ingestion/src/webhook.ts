@@ -15,6 +15,7 @@ import {
 	WEBHOOK_TIMEOUT_MS,
 } from "@docstore/shared/webhook";
 import { and, eq, sql } from "drizzle-orm";
+import { currentActor, describeActor } from "./activity";
 import type { IngestionContext } from "./context";
 import type { WebhookDeliverPayload } from "./jobs";
 
@@ -120,9 +121,10 @@ export async function emitDocumentEvent(
 	documentId: string,
 	options: {
 		snapshot?: WebhookDocument;
-		extra?: Omit<WebhookDocumentEvent, "event" | "document">;
+		extra?: Omit<WebhookDocumentEvent, "event" | "document" | "actor">;
 	} = {},
 ): Promise<number> {
+	if (!ctx.queue) return 0;
 	const summary =
 		options.snapshot ?? (await webhookDocumentSummary(ctx.db, documentId));
 	if (!summary) return 0;
@@ -130,6 +132,7 @@ export async function emitDocumentEvent(
 		event,
 		document: summary,
 		...options.extra,
+		actor: await describeActor(ctx.db, currentActor()),
 	};
 	return emitEvent(ctx, event, body);
 }
@@ -151,6 +154,7 @@ export async function emitRuleWebhook(
 			event: "rule.webhook",
 			...(ruleId ? { ruleId } : {}),
 			document: summary,
+			actor: await describeActor(ctx.db, currentActor()),
 		},
 	});
 	return true;

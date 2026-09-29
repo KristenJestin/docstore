@@ -5,6 +5,7 @@ import {
 import type { Db } from "@docstore/db";
 import type { ApiKeyPrincipal } from "@docstore/shared/api-key";
 import type { Context, MiddlewareHandler } from "hono";
+import { getConnInfo } from "hono/bun";
 
 /**
  * API key authentication (SPEC §6).
@@ -19,9 +20,26 @@ export type ApiKeyVariables = {
 	apiKeyPrincipal: ApiKeyPrincipal | null;
 };
 
+/**
+ * Address of the TCP peer, the fallback when no proxy header names the client
+ * (`bun run dev`, a server exposed directly). `null` outside a Bun server
+ * (`app.request` in the tests).
+ */
+function peerAddress(c: Context): string | null {
+	try {
+		return getConnInfo(c).remote.address ?? null;
+	} catch {
+		return null;
+	}
+}
+
 export function apiKeyAuth(options: { db: Db }): MiddlewareHandler {
 	return async (c, next) => {
-		const principal = await authenticateApiKey(options.db, c.req.raw.headers);
+		const principal = await authenticateApiKey(
+			options.db,
+			c.req.raw.headers,
+			peerAddress(c),
+		);
 		c.set("apiKeyPrincipal", principal);
 		await next();
 	};

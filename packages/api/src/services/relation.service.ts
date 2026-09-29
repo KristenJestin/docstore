@@ -209,7 +209,14 @@ export const addRelation = emitsDocumentEvents(async function addRelation(
 	}
 	// A relation is part of what both of its ends are.
 	await touchDocuments(db, [input.fromDocumentId, input.toDocumentId]);
-	documentEvents().updated(input.fromDocumentId, input.toDocumentId);
+	const relation = {
+		id: row.id,
+		kind: row.kind,
+		fromDocumentId: row.fromDocumentId,
+		toDocumentId: row.toDocumentId,
+	};
+	documentEvents().changed(input.fromDocumentId, "document.linked", relation);
+	documentEvents().changed(input.toDocumentId, "document.linked", relation);
 	return row;
 });
 
@@ -221,6 +228,7 @@ export const removeRelation = emitsDocumentEvents(async function removeRelation(
 		.select({
 			from: documentRelation.fromDocumentId,
 			to: documentRelation.toDocumentId,
+			kind: documentRelation.kind,
 		})
 		.from(documentRelation)
 		.where(eq(documentRelation.id, id))
@@ -236,6 +244,13 @@ export const removeRelation = emitsDocumentEvents(async function removeRelation(
 
 	await db.delete(documentRelation).where(eq(documentRelation.id, id));
 	await touchDocuments(db, [existing.from, existing.to]);
-	documentEvents().updated(existing.from, existing.to);
+	const relation = {
+		id,
+		kind: existing.kind,
+		fromDocumentId: existing.from,
+		toDocumentId: existing.to,
+	};
+	documentEvents().changed(existing.from, "document.unlinked", relation);
+	documentEvents().changed(existing.to, "document.unlinked", relation);
 	return { id, deleted: true as const };
 });

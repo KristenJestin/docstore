@@ -22,6 +22,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { protectedProcedure, writeProcedure } from "../index";
+import { logDocumentRead } from "../services/activity.service";
 import {
 	getFileForDownload,
 	getThumbnailForDownload,
@@ -174,6 +175,16 @@ export const fileRouter = {
 			assertSensitiveAccess(context.apiKey, file.documentSensitive);
 			const blob = await storageForFile(ingestion.ctx, file.encrypted).get(
 				file.storageKey,
+			);
+			logDocumentRead(
+				context.db,
+				"document.downloaded",
+				{
+					id: file.documentId,
+					title: file.documentTitle,
+					sensitive: file.documentSensitive,
+				},
+				{ fileId: file.id, filename: file.filename, kind: file.kind },
 			);
 			return new File([blob], file.filename, { type: file.mime });
 		}),

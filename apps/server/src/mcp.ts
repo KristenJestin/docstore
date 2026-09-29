@@ -38,7 +38,12 @@ export function registerMcpRoutes(
 		const server = createMcpServer({
 			db,
 			ingestion,
-			principal: { userId: principal.userId, scopes: principal.scopes },
+			principal: {
+				userId: principal.userId,
+				scopes: principal.scopes,
+				keyId: principal.id,
+				...(principal.name ? { keyName: principal.name } : {}),
+			},
 		});
 		const transport = new StreamableHTTPTransport({
 			sessionIdGenerator: undefined,

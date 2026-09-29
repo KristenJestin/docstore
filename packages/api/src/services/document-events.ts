@@ -1,11 +1,18 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Db } from "@docstore/db";
-import type { IngestionContext } from "@docstore/ingestion";
-import { emitDocumentEvent, webhookDocumentSummary } from "@docstore/ingestion";
+import { document } from "@docstore/db/schema/document";
+import type { ActivityDraft, IngestionContext } from "@docstore/ingestion";
+import {
+	emitDocumentEvent,
+	recordActivity,
+	webhookDocumentSummary,
+} from "@docstore/ingestion";
+import type { ActivitySummary } from "@docstore/shared/activity";
 import type {
 	DocumentChangeEvent,
 	WebhookDocument,
 } from "@docstore/shared/webhook";
+import { inArray } from "drizzle-orm";
 
 /**
  * Document webhooks emitted by the business services (SPEC §2 "Misc").
@@ -20,6 +27,12 @@ import type {
  * context bound to that connection at startup (`bindDocumentEvents`). No
  * binding (unit tests, degraded server without a queue) means no event, the
  * same contract as `emitEvent`.
+ *
+ * The same batch feeds the activity log (issue #15): each recorded change
+ * becomes an entry naming the actor of the request, written when the batch is
+ * flushed, with or without a queue. A service that only says `updated(id)`
+ * still leaves a generic `document.updated` entry, so no change goes
+ * unlogged; one that knows more says it with `changed(id, action, summary)`.
  */
 
 const bindings = new WeakMap<Db, IngestionContext>();
@@ -55,6 +68,10 @@ type Recorded = {
 /** Changes recorded by one operation, keyed by document. */
 export class DocumentEventBatch {
 	readonly #entries = new Map<string, Recorded>();
+	/** Activity entries, in recording order: every change, not just the strongest. */
+	readonly #activity: ActivityDraft[] = [];
+	/** What caused generic entries (`tag.merged` for the documents it retagged). */
+	#cause: string | null = null;
 
 	/** The document changed but stays where it was. */
 	updated(...documentIds: readonly string[]): void {
@@ -62,30 +79,105 @@ export class DocumentEventBatch {
 			this.#record(id, { event: "document.updated" });
 	}
 
+	/**
+	 * The document changed, and the service knows how: `action` and `summary`
+	 * go to the activity log (fields before and after, never content).
+	 */
+	changed(documentId: string, action: string, summary: ActivitySummary): void {
+		this.#record(documentId, { event: "document.updated" });
+		this.#activity.push({
+			action,
+			objectType: "document",
+			objectId: documentId,
+			summary,
+		});
+	}
+
 	trashed(...documentIds: readonly string[]): void {
-		for (const id of documentIds)
+		for (const id of documentIds) {
 			this.#record(id, { event: "document.trashed" });
+			this.#documentActivity(id, "document.trashed");
+		}
 	}
 
 	restored(...documentIds: readonly string[]): void {
 		for (const id of documentIds) {
 			this.#record(id, { event: "document.restored" });
+			this.#documentActivity(id, "document.restored");
 		}
 	}
 
 	/** `documentId` was absorbed by `keptDocumentId` (and went to the trash). */
 	merged(documentId: string, keptDocumentId: string): void {
 		this.#record(documentId, { event: "document.merged", keptDocumentId });
+		this.#documentActivity(documentId, "document.merged", { keptDocumentId });
 	}
 
 	/** Permanent deletion: `snapshot` is the summary read before the delete. */
 	deleted(snapshot: WebhookDocument): void {
 		this.#record(snapshot.id, { event: "document.deleted", snapshot });
+		this.#activity.push({
+			action: "document.deleted",
+			objectType: "document",
+			objectId: snapshot.id,
+			objectLabel: snapshot.title,
+			sensitive: snapshot.sensitive,
+			summary: {},
+		});
+	}
+
+	/** An entry about something else than a document (a party, a tag…). */
+	activity(draft: ActivityDraft): void {
+		this.#activity.push(draft);
+	}
+
+	/**
+	 * Names what caused the plain `updated(id)` of this operation: the generic
+	 * entries of those documents then say `{ via: cause }`.
+	 */
+	cause(action: string): void {
+		this.#cause = action;
 	}
 
 	/** What the batch will emit, in recording order. */
 	entries(): [string, Recorded][] {
 		return [...this.#entries];
+	}
+
+	/**
+	 * Activity entries of the batch: the explicit ones, plus one generic entry
+	 * per changed document that has none, so that no change goes unlogged.
+	 */
+	activityDrafts(): ActivityDraft[] {
+		const described = new Set(
+			this.#activity
+				.filter((draft) => draft.objectType === "document")
+				.map((draft) => draft.objectId),
+		);
+		const generic: ActivityDraft[] = [];
+		for (const [documentId, entry] of this.#entries) {
+			if (described.has(documentId)) continue;
+			generic.push({
+				action: entry.event,
+				objectType: "document",
+				objectId: documentId,
+				summary: this.#cause ? { via: this.#cause } : {},
+			});
+		}
+		return [...this.#activity, ...generic];
+	}
+
+	#documentActivity(
+		documentId: string,
+		action: string,
+		summary: ActivitySummary = {},
+	): void {
+		this.#activity.push({
+			action,
+			objectType: "document",
+			objectId: documentId,
+			summary,
+		});
 	}
 
 	#record(documentId: string, entry: Recorded): void {
@@ -116,6 +208,7 @@ export async function withDocumentEvents<T>(
 
 	const batch = new DocumentEventBatch();
 	const result = await scope.run(batch, () => run(batch));
+	await flushActivity(db, batch);
 	await flushDocumentEvents(db, batch);
 	return result;
 }
@@ -129,6 +222,71 @@ export function documentSnapshot(
 	documentId: string,
 ): Promise<WebhookDocument | null> {
 	return webhookDocumentSummary(db, documentId);
+}
+
+/**
+ * Writes the activity entries of the batch in one insert, on behalf of the
+ * actor of the request. The title and `sensitive` flag of each document are
+ * read once, after the change: the entry names the document as it now is.
+ */
+async function flushActivity(db: Db, batch: DocumentEventBatch): Promise<void> {
+	const drafts = batch.activityDrafts();
+	if (drafts.length === 0) return;
+	const ids = [
+		...new Set(
+			drafts
+				.filter((draft) => draft.objectType === "document" && draft.objectId)
+				.map((draft) => draft.objectId as string),
+		),
+	];
+	const documents = new Map<string, { title: string; sensitive: boolean }>();
+	if (ids.length > 0) {
+		try {
+			const rows = await db
+				.select({
+					id: document.id,
+					title: document.title,
+					sensitive: document.sensitive,
+				})
+				.from(document)
+				.where(inArray(document.id, ids));
+			for (const row of rows) documents.set(row.id, row);
+		} catch (error) {
+			console.error("[activity] unable to read the documents", error);
+		}
+	}
+	await recordActivity(
+		db,
+		drafts.map((draft) => {
+			const found =
+				draft.objectType === "document" && draft.objectId
+					? documents.get(draft.objectId)
+					: undefined;
+			if (!found) return draft;
+			return {
+				...draft,
+				objectLabel: draft.objectLabel ?? found.title,
+				sensitive: draft.sensitive ?? found.sensitive,
+			};
+		}),
+	);
+}
+
+/**
+ * Records an entry from a service that changes no document (a tag renamed, a
+ * key revoked). Inside an operation it joins the batch and is written with
+ * it; outside, it is written right away.
+ */
+export async function recordServiceActivity(
+	db: Db,
+	draft: ActivityDraft,
+): Promise<void> {
+	const open = scope.getStore();
+	if (open) {
+		open.activity(draft);
+		return;
+	}
+	await recordActivity(db, [draft]);
 }
 
 /**

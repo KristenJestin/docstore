@@ -4,6 +4,7 @@ import { documentTombstone } from "@docstore/db/schema/document-tombstone";
 import type { DocumentDetail } from "@docstore/shared/document";
 import { ORPCError } from "@orpc/server";
 import { eq } from "drizzle-orm";
+import { logDocumentRead } from "./activity.service";
 import { getDocument } from "./document.service";
 import { publicBaseUrl } from "./upload-link.service";
 
@@ -110,6 +111,8 @@ export function documentFileUrl(id: string): string {
  * `document.get` and MCP `get_document`: resolves the id, then returns the
  * detail of the document that answers, with its stable URLs. The caller still
  * masks the content for its own scopes.
+ *
+ * The read is traced in the activity log (issue #15), in the background.
  */
 export async function getDocumentWithUrls(
 	db: Db,
@@ -123,6 +126,12 @@ export async function getDocumentWithUrls(
 > {
 	const { id, redirectedFrom } = await resolveDocumentId(db, requestedId);
 	const detail = await getDocument(db, id);
+	logDocumentRead(
+		db,
+		"document.read",
+		detail,
+		redirectedFrom ? { redirectedFrom } : {},
+	);
 	return {
 		...detail,
 		webUrl: documentWebUrl(id),
