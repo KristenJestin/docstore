@@ -12,10 +12,29 @@ export const WEBHOOK_EVENTS = [
 	"document.processed",
 	"document.review",
 	"document.updated",
+	"document.trashed",
+	"document.restored",
+	"document.deleted",
+	"document.merged",
 	"reminder.due",
 ] as const;
 export const webhookEventSchema = z.enum(WEBHOOK_EVENTS);
 export type WebhookEvent = z.infer<typeof webhookEventSchema>;
+
+/**
+ * Events the business services emit when a document changes, whatever the
+ * surface that asked for it (oRPC, MCP, rules, bulk actions). At most one per
+ * document per operation: when several apply, the strongest wins
+ * (`deleted` > `merged` > `trashed`/`restored` > `updated`).
+ */
+export const DOCUMENT_CHANGE_EVENTS = [
+	"document.updated",
+	"document.trashed",
+	"document.restored",
+	"document.deleted",
+	"document.merged",
+] as const satisfies readonly WebhookEvent[];
+export type DocumentChangeEvent = (typeof DOCUMENT_CHANGE_EVENTS)[number];
 
 /**
  * Events that can actually be delivered: the subscriptions plus `ping` (the
@@ -114,5 +133,21 @@ export const webhookDocumentSchema = z.object({
 	sensitive: z.boolean(),
 	reviewReasons: z.array(z.string()),
 	createdAt: z.string(),
+	/**
+	 * `updated_at` after the change, ISO 8601: the same value `document.list`
+	 * returns, so a receiver can move its sync cursor from the event alone.
+	 */
+	updatedAt: z.string(),
+	/** Non-null while the document sits in the trash. */
+	deletedAt: z.string().nullable(),
 });
 export type WebhookDocument = z.infer<typeof webhookDocumentSchema>;
+
+/** Body of every `document.*` event. */
+export const webhookDocumentEventSchema = z.object({
+	event: webhookEventSchema,
+	document: webhookDocumentSchema,
+	/** `document.merged` only: the document that absorbed this one. */
+	keptDocumentId: z.string().optional(),
+});
+export type WebhookDocumentEvent = z.infer<typeof webhookDocumentEventSchema>;

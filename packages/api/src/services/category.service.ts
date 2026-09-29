@@ -14,6 +14,7 @@ import { CATEGORY_MAX_DEPTH } from "@docstore/shared/category";
 import { slugify } from "@docstore/shared/common";
 import { ORPCError } from "@orpc/server";
 import { asc, count, eq, isNull, sql } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 
 type CategoryRow = typeof category.$inferSelect;
 
@@ -373,7 +374,7 @@ export async function reorderCategories(
  * Deletes a category: its documents move to `reassignTo` (or lose their
  * category) and its children move up one level.
  */
-export async function deleteCategory(
+export const deleteCategory = emitsDocumentEvents(async function deleteCategory(
 	db: Db,
 	input: DeleteCategoryInput,
 ): Promise<{ id: string; deleted: true; reassignedDocuments: number }> {
@@ -418,12 +419,13 @@ export async function deleteCategory(
 		return { id: child.id, slug };
 	});
 
-	return db.transaction(async (tx) => {
+	const result = await db.transaction(async (tx) => {
 		const moved = await tx
 			.update(document)
 			.set({ categoryId: reassignTo })
 			.where(eq(document.categoryId, input.id))
 			.returning({ id: document.id });
+		documentEvents().updated(...moved.map((row) => row.id));
 
 		for (const child of reparented) {
 			await tx
@@ -440,7 +442,8 @@ export async function deleteCategory(
 			reassignedDocuments: moved.length,
 		};
 	});
-}
+	return result;
+});
 
 /** Checks that a category exists (used by `document.setCategory`). */
 export async function assertCategoryExists(db: Db, id: string): Promise<void> {

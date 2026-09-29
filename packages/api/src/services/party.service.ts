@@ -1,6 +1,7 @@
 import type { Db } from "@docstore/db";
 import { documentParty } from "@docstore/db/schema/document";
 import { party, partyRelation } from "@docstore/db/schema/party";
+import { touchDocuments } from "@docstore/ingestion";
 import type { Paginated } from "@docstore/shared/pagination";
 import { paginationMeta } from "@docstore/shared/pagination";
 import type {
@@ -39,6 +40,7 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 import { likePattern } from "./sql-utils";
 
 /** Columns exposed for a "summary" Party (links, relations). */
@@ -354,7 +356,7 @@ export async function updateParty(
  * Party, and leaving a copy behind would make `party.findByIdentifier` answer
  * with a Party nobody uses any more.
  */
-export async function mergeParties(
+export const mergeParties = emitsDocumentEvents(async function mergeParties(
 	db: Db,
 	input: MergePartiesInput,
 ): Promise<MergePartiesResult> {
@@ -365,6 +367,14 @@ export async function mergeParties(
 	}
 	const source = await requireParty(db, input.sourceId);
 	const target = await requireParty(db, input.targetId);
+
+	// Every document linked to the source changes: it moves to the target, or
+	// loses a link the target already duplicated.
+	const linked = await db
+		.selectDistinct({ documentId: documentParty.documentId })
+		.from(documentParty)
+		.where(eq(documentParty.partyId, source.id));
+	const linkedIds = linked.map((row) => row.documentId);
 
 	const counts = await db.transaction(async (tx) => {
 		// A document already linked to the target under the same role would break
@@ -421,18 +431,21 @@ export async function mergeParties(
 			.set({ identifiers: {}, archivedAt: source.archivedAt ?? new Date() })
 			.where(eq(party.id, source.id));
 
+		await touchDocuments(tx, linkedIds);
+
 		return {
 			movedDocuments: new Set(movedDocuments.map((row) => row.documentId)).size,
 			movedRelations: movedFrom.length + movedTo.length,
 		};
 	});
+	documentEvents().updated(...linkedIds);
 
 	return {
 		target: await getParty(db, target.id),
 		archivedId: source.id,
 		...counts,
 	};
-}
+});
 
 /**
  * Union of two identifier objects: scalars from the target win, arrays are

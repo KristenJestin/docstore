@@ -1,4 +1,4 @@
-import { emitDocumentEvent, setSensitive } from "@docstore/ingestion";
+import { setSensitive } from "@docstore/ingestion";
 import {
 	clearDocumentFieldValueInput,
 	documentBulkInput,
@@ -261,20 +261,10 @@ export const documentRouter = {
 		})
 		.input(updateDocumentInput.extend(idInput.shape))
 		.output(documentDetailSchema)
-		.handler(async ({ input, context }) => {
+		.handler(({ input, context }) => {
 			const { id, ...patch } = input;
-			const updated = await updateDocument(
-				context.db,
-				id,
-				patch,
-				sensitiveHook(context),
-			);
-			// SPEC §2 "Miscellaneous": `document.updated` subscribers are notified
-			// afterwards, with the state actually persisted.
-			if (context.ingestion) {
-				await emitDocumentEvent(context.ingestion.ctx, "document.updated", id);
-			}
-			return updated;
+			// `document.updated` is emitted by the service, whatever the surface.
+			return updateDocument(context.db, id, patch, sensitiveHook(context));
 		}),
 
 	setParties: writeProcedure

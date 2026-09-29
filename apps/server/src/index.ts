@@ -1,4 +1,5 @@
 import { decryptSecret } from "@docstore/api/services/crypto.service";
+import { bindDocumentEvents } from "@docstore/api/services/document-events";
 import { generateReminders } from "@docstore/api/services/reminder.service";
 import {
 	loadServerConfig,
@@ -67,6 +68,9 @@ async function startIngestion(): Promise<IngestionBinding | undefined> {
 			encryption: { masterKey: deriveStorageMasterKey(env.APP_SECRET) },
 		});
 		self = ctx;
+		// The business services emit the document webhooks (`document.updated`,
+		// `document.trashed`...) through this context's queue.
+		bindDocumentEvents(ctx);
 		await queue.start();
 		const worker = env.WORKER_ENABLED
 			? await startWorker(ctx, queue)

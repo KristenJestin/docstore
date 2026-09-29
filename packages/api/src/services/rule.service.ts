@@ -34,6 +34,7 @@ import {
 	isNull,
 	max,
 } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 
 /**
  * CRUD and execution of rules (SPEC §3).
@@ -235,7 +236,7 @@ export async function testRule(
  * Manual execution: on a selection of documents, or on all of them (capped at
  * `RULE_RUN_ALL_LIMIT` per call).
  */
-export async function runRules(
+export const runRules = emitsDocumentEvents(async function runRules(
 	db: Db,
 	input: RunRulesInput,
 ): Promise<RunRulesResult> {
@@ -292,6 +293,9 @@ export async function runRules(
 	let processed = 0;
 	let matched = 0;
 	for (const documentId of documentIds) {
+		// Whether a rule actually wrote something is read off `updated_at`: every
+		// write of `applyOperations` moves it, a mere match does not.
+		const before = await updatedAtOf(db, documentId);
 		const result = await applyRules(db, documentId, {
 			trigger: "manual",
 			ruleIds: input.ruleId ? [input.ruleId] : undefined,
@@ -305,9 +309,22 @@ export async function runRules(
 		// A rule may have just filled in what was missing (category, issuer,
 		// field…): refresh the review reasons instead of leaving stale ones.
 		await computeReviewReasons(db, documentId);
+		const after = await updatedAtOf(db, documentId);
+		if (after && before?.getTime() !== after.getTime()) {
+			documentEvents().updated(documentId);
+		}
 	}
 
 	return { processed, matched };
+});
+
+async function updatedAtOf(db: Db, documentId: string): Promise<Date | null> {
+	const [row] = await db
+		.select({ updatedAt: document.updatedAt })
+		.from(document)
+		.where(eq(document.id, documentId))
+		.limit(1);
+	return row?.updatedAt ?? null;
 }
 
 export async function listRuleRuns(

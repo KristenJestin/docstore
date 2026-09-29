@@ -1,6 +1,7 @@
 import type { Db } from "@docstore/db";
 import { document } from "@docstore/db/schema/document";
 import { documentTag, tag } from "@docstore/db/schema/tag";
+import { touchDocuments } from "@docstore/ingestion";
 import type {
 	CreateTagInput,
 	ListTagsInput,
@@ -12,6 +13,7 @@ import type {
 } from "@docstore/shared/tag";
 import { ORPCError } from "@orpc/server";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 import { likePattern } from "./sql-utils";
 
 export async function listTags(
@@ -140,21 +142,31 @@ export async function updateTag(db: Db, input: UpdateTagInput): Promise<Tag> {
 	return row;
 }
 
-export async function deleteTag(
+export const deleteTag = emitsDocumentEvents(async function deleteTag(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
 	await requireTag(db, id);
-	// `document_tag` is deleted by cascade.
-	await db.delete(tag).where(eq(tag.id, id));
+	// `document_tag` is deleted by cascade: the documents that carried the tag
+	// lose it, which is a change of theirs.
+	const carriers = await db
+		.select({ documentId: documentTag.documentId })
+		.from(documentTag)
+		.where(eq(documentTag.tagId, id));
+	const carrierIds = carriers.map((row) => row.documentId);
+	await db.transaction(async (tx) => {
+		await tx.delete(tag).where(eq(tag.id, id));
+		await touchDocuments(tx, carrierIds);
+	});
+	documentEvents().updated(...carrierIds);
 	return { id, deleted: true };
-}
+});
 
 /**
  * Merges `sourceId` into `targetId`: the documents of the source tag receive
  * the target tag (without duplicates), then the source tag is deleted.
  */
-export async function mergeTags(
+export const mergeTags = emitsDocumentEvents(async function mergeTags(
 	db: Db,
 	input: MergeTagsInput,
 ): Promise<{ target: Tag; movedDocuments: number }> {
@@ -193,11 +205,16 @@ export async function mergeTags(
 		}
 
 		await tx.delete(tag).where(eq(tag.id, input.sourceId));
-		return toInsert.length;
+		// Every carrier of the source tag changed, even one that already had the
+		// target: it lost a tag.
+		const carrierIds = sourceLinks.map((row) => row.documentId);
+		await touchDocuments(tx, carrierIds);
+		return { count: toInsert.length, carrierIds };
 	});
+	documentEvents().updated(...moved.carrierIds);
 
-	return { target, movedDocuments: moved };
-}
+	return { target, movedDocuments: moved.count };
+});
 
 /** Active tags of a set of documents, used to enrich lists. */
 export async function loadTagsByDocument(
