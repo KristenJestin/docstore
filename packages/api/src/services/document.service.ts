@@ -846,15 +846,17 @@ export async function mergeAsVersion(
 export async function getDocumentFileLayout(
 	db: Db,
 	fileId: string,
-): Promise<DocumentFileLayout> {
+): Promise<DocumentFileLayout & { documentSensitive: boolean }> {
 	const rows = await db
 		.select({
 			fileId: documentFile.id,
 			documentId: documentFile.documentId,
 			pageCount: documentFile.pageCount,
 			ocrLayout: documentFile.ocrLayout,
+			documentSensitive: document.sensitive,
 		})
 		.from(documentFile)
+		.innerJoin(document, eq(document.id, documentFile.documentId))
 		.where(eq(documentFile.id, fileId))
 		.limit(1);
 	const row = rows[0];

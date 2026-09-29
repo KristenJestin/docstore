@@ -30,7 +30,7 @@ import {
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import { defineTool, requireWrite } from "./context";
+import { defineTool, requireRead, requireWrite } from "./context";
 import { mcpBoolean } from "./schema";
 
 /**
@@ -171,6 +171,7 @@ export function registerCollectionTools(
 					.join("\n") || "No document type.",
 		},
 		async (input) => {
+			requireRead(context);
 			const rows = await listDocumentTypes(context.db, {
 				...(input.query ? { query: input.query } : {}),
 				recurringOnly: input.recurringOnly ?? false,
@@ -221,6 +222,7 @@ export function registerCollectionTools(
 				)} extraction rule(s), ${output.timeline.length} period(s), ${output.type.missing.length} missing.`,
 		},
 		async (input) => {
+			requireRead(context);
 			const detail = await getDocumentType(context.db, input.documentTypeId);
 			const rules = await listExtractionRules(context.db, {
 				documentTypeId: input.documentTypeId,
@@ -306,6 +308,7 @@ export function registerCollectionTools(
 					.join("\n") || "No recurring document type.",
 		},
 		async (input) => {
+			requireRead(context);
 			const onlyMissing = input.onlyMissing ?? true;
 			const ids = input.documentTypeId
 				? [input.documentTypeId]
@@ -527,6 +530,7 @@ export function registerCollectionTools(
 					.join("\n") || "No Dossier.",
 		},
 		async (input) => {
+			requireRead(context);
 			const rows = await listDossiers(context.db, {
 				includeClosed: input.includeClosed ?? false,
 				query: input.query,
@@ -693,6 +697,7 @@ export function registerCollectionTools(
 					.join("\n") || "No reminder.",
 		},
 		async (input) => {
+			requireRead(context);
 			const rows = await listReminders(context.db, {
 				status: input.status ?? "pending",
 				kind: input.kind,
@@ -769,6 +774,7 @@ export function registerCollectionTools(
 				"No saved search.",
 		},
 		async () => {
+			requireRead(context);
 			const rows = await listSavedSearches(context.db);
 			return {
 				items: rows.map((row) => ({

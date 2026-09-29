@@ -64,6 +64,7 @@ import {
 	updateDocumentType,
 	updateLayout,
 } from "../services/document-type.service";
+import { assertDocumentSensitiveAccess } from "../services/sensitive-access.service";
 
 const TAGS = ["Document type"];
 
@@ -263,7 +264,15 @@ export const documentTypeRouter = {
 		})
 		.input(previewDocumentTypeInput)
 		.output(previewDocumentTypeResultSchema)
-		.handler(({ input, context }) => previewDocumentType(context.db, input)),
+		.handler(async ({ input, context }) => {
+			// A dry run reads the OCR layer: same rule as the text itself.
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.apiKey,
+				input.documentId,
+			);
+			return previewDocumentType(context.db, input);
+		}),
 
 	previewTitles: protectedProcedure
 		.route({
@@ -371,5 +380,13 @@ export const documentTypeRouter = {
 		})
 		.input(testDocumentTypeLayoutInput)
 		.output(testDocumentTypeLayoutResultSchema)
-		.handler(({ input, context }) => testLayout(context.db, input)),
+		.handler(async ({ input, context }) => {
+			// A dry run reads the OCR layer: same rule as the text itself.
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.apiKey,
+				input.documentId,
+			);
+			return testLayout(context.db, input);
+		}),
 };

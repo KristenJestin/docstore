@@ -19,7 +19,11 @@ const requireAuth = o.middleware(async ({ context, next }) => {
 	});
 });
 
-export const protectedProcedure = publicProcedure.use(requireAuth);
+/**
+ * Authenticated caller, no scope checked. Only the bases below build on it:
+ * pick `protectedProcedure`, `writeProcedure` or `adminProcedure`.
+ */
+const authenticatedProcedure = publicProcedure.use(requireAuth);
 
 /**
  * Scope check (SPEC §6).
@@ -38,8 +42,17 @@ export function requireScope(scope: ApiKeyScope) {
 	});
 }
 
+/**
+ * Read procedure, the default: rejected for API keys without the `read` scope.
+ * Reading the content of a sensitive document also takes `sensitive`, which the
+ * procedure checks itself (`mayReadSensitive`).
+ */
+export const protectedProcedure = authenticatedProcedure.use(
+	requireScope("read"),
+);
+
 /** Mutation procedure: rejected for API keys without the `write` scope. */
-export const writeProcedure = protectedProcedure.use(requireScope("write"));
+export const writeProcedure = authenticatedProcedure.use(requireScope("write"));
 
 /** Administration (API keys, settings): `admin` scope required. */
-export const adminProcedure = protectedProcedure.use(requireScope("admin"));
+export const adminProcedure = authenticatedProcedure.use(requireScope("admin"));

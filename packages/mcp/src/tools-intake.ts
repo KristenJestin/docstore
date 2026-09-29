@@ -8,7 +8,12 @@ import { intakeDefaultsSchema } from "@docstore/shared/intake";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import { defineTool, requireIngestion, requireWrite } from "./context";
+import {
+	defineTool,
+	requireIngestion,
+	requireRead,
+	requireWrite,
+} from "./context";
 
 /**
  * "Ingestion" tools (iteration 6): view the channels, trigger one, and build an
@@ -53,6 +58,7 @@ export function registerIntakeTools(
 							.join("\n"),
 		},
 		async () => {
+			requireRead(context);
 			const sources = await listIntakeSources(context.db);
 			return {
 				sources: sources.map((source) => ({

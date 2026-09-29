@@ -457,6 +457,11 @@ export const documentSchema = z.object({
 	asnSource: asnSourceSchema,
 	physicalLocation: z.string().nullable(),
 	content: z.string().nullable(),
+	/**
+	 * True when `content` was replaced by the sensitive placeholder because the
+	 * API key lacks the `sensitive` scope; `false` when it is served in full.
+	 */
+	masked: z.boolean().optional(),
 	/** Free-text notes typed by a human, in light Markdown. */
 	notes: z.string().nullable(),
 	categoryId: z.string().nullable(),

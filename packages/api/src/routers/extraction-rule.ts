@@ -21,6 +21,7 @@ import {
 	testExtractionRule,
 	updateExtractionRule,
 } from "../services/extraction-rule.service";
+import { assertDocumentSensitiveAccess } from "../services/sensitive-access.service";
 
 const TAGS = ["ExtractionRule"];
 
@@ -107,7 +108,15 @@ export const extractionRuleRouter = {
 		})
 		.input(testExtractionRuleInput)
 		.output(extractionResultSchema)
-		.handler(({ input, context }) => testExtractionRule(context.db, input)),
+		.handler(async ({ input, context }) => {
+			// A dry run reads the OCR layer: same rule as the text itself.
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.apiKey,
+				input.documentId,
+			);
+			return testExtractionRule(context.db, input);
+		}),
 
 	preview: protectedProcedure
 		.route({
@@ -118,5 +127,13 @@ export const extractionRuleRouter = {
 		})
 		.input(previewLayoutInput)
 		.output(previewLayoutResultSchema)
-		.handler(({ input, context }) => previewLayout(context.db, input)),
+		.handler(async ({ input, context }) => {
+			// A dry run reads the OCR layer: same rule as the text itself.
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.apiKey,
+				input.documentId,
+			);
+			return previewLayout(context.db, input);
+		}),
 };

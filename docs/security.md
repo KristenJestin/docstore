@@ -55,7 +55,7 @@ archive, attachment and thumbnail) is stored encrypted, and
 | Intake with `defaults.sensitive` (upload link, mailbox, watched folder) | The file is written straight through the encrypted driver: the plaintext never touches the disk. |
 | Rule action `set_sensitive` | `setSensitive` re-keys the files already stored. |
 | `document.update { sensitive }`, `document.bulk { setSensitive }`, MCP `update_document` | Same hook, injected into the router like `onDeleteFiles`. |
-| Reading (`/files/:id/download`, `/files/:id/thumbnail`, `file.download`, `/api/s/...`, export) | The driver is chosen from `document_file.encrypted`; decryption is transparent. |
+| Reading (`/files/:id/download`, `/files/:id/thumbnail`, `file.download`, `/api/s/...`, export) | The driver is chosen from `document_file.encrypted`; decryption is transparent. An API key without the `sensitive` scope is refused before the storage is touched (section 4). |
 
 Re-keying happens in place: the storage key does not change, only the bytes
 behind it. `FsStorageDriver.put` writes to a temporary file then renames, so the
@@ -66,8 +66,8 @@ call reconciles the rest (`setSensitive` is idempotent).
 ### What this does not protect against
 
 - A running server: the master key lives in the process, so anyone who can read
-  the application's memory, or who holds a valid session or API key, reads the
-  documents.
+  the application's memory, or who holds a valid session or an API key with the
+  `sensitive` scope, reads the documents.
 - The database: `document.content` (the OCR text) and
   `document_file.ocr_layout` are stored in the clear. Encryption at rest covers
   the files, and leaving the full-text index readable is what makes search work
@@ -161,22 +161,53 @@ from `X-Forwarded-For`.
 
 | Scope       | What it opens |
 | ----------- | ------------- |
-| `read`      | Search, reading documents, Party, taxonomy, statistics, `POST /api/export` |
+| `read`      | Every read: search, documents, files and thumbnails, Party, taxonomy, statistics, `POST /api/export` |
 | `write`     | Every mutation, including creating and revoking share links |
-| `sensitive` | OCR text of sensitive documents, and `includeSensitive` on the export |
+| `sensitive` | The content of a sensitive document: file bytes, thumbnail, OCR text, OCR layout, and `includeSensitive` on the export |
 | `admin`     | API keys, settings, upload links; implies every other scope |
 
 A browser session keeps every right: the scopes only narrow what an API key can
-do. Concretely:
+do. The same rules apply on every surface (oRPC and the REST API generated from
+it, `/files`, `/mcp`, the export).
 
-- `get_document_text` returns a placeholder instead of the text of a sensitive
-  document when the key lacks `sensitive`; `search_documents` never returns
-  content snippets at all, for any document.
-- `POST /api/export` and `export.preview` refuse `includeSensitive: true` with `403`
-  for a key without `sensitive`. Without that flag, sensitive documents are
-  simply absent from the archive.
-- `apiKey.create` / `revoke` / `delete` require `admin`, so a `write` key cannot
-  mint itself a stronger one.
+### `read`
+
+- oRPC: `protectedProcedure`, the default base of every procedure, requires
+  `read`. Mutations build on `writeProcedure` (`write`) and administration on
+  `adminProcedure` (`admin`), so a key with `write` only can write but cannot
+  read, and gets `403 FORBIDDEN` on `document.list`.
+- `/files/:id/download`, `/files/:id/thumbnail`, `/api/parties/:id/logo` and
+  `POST /api/export` answer `403` to a key without `read`.
+- MCP: every read tool and resource returns an error without `read`; every
+  mutation requires `write`.
+
+### `sensitive`
+
+One helper decides whether a caller may read sensitive content:
+`mayReadSensitive` in `packages/shared/src/api-key.ts`. MCP, oRPC and the
+`/files` routes all call it, so the surfaces cannot drift apart again.
+
+| Surface | Without `sensitive`, on a sensitive document |
+| ------- | -------------------------------------------- |
+| `GET /files/:id/download`, `GET /files/:id/thumbnail`, oRPC `file.download`, `file.thumbnail` | `403 FORBIDDEN`, checked before the storage is read: no byte of the file is sent |
+| oRPC `document.get`, `document.byAsn`, and every write that returns the document (`document.update`, `setTags`, `review.approve`…) | `content` is replaced by ``[sensitive document: `sensitive` scope required]`` and `masked: true` is set |
+| oRPC `document.getFileLayout` | `403 FORBIDDEN` |
+| Dry runs over the OCR layer: `extractionRule.test`, `extractionRule.preview`, `documentType.preview`, `documentType.testLayout`, `rule.test`, MCP `test_rule` | `403 FORBIDDEN` (MCP: tool error) |
+| MCP `get_document_text` | The same placeholder, `masked: true` |
+| `POST /api/export`, `export.preview`, MCP `export_documents` | `includeSensitive: true` is refused (`403`, MCP: tool error); without the flag, sensitive documents are absent from the archive |
+
+A refusal is a `403`, not a `404`: the caller already knows the id, and the
+document metadata already says `sensitive: true`.
+
+What stays readable with `read` alone: the metadata of a sensitive document
+(title, dates, category, tags, Parties, custom field values), in search
+results as in the detail. `search_documents` never returns content snippets at
+all, for any document.
+
+### Administration
+
+`apiKey.create` / `revoke` / `delete` require `admin`, so a `write` key cannot
+mint itself a stronger one.
 
 Only the sha256 of the secret is stored; the plaintext (`dsk_` + 40 characters)
 is returned once, at creation.

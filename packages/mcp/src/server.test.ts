@@ -1822,3 +1822,78 @@ describe("reprocess_document and the trash", () => {
 		expect(textOf(refused)).toContain("trash");
 	});
 });
+
+describe("API key scopes on every surface (issue #1)", () => {
+	test("WHEN a key with only write calls a read tool THEN the tool refuses", async () => {
+		const seeded = await seedDocument();
+		const client = await connect(["write"]);
+
+		const search = await client.callTool({
+			name: "search_documents",
+			arguments: {},
+		});
+		expect(isToolError(search)).toBe(true);
+		expect(textOf(search)).toContain("`read` scope");
+
+		const text = await client.callTool({
+			name: "get_document_text",
+			arguments: { id: seeded.id },
+		});
+		expect(isToolError(text)).toBe(true);
+	});
+
+	test("WHEN a key with only write reads a resource THEN it is refused", async () => {
+		const seeded = await seedDocument();
+		const client = await connect(["write"]);
+		const refused = await client
+			.readResource({ uri: `docstore://document/${seeded.id}` })
+			.then(
+				() => null,
+				(error: unknown) => error,
+			);
+		expect(refused).not.toBeNull();
+	});
+
+	test("a key with only write still writes", async () => {
+		const client = await connect(["write"]);
+		const result = await client.callTool({
+			name: "create_tag",
+			arguments: { name: "written-by-a-write-key" },
+		});
+		expect(isToolError(result)).toBe(false);
+	});
+
+	test("test_rule on a sensitive document is refused without the `sensitive` scope", async () => {
+		const seeded = await seedDocument({ sensitive: true });
+		const ruleId = createId("rul_");
+		await db.insert(rule).values({
+			id: ruleId,
+			name: "Oracle",
+			condition: { field: "content", cmp: "icontains", value: "sanguin" },
+			actions: [],
+		});
+
+		const refused = await (await connect(["read"])).callTool({
+			name: "test_rule",
+			arguments: { ruleId, documentId: seeded.id },
+		});
+		expect(isToolError(refused)).toBe(true);
+		expect(textOf(refused)).toContain("sensitive");
+
+		const allowed = await (await connect(["read", "sensitive"])).callTool({
+			name: "test_rule",
+			arguments: { ruleId, documentId: seeded.id },
+		});
+		expect(isToolError(allowed)).toBe(false);
+	});
+
+	test("export_documents refuses includeSensitive without the `sensitive` scope", async () => {
+		await seedDocument();
+		const result = await (await connect(["read"])).callTool({
+			name: "export_documents",
+			arguments: { includeSensitive: true },
+		});
+		expect(isToolError(result)).toBe(true);
+		expect(textOf(result)).toContain("`sensitive` scope");
+	});
+});

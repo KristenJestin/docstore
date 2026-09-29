@@ -19,6 +19,7 @@ import {
 	requeueDocument,
 } from "@docstore/api/services/review.service";
 import { setSensitive } from "@docstore/ingestion";
+import { SENSITIVE_PLACEHOLDER } from "@docstore/shared/api-key";
 import { dateOnlySchema } from "@docstore/shared/common";
 import { customFieldValueSchema } from "@docstore/shared/custom-field";
 import {
@@ -35,6 +36,7 @@ import {
 	defineTool,
 	McpToolError,
 	requireIngestion,
+	requireRead,
 	requireWrite,
 } from "./context";
 import { mcpBoolean } from "./schema";
@@ -50,8 +52,7 @@ import {
 } from "./serialize";
 
 /** Message shown in place of the text of a sensitive document. */
-export const SENSITIVE_PLACEHOLDER =
-	"[sensitive document: `sensitive` scope required]";
+export { SENSITIVE_PLACEHOLDER };
 
 const idInput = { id: z.string().min(1).describe("Document identifier") };
 
@@ -102,6 +103,7 @@ export function registerDocumentTools(
 							.join("\n")}`,
 		},
 		async (input) => {
+			requireRead(context);
 			const page = await listDocuments(context.db, {
 				query: input.query,
 				categoryId: input.categoryId,
@@ -132,7 +134,10 @@ export function registerDocumentTools(
 			outputSchema: documentDetailJson.shape,
 			text: (output) => describeDocumentDetail(output),
 		},
-		async (input) => toDocumentDetail(await getDocument(context.db, input.id)),
+		async (input) => {
+			requireRead(context);
+			return toDocumentDetail(await getDocument(context.db, input.id));
+		},
 	);
 
 	defineTool(
@@ -163,6 +168,7 @@ export function registerDocumentTools(
 			text: (output) => output.text,
 		},
 		async (input) => {
+			requireRead(context);
 			const detail = await getDocument(context.db, input.id);
 			if (detail.sensitive && !canReadSensitive(context)) {
 				return {
@@ -215,6 +221,7 @@ export function registerDocumentTools(
 							.join("\n")}`,
 		},
 		async (input) => {
+			requireRead(context);
 			const page = await listReview(context.db, {
 				page: input.page ?? 1,
 				pageSize: 25,
@@ -519,6 +526,7 @@ export function registerDocumentTools(
 					.join(", ")} — ${output.reviewQueue} to review.`,
 		},
 		async () => {
+			requireRead(context);
 			const [stats, review] = await Promise.all([
 				getDocumentStats(context.db),
 				countReview(context.db),
@@ -538,6 +546,7 @@ export async function readDocumentResource(
 	context: McpContext,
 	id: string,
 ): Promise<string> {
+	requireRead(context);
 	const detail = await getDocument(context.db, id);
 	if (!detail) {
 		throw new McpToolError(`Document "${id}" not found.`);

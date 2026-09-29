@@ -17,7 +17,13 @@ import {
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import { defineTool, McpToolError, requireWrite } from "./context";
+import {
+	canReadSensitive,
+	defineTool,
+	McpToolError,
+	requireRead,
+	requireWrite,
+} from "./context";
 import { mcpBoolean } from "./schema";
 import {
 	describeDocument,
@@ -122,6 +128,7 @@ export function registerSharingTools(
 							.join("\n"),
 		},
 		async (input) => {
+			requireRead(context);
 			const links = await listShareLinks(context.db, {
 				documentId: input.documentId,
 				dossierId: input.dossierId,
@@ -228,6 +235,13 @@ export function registerSharingTools(
 					: `${output.count} document(s), ${Math.round(output.bytes / 1024)} KB${output.truncated ? " (selection truncated)" : ""}:\n${output.sample.map((path) => `- ${path}`).join("\n")}`,
 		},
 		async (input) => {
+			requireRead(context);
+			// Same refusal as `export.preview` and `POST /api/export`.
+			if (input.includeSensitive && !canReadSensitive(context)) {
+				throw new McpToolError(
+					"includeSensitive refused: this API key does not have the `sensitive` scope.",
+				);
+			}
 			const parsed = exportDocumentsInput.safeParse({
 				filters: input.filters ?? {},
 				template: input.template,
@@ -285,6 +299,7 @@ export function registerSharingTools(
 					: `Next free ASN: ${output.nextAsn}.`,
 		},
 		async (input) => {
+			requireRead(context);
 			if (input.asn === undefined) {
 				const { next } = await nextAsn(context.db);
 				return { nextAsn: next, document: null };
