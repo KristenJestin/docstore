@@ -106,8 +106,8 @@ Every read tool requires the `read` scope, every mutation the `write` scope.
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
-| `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters; `updatedSince`/`afterId` for incremental sync |
-| `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`) |
+| `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters, `referencedBy`/`notReferencedBy` an external system; `updatedSince`/`afterId` for incremental sync |
+| `get_document`             | Full detail of a document (Dossiers, document type and `externalRefs` included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`) |
 | `get_document_text`        | OCR text; hidden if sensitive and the key lacks `sensitive`           |
 | `list_review_queue`        | Documents "to review" with their reasons                              |
 | `approve_review`           | Approves a document (optional correction) and sets it back to `active` |
@@ -115,6 +115,7 @@ Every read tool requires the `read` scope, every mutation the `write` scope.
 | `update_document`          | Title, notes, dates and precision, period, validity, sensitive, ASN, place |
 | `set_document_category`    | Assigns or removes the category                                        |
 | `set_document_tags`        | Replaces the whole set of tags                                         |
+| `set_external_refs`        | Replaces the notes one external system (`wiki`) declares as citing the document |
 | `link_party`               | Links a Party with a role (issuer, recipient, subject, mentioned)       |
 | `unlink_party`             | Detaches a Party for a given role                                      |
 | `set_field_value`          | Sets the typed value of a custom field                                 |
@@ -228,6 +229,31 @@ webhook to the subscribers (`document.updated`, `document.trashed`,
 [webhooks](ingestion.md#6-webhooks) for the payload and for the edge cases of
 the cursor.
 
+### External references
+
+A system that keeps its own notes about the documents, the life wiki first,
+declares which of its notes cite a document, so that the document page can
+link back to them and the system can find what it never cites:
+
+- `set_external_refs` with `system` (a lowercase slug, `wiki`) and `refs`,
+  a list of `{ ref, url?, label? }`: `ref` identifies the note in its system
+  (`10-admin/12-logement/contrat-edf.md`), `url` is where a human opens it
+  (http or https only), `label` its title. The list replaces the references of
+  that system only; an empty list clears them. Each `ref` appears once per
+  document and system.
+- `get_document` returns them in `externalRefs`, ordered by system then ref;
+  the web app shows them in the "Referenced by" card of the document page.
+- `search_documents` with `notReferencedBy: "wiki"` lists the documents no
+  wiki page cites yet (the wiki lint), `referencedBy: "wiki"` those it does.
+  The oRPC `document.list`, saved searches and exports take the same filters.
+
+A call that changes something bumps `updatedAt`, sends `document.updated` and
+leaves a `document.external_refs_set` entry in the activity log. Sending the
+same list again changes nothing: no bump, no webhook, no entry, so a lint that
+re-declares every reference on each run does not make every cited document
+look changed to the incremental sync. When a document is merged into another
+as a version, its references move to the kept document.
+
 ### Activity log
 
 Every change a tool makes, and every document it reads (`get_document`,
@@ -249,7 +275,7 @@ An agent gets an explicit tool error in each of these cases:
 
 | Situation | Answer |
 | --------- | ------ |
-| A document in the trash (`update_document`, `set_document_category`, `set_document_tags`, `set_field_value`, `link_party`, `unlink_party`, `assign_asn`, `ignore_duplicate`, `approve_review`, `reject_assignment`, `add_to_dossier`, `remove_from_dossier`, `add_document_relation`, `apply_document_type`, `run_rule`, `create_share_link`, `reprocess_document`) | "Document is in the trash; restore it first." — every writer, without exception |
+| A document in the trash (`update_document`, `set_document_category`, `set_document_tags`, `set_external_refs`, `set_field_value`, `link_party`, `unlink_party`, `assign_asn`, `ignore_duplicate`, `approve_review`, `reject_assignment`, `add_to_dossier`, `remove_from_dossier`, `add_document_relation`, `apply_document_type`, `run_rule`, `create_share_link`, `reprocess_document`) | "Document is in the trash; restore it first." — every writer, without exception |
 | `reject_assignment` on a value entered by a human | "This assignment was set manually; edit it instead." — a manual value is edited, never rejected |
 | `reject_assignment` on an assignment that does not exist | `NOT_FOUND` |
 | `approve_review` on a `processing` or `failed` document | `CONFLICT`: nothing reviewable yet |
