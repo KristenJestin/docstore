@@ -227,8 +227,8 @@ for what changed after it:
    action stamps many documents with the same instant.
 4. Store the `updatedAt` (and `id`) of the last item as the next cursor.
 
-`sort` is ignored while `updatedSince` is set: the cursor needs the
-`updatedAt` order. Every write, whether it comes from MCP, the web app, the
+Leave `sort` out while `updatedSince` is set (or set it to `updatedAt:asc`):
+the cursor needs the `updatedAt` order, and any other `sort` is refused. Every write, whether it comes from MCP, the web app, the
 API, a bulk action or an automation run, moves `updatedAt`, and also sends a
 webhook to the subscribers (`document.updated`, `document.trashed`,
 `document.restored`, `document.deleted`, `document.merged`): see
