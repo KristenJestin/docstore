@@ -197,6 +197,7 @@ One helper decides whether a caller may read sensitive content:
 | Full-text search (`query` on `document.list`, MCP `search_documents`) | A sensitive document matches on its title only, never on its OCR text or notes, and is ranked the same way |
 | Field-value filters (`fieldFilters` on `document.list`) | Never match a sensitive document |
 | Activity log (`activity.list`, MCP `list_activity`) | A field change on a sensitive document says which field changed, never its value (older entries written with values are masked for such a key) |
+| Reminders (`reminder.list`, `reminder.count`, MCP `list_reminders`) | The reminders of its date custom fields (`field_date`, issue #33) are withheld, and `snooze` / `dismiss` / `done` on one answer `404`: a due date plus its lead time is the field value. Its expiry reminders stay, `validUntil` being metadata |
 | oRPC `document.getFileLayout` | `403 FORBIDDEN` |
 | Dry runs over the OCR layer: `extractionRule.test`, `extractionRule.preview`, `documentType.preview`, `documentType.testLayout`, `rule.test`, MCP `test_rule` | `403 FORBIDDEN` (MCP: tool error) |
 | MCP `get_document_text` | The same placeholder, `masked: true` |

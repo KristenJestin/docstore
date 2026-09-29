@@ -555,6 +555,40 @@ before the row went away; `keptDocumentId` is only set on `document.merged`.
 sources and the scheduled rules). An agent recognises its own changes by its
 key id. The same actor is recorded in the activity log (`activity.list`).
 
+The body of `reminder.due` is `{ event, reminder }`. `reminder` carries the
+facts: `kind` (`expiry`, `field_date` or `period_gap`), `documentId`,
+`documentTitle`, `documentTypeId`, `documentTypeName`, `fieldId`, `fieldName`,
+`period`, `dueDate`, `daysBefore`, and a `message` written in the content
+language. A `field_date` reminder comes from a `date` custom field marked
+"remind me" (issue #33): the date it announces is `dueDate` + `daysBefore`,
+and the message names the document, the field and that date. Webhooks are set
+up by the owner of the archive, so the payload is the same for a sensitive
+document.
+
+### Reminders
+
+`reminder.generate` (also run by the daily `reminders.generate` job at 06:00
+and at startup) recomputes every reminder:
+
+- `expiry`: one per lead day of `reminders.expiryLeadDays` (D-90 / D-30 / D-7
+  by default) and per live document with a `validUntil`;
+- `field_date`: one per lead day and per document holding a value for a `date`
+  custom field whose options say `remind: true`. The lead days are the field's
+  `reminderLeadDays`, or the expiry ones when it has none. A lead whose due
+  date has already passed when the value is first seen is skipped (a warranty
+  ending in 60 days gets D-30 and D-7, not a D-90 one month late); a date still
+  ahead whose every lead is past gets the shortest one, due at once; a
+  reminder already created stays once its due date passes;
+- `period_gap`: one per missing period of an enabled recurring type.
+
+Between two runs, the expiry and date field reminders of a document follow
+every change the services record for it (`document-events.ts`): setting,
+changing or clearing the value or `validUntil`, trashing (its reminders are
+removed), restoring (they come back), merging, applying a type, approving a
+review. Switching "remind me" on or off, or changing the field's lead days,
+refreshes every document holding a value. Values written by the ingestion
+pipeline itself are picked up by the next run.
+
 The events agree with the stable document ids (see
 [mcp.md](mcp.md#stable-document-references)): after `document.merged`, the
 absorbed id leads to `keptDocumentId` (and ids merged into it earlier follow

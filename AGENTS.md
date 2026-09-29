@@ -177,8 +177,9 @@ database.
   their metadata (title, dates, category, tags, Parties, document type), but
   never their content: files, OCR text, custom field values and notes are
   refused or masked (`maskSensitiveDocument`), search matches them on their
-  title only, field filters skip them, and the activity log never stores the
-  values of their field changes. See `docs/security.md` section 4.
+  title only, field filters skip them, their date field reminders are withheld,
+  and the activity log never stores the values of their field changes. See
+  `docs/security.md` section 4.
 - Stored secrets (IMAP passwords, share tokens) are encrypted with a key derived
   from `APP_SECRET`, which cannot be rotated. Never log a decrypted secret, an
   API key (`dsk_…`) or a share token.

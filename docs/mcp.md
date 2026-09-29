@@ -175,7 +175,7 @@ read tool the `read` scope, every mutation the `write` scope, except:
 | `add_to_dossier`           | Attaches documents to a Dossier                                        |
 | `remove_from_dossier`      | Detaches one document from a Dossier; the document itself is untouched |
 | `close_dossier`            | Closes a Dossier (`reopen: true` puts it back among the open ones)     |
-| `list_reminders`           | Expiry reminders and missing periods, by due date                      |
+| `list_reminders`           | Expiry, date field (`fieldName`, `fieldDate`) and missing period reminders, by due date |
 | `add_document_relation`    | Links two documents (`version_of`, `page_of`, `supersedes`…)           |
 | `list_saved_searches`      | Saved searches; `filters` replays in `search_documents`                |
 | `list_intake_sources`      | Intake channels: last poll, last error, counters                       |
