@@ -4,9 +4,11 @@ import {
 	getThumbnailForDownload,
 } from "@docstore/api/services/file.service";
 import { getPartyLogoForDownload } from "@docstore/api/services/party-logo.service";
+import { assertSensitiveAccess } from "@docstore/api/services/sensitive-access.service";
 import type { Db } from "@docstore/db";
 import type { IngestionBinding } from "@docstore/ingestion";
 import { storageForFile } from "@docstore/ingestion";
+import { callerHasScope } from "@docstore/shared/api-key";
 import { StorageNotFoundError } from "@docstore/storage";
 import { ORPCError } from "@orpc/server";
 import type { Context, Hono } from "hono";
@@ -44,14 +46,26 @@ function errorResponse(c: Context, error: unknown): Response {
 	throw error;
 }
 
-/** True when the request is authenticated (API key or session cookie). */
-async function isAuthenticated(
+/**
+ * Authentication and `read` scope (SPEC §6): `null` when the request may read,
+ * otherwise the response to send. A browser session keeps every right; an API
+ * key needs `read`.
+ */
+async function refuseUnlessReader(
 	c: Context,
 	auth: AuthInstance,
-): Promise<boolean> {
-	if (apiKeyPrincipal(c)) return true;
+): Promise<Response | null> {
+	const principal = apiKeyPrincipal(c);
+	if (principal) {
+		if (callerHasScope(principal, "read")) return null;
+		return c.json(
+			{ error: "FORBIDDEN", message: 'The "read" scope is required.' },
+			403,
+		);
+	}
 	const session = await auth.api.getSession({ headers: c.req.raw.headers });
-	return Boolean(session?.user);
+	if (session?.user) return null;
+	return c.json({ error: "UNAUTHORIZED" }, 401);
 }
 
 export function registerFileRoutes(
@@ -59,13 +73,14 @@ export function registerFileRoutes(
 	{ db, ingestion, auth }: FileRoutesOptions,
 ): void {
 	app.get("/files/:fileId/download", async (c) => {
-		if (!(await isAuthenticated(c, auth))) {
-			return c.json({ error: "UNAUTHORIZED" }, 401);
-		}
+		const refused = await refuseUnlessReader(c, auth);
+		if (refused) return refused;
 		if (!ingestion) return c.json({ error: "STORAGE_UNAVAILABLE" }, 503);
 
 		try {
 			const file = await getFileForDownload(db, c.req.param("fileId"));
+			// Checked before the storage is touched: no byte of a refused file leaves.
+			assertSensitiveAccess(apiKeyPrincipal(c), file.documentSensitive);
 			// A sensitive document is read back through the encrypted driver.
 			const blob = await storageForFile(ingestion.ctx, file.encrypted).get(
 				file.storageKey,
@@ -85,13 +100,14 @@ export function registerFileRoutes(
 	});
 
 	app.get("/files/:fileId/thumbnail", async (c) => {
-		if (!(await isAuthenticated(c, auth))) {
-			return c.json({ error: "UNAUTHORIZED" }, 401);
-		}
+		const refused = await refuseUnlessReader(c, auth);
+		if (refused) return refused;
 		if (!ingestion) return c.json({ error: "STORAGE_UNAVAILABLE" }, 503);
 
 		try {
 			const file = await getThumbnailForDownload(db, c.req.param("fileId"));
+			// Checked before the storage is touched: no byte of a refused file leaves.
+			assertSensitiveAccess(apiKeyPrincipal(c), file.documentSensitive);
 			const blob = await storageForFile(ingestion.ctx, file.encrypted).get(
 				file.thumbnailKey,
 			);
@@ -108,9 +124,8 @@ export function registerFileRoutes(
 	});
 
 	app.get("/api/parties/:id/logo", async (c) => {
-		if (!(await isAuthenticated(c, auth))) {
-			return c.json({ error: "UNAUTHORIZED" }, 401);
-		}
+		const refused = await refuseUnlessReader(c, auth);
+		if (refused) return refused;
 		if (!ingestion) return c.json({ error: "STORAGE_UNAVAILABLE" }, 503);
 
 		try {
