@@ -222,6 +222,25 @@ the whole library.
 Only the sha256 of the secret is stored; the plaintext (`dsk_` + 40 characters)
 is returned once, at creation.
 
+### Activity log and last use
+
+Every change (web, API, MCP, rules, pipeline) and every read of a document
+(detail, OCR text, file download through `/files` or `/d/`, export, search by an
+API key) writes an entry to `activity_log`: when, who (the session user, the
+API key with its name, or `system`), the action, the object and a short
+summary. Summaries hold fields before and after, never file content, OCR text,
+free-text notes, share tokens or webhook secrets. A read carries the
+`sensitive` flag of its document, so "sensitive reads by keys" is one filter
+on the Activity page. Thumbnails and the list views of the web app are not
+logged; a browser session re-reading the same document within a minute is
+logged once, a key every time. The log is kept forever for now, without a
+foreign key, so it outlives the keys, users and documents it names.
+
+A key records `lastUsedAt` and the client address of that request
+(`lastUsedIp`: the first hop of `X-Forwarded-For`, else `X-Real-IP`, else the
+TCP peer), refreshed at most once a minute. The address is informative, not a
+control: behind the reverse proxy it is what the proxy forwards.
+
 ## 5. Public surface
 
 Three groups of routes accept unauthenticated requests, all rate limited per IP:

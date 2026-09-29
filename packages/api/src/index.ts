@@ -1,3 +1,4 @@
+import { type Actor, runAsActor } from "@docstore/ingestion";
 import type { ApiKeyScope } from "@docstore/shared/api-key";
 import { hasScope } from "@docstore/shared/api-key";
 import { ORPCError, os } from "@orpc/server";
@@ -8,15 +9,36 @@ export const o = os.$context<Context>();
 
 export const publicProcedure = o;
 
+/**
+ * Who calls, for the activity log (issue #15): the API key when the request
+ * carries one, else the session user.
+ */
+export function actorOf(context: Context): Actor | null {
+	const user = context.session?.user;
+	if (!user) return null;
+	if (context.apiKey) {
+		return {
+			type: "api_key",
+			apiKeyId: context.apiKey.id,
+			userId: user.id,
+			name: context.apiKey.name ?? null,
+		};
+	}
+	return { type: "user", userId: user.id, name: user.name };
+}
+
+/**
+ * Authentication, and the actor of every service call the procedure makes:
+ * the handler runs inside `runAsActor`, so the services write their activity
+ * entries on behalf of the caller without taking it as a parameter.
+ */
 const requireAuth = o.middleware(async ({ context, next }) => {
-	if (!context.session?.user) {
+	const actor = actorOf(context);
+	if (!context.session?.user || !actor) {
 		throw new ORPCError("UNAUTHORIZED");
 	}
-	return next({
-		context: {
-			session: context.session,
-		},
-	});
+	const session = context.session;
+	return runAsActor(actor, () => next({ context: { session } }));
 });
 
 /**

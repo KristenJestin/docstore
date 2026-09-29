@@ -18,7 +18,11 @@ import type {
 import { ORPCError } from "@orpc/server";
 import type { SQL } from "drizzle-orm";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { documentEvents, emitsDocumentEvents } from "./document-events";
+import {
+	documentEvents,
+	emitsDocumentEvents,
+	recordServiceActivity,
+} from "./document-events";
 import { likePattern } from "./sql-utils";
 
 /**
@@ -128,6 +132,12 @@ export async function createDossier(
 			message: "The Dossier could not be created.",
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "dossier.created",
+		objectType: "dossier",
+		objectId: row.id,
+		objectLabel: row.name,
+	});
 	return row;
 }
 
@@ -157,6 +167,22 @@ export async function updateDossier(
 			message: `Dossier "${input.id}" not found.`,
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "dossier.updated",
+		objectType: "dossier",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: {
+			fields: {
+				...(current.name !== row.name
+					? { name: { before: current.name, after: row.name } }
+					: {}),
+				...(current.description !== row.description
+					? { description: { changed: true } }
+					: {}),
+			},
+		},
+	});
 	return row;
 }
 
@@ -165,11 +191,19 @@ async function setStatus(
 	id: string,
 	status: "open" | "closed",
 ): Promise<DossierWithCount> {
-	await requireDossier(db, id);
+	const current = await requireDossier(db, id);
 	await db
 		.update(dossier)
 		.set({ status, closedAt: status === "closed" ? new Date() : null })
 		.where(eq(dossier.id, id));
+	if (current.status !== status) {
+		await recordServiceActivity(db, {
+			action: status === "closed" ? "dossier.closed" : "dossier.reopened",
+			objectType: "dossier",
+			objectId: id,
+			objectLabel: current.name,
+		});
+	}
 	return getDossier(db, id);
 }
 
@@ -185,7 +219,7 @@ export const deleteDossier = emitsDocumentEvents(async function deleteDossier(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
-	await requireDossier(db, id);
+	const existing = await requireDossier(db, id);
 	// `document_dossier` goes away by cascade; the documents remain, one
 	// Dossier lighter.
 	const members = await db
@@ -197,6 +231,14 @@ export const deleteDossier = emitsDocumentEvents(async function deleteDossier(
 		await tx.delete(dossier).where(eq(dossier.id, id));
 		await touchDocuments(tx, memberIds);
 	});
+	documentEvents().cause("dossier.deleted");
+	documentEvents().activity({
+		action: "dossier.deleted",
+		objectType: "dossier",
+		objectId: id,
+		objectLabel: existing.name,
+		summary: { documents: memberIds.length },
+	});
 	documentEvents().updated(...memberIds);
 	return { id, deleted: true as const };
 });
@@ -206,7 +248,7 @@ export const addDossierDocuments = emitsDocumentEvents(
 		db: Db,
 		input: AddDossierDocumentsInput,
 	): Promise<DossierWithCount> {
-		await requireDossier(db, input.id);
+		const target = await requireDossier(db, input.id);
 
 		const ids = [...new Set(input.documentIds)];
 		const found = await db
@@ -241,7 +283,11 @@ export const addDossierDocuments = emitsDocumentEvents(
 		// Only the documents that were not filed there yet changed.
 		const addedIds = added.map((row) => row.documentId);
 		await touchDocuments(db, addedIds);
-		documentEvents().updated(...addedIds);
+		for (const documentId of addedIds) {
+			documentEvents().changed(documentId, "document.added_to_dossier", {
+				dossier: { id: target.id, name: target.name },
+			});
+		}
 
 		// A sensitive document walking into the dossier closes every public window
 		// already open on it — `shareLink.create` refuses a dossier holding one, and
@@ -259,7 +305,7 @@ export const removeDossierDocument = emitsDocumentEvents(
 		db: Db,
 		input: RemoveDossierDocumentInput,
 	): Promise<DossierWithCount> {
-		await requireDossier(db, input.id);
+		const dossierRow = await requireDossier(db, input.id);
 		// Filing is symmetric: a trashed document cannot be added, so it cannot be
 		// pulled out either — it comes back with the document when it is restored.
 		const [target] = await db
@@ -287,7 +333,13 @@ export const removeDossierDocument = emitsDocumentEvents(
 			});
 		}
 		await touchDocuments(db, [input.documentId]);
-		documentEvents().updated(input.documentId);
+		documentEvents().changed(
+			input.documentId,
+			"document.removed_from_dossier",
+			{
+				dossier: { id: dossierRow.id, name: dossierRow.name },
+			},
+		);
 		return getDossier(db, input.id);
 	},
 );

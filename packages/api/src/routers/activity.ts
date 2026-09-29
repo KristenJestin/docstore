@@ -1,0 +1,24 @@
+import {
+	activityEntrySchema,
+	listActivityInput,
+} from "@docstore/shared/activity";
+import { paginatedSchema } from "@docstore/shared/pagination";
+import { protectedProcedure } from "../index";
+import { listActivity } from "../services/activity.service";
+
+const TAGS = ["Activity"];
+
+export const activityRouter = {
+	list: protectedProcedure
+		.route({
+			method: "GET",
+			path: "/activity",
+			tags: TAGS,
+			summary: "Activity log: who changed or read what (newest first)",
+			description:
+				"One entry per change (web, API, MCP, rules, pipeline) and per traced read (document detail, OCR text, file download, export, search by an API key). Filter by `since`, `actorKeyId`, `objectId`, `action` (exact, or a prefix ending with a dot such as `document.`), `kind`, `sensitive`. An agent can list what it did itself with its own key id.",
+		})
+		.input(listActivityInput)
+		.output(paginatedSchema(activityEntrySchema))
+		.handler(({ input, context }) => listActivity(context.db, input)),
+};

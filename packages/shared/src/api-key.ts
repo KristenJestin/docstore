@@ -34,7 +34,10 @@ export const apiKeySchema = z.object({
 	prefix: z.string(),
 	scopes: z.array(apiKeyScopeSchema),
 	userId: z.string(),
+	/** Last authenticated request, refreshed at most once a minute. */
 	lastUsedAt: z.date().nullable(),
+	/** Client address of that request. */
+	lastUsedIp: z.string().nullable(),
 	expiresAt: z.date().nullable(),
 	revokedAt: z.date().nullable(),
 	createdAt: z.date(),
@@ -59,6 +62,8 @@ export type CreateApiKeyResult = z.infer<typeof createApiKeyResultSchema>;
 /** Caller authenticated by key: what the oRPC/MCP context carries. */
 export const apiKeyPrincipalSchema = z.object({
 	id: z.string(),
+	/** Name of the key: the activity log and the webhooks show it. */
+	name: z.string().optional(),
 	userId: z.string(),
 	scopes: z.array(apiKeyScopeSchema),
 });

@@ -7,6 +7,7 @@ import type { DocumentStatus } from "@docstore/shared/document";
 import { isBlockingReviewReason } from "@docstore/shared/document";
 import { thumbnailKey } from "@docstore/storage";
 import { and, eq } from "drizzle-orm";
+import { recordActivity } from "./activity";
 import { analyzeDocument, computeReviewReasons } from "./analyze";
 import { maybeAutoAssignAsn } from "./asn";
 import type { IngestionContext } from "./context";
@@ -195,6 +196,16 @@ export const finalize: PipelineStep = async (ctx, payload) => {
 			status === "review" ? "document.review" : "document.processed",
 			doc.id,
 		);
+		await recordActivity(ctx.db, [
+			{
+				action: "document.processed",
+				objectType: "document",
+				objectId: doc.id,
+				objectLabel: doc.title,
+				sensitive: doc.sensitive,
+				summary: { status: { before: "processing", after: status } },
+			},
+		]);
 	}
 };
 

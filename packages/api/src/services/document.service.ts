@@ -80,6 +80,15 @@ import {
 	lte,
 	sql,
 } from "drizzle-orm";
+import {
+	categoryName,
+	customFieldName,
+	fieldChanges,
+	logSearch,
+	partyNames,
+	summaryValue,
+	tagNames,
+} from "./activity.service";
 import { assertCategoryExists, categorySubtreeIds } from "./category.service";
 import {
 	assertFieldAppliesToCategory,
@@ -661,6 +670,22 @@ async function loadPrimaryFiles(
 	return result;
 }
 
+/**
+ * `document.list` and MCP `search_documents`: `listDocuments`, with the
+ * search traced in the activity log when an API key runs it (issue #15). The
+ * query and the filters are logged, never the results. Internal callers (the
+ * export, the review queue) use `listDocuments` and log nothing.
+ */
+export async function searchDocuments(
+	db: Db,
+	input: ListDocumentsInput,
+): Promise<Paginated<DocumentListItem>> {
+	const page = await listDocuments(db, input);
+	const { pageSize: _pageSize, ...filters } = input;
+	logSearch(db, { ...filters, total: page.total });
+	return page;
+}
+
 export async function listDocuments(
 	db: Db,
 	input: ListDocumentsInput,
@@ -1018,6 +1043,40 @@ export type UpdateDocumentOptions = {
 	ingestion?: IngestionContext;
 };
 
+/** Fields of `updateDocument` whose values go into the activity log. */
+const LOGGED_DOCUMENT_FIELDS = [
+	"title",
+	"status",
+	"sensitive",
+	"documentDate",
+	"datePrecision",
+	"periodStart",
+	"periodEnd",
+	"receivedAt",
+	"validFrom",
+	"validUntil",
+	"asn",
+	"physicalLocation",
+] as const;
+
+function updateSummary(
+	current: Record<string, unknown>,
+	patch: Record<string, unknown>,
+): Record<string, unknown> {
+	const before: Record<string, unknown> = {};
+	const after: Record<string, unknown> = {};
+	for (const field of LOGGED_DOCUMENT_FIELDS) {
+		if (!(field in patch)) continue;
+		before[field] = summaryValue(current[field]);
+		after[field] = summaryValue(patch[field]);
+	}
+	const changes: Record<string, unknown> = fieldChanges(before, after);
+	if ("notes" in patch && (current.notes ?? null) !== (patch.notes ?? null)) {
+		changes.notes = { changed: true };
+	}
+	return changes;
+}
+
 export const updateDocument = emitsDocumentEvents(async function updateDocument(
 	db: Db,
 	id: string,
@@ -1096,8 +1155,12 @@ export const updateDocument = emitsDocumentEvents(async function updateDocument(
 			throw error;
 		}
 		// SPEC §2 "Miscellaneous": `document.updated` subscribers are notified
-		// once the operation returns, with the state actually persisted.
-		documentEvents().updated(id);
+		// once the operation returns, with the state actually persisted. The
+		// activity entry keeps the fields before and after; notes are free text,
+		// so only the fact that they changed is kept (D15-05).
+		documentEvents().changed(id, "document.updated", {
+			fields: updateSummary(current, patch),
+		});
 	}
 
 	// Re-encryption comes after the write: the flag is already persisted, so a
@@ -1169,8 +1232,9 @@ export const assignAsn = emitsDocumentEvents(async function assignAsn(
 	await requireLiveDocument(db, id);
 
 	try {
-		if ((await allocateAsn(db, id, "manual")) !== null) {
-			documentEvents().updated(id);
+		const asn = await allocateAsn(db, id, "manual");
+		if (asn !== null) {
+			documentEvents().changed(id, "document.asn_assigned", { asn });
 		}
 	} catch (error) {
 		if (error instanceof AsnAllocationError) {
@@ -1225,6 +1289,35 @@ async function requireParties(db: Db, partyIds: string[]): Promise<void> {
 	}
 }
 
+type PartyLink = { partyId: string; role: string };
+
+/** Links added and removed, with the names of the parties. */
+async function partiesSummary(
+	db: Db,
+	before: readonly PartyLink[],
+	after: readonly PartyLink[],
+): Promise<Record<string, unknown>> {
+	const key = (link: PartyLink) => `${link.partyId}:${link.role}`;
+	const beforeKeys = new Set(before.map(key));
+	const afterKeys = new Set(after.map(key));
+	const added = after.filter((link) => !beforeKeys.has(key(link)));
+	const removed = before.filter((link) => !afterKeys.has(key(link)));
+	const names = new Map(
+		(
+			await partyNames(
+				db,
+				[...added, ...removed].map((link) => link.partyId),
+			)
+		).map((row) => [row.id, row.name]),
+	);
+	const describe = (link: PartyLink) => ({
+		id: link.partyId,
+		name: names.get(link.partyId) ?? link.partyId,
+		role: link.role,
+	});
+	return { added: added.map(describe), removed: removed.map(describe) };
+}
+
 /** Replaces every link of the document with the provided list. */
 export const setDocumentParties = emitsDocumentEvents(
 	async function setDocumentParties(
@@ -1242,6 +1335,10 @@ export const setDocumentParties = emitsDocumentEvents(
 		await requireParties(db, [
 			...new Set(assignments.map((item) => item.partyId)),
 		]);
+		const previous = await db
+			.select({ partyId: documentParty.partyId, role: documentParty.role })
+			.from(documentParty)
+			.where(eq(documentParty.documentId, id));
 
 		await db.transaction(async (tx) => {
 			await tx.delete(documentParty).where(eq(documentParty.documentId, id));
@@ -1258,7 +1355,11 @@ export const setDocumentParties = emitsDocumentEvents(
 			}
 			await touchDocuments(tx, [id]);
 		});
-		documentEvents().updated(id);
+		documentEvents().changed(
+			id,
+			"document.parties_set",
+			await partiesSummary(db, previous, assignments),
+		);
 
 		// `missingIssuer` and the low-confidence reasons on the parties are settled.
 		await computeReviewReasons(db, id);
@@ -1301,7 +1402,11 @@ export const addDocumentParty = emitsDocumentEvents(
 			confidence: null,
 		});
 		await touchDocuments(db, [id]);
-		documentEvents().updated(id);
+		documentEvents().changed(
+			id,
+			"document.party_linked",
+			await partiesSummary(db, [], [{ partyId, role }]),
+		);
 
 		await computeReviewReasons(db, id);
 		return getDocument(db, id);
@@ -1333,7 +1438,11 @@ export const removeDocumentParty = emitsDocumentEvents(
 			});
 		}
 		await touchDocuments(db, [id]);
-		documentEvents().updated(id);
+		documentEvents().changed(
+			id,
+			"document.party_unlinked",
+			await partiesSummary(db, [{ partyId, role }], []),
+		);
 
 		return getDocument(db, id);
 	},
@@ -1486,7 +1595,7 @@ export const setDocumentCategory = emitsDocumentEvents(
 		id: string,
 		categoryId: string | null,
 	): Promise<DocumentDetail> {
-		await requireLiveDocument(db, id);
+		const current = await requireLiveDocument(db, id);
 		if (categoryId) {
 			await assertCategoryExists(db, categoryId);
 		}
@@ -1499,7 +1608,12 @@ export const setDocumentCategory = emitsDocumentEvents(
 				categoryConfirmedAt: null,
 			})
 			.where(eq(document.id, id));
-		documentEvents().updated(id);
+		documentEvents().changed(id, "document.categorized", {
+			category: {
+				before: await categoryName(db, current.categoryId),
+				after: await categoryName(db, categoryId),
+			},
+		});
 		// `missingCategory` and the low-confidence reason on the category no longer
 		// apply once a human has decided.
 		await computeReviewReasons(db, id);
@@ -1517,6 +1631,12 @@ export const setDocumentTags = emitsDocumentEvents(
 		await requireLiveDocument(db, id);
 		const unique = [...new Set(tagIds)];
 		await requireTags(db, unique);
+		const previous = (
+			await db
+				.select({ tagId: documentTag.tagId })
+				.from(documentTag)
+				.where(eq(documentTag.documentId, id))
+		).map((row) => row.tagId);
 
 		await db.transaction(async (tx) => {
 			await tx.delete(documentTag).where(eq(documentTag.documentId, id));
@@ -1532,7 +1652,20 @@ export const setDocumentTags = emitsDocumentEvents(
 			}
 			await touchDocuments(tx, [id]);
 		});
-		documentEvents().updated(id);
+		const added = unique.filter((tagId) => !previous.includes(tagId));
+		const removed = previous.filter((tagId) => !unique.includes(tagId));
+		if (added.length > 0 || removed.length > 0) {
+			documentEvents().changed(
+				id,
+				added.length > 0 ? "document.tagged" : "document.untagged",
+				{
+					added: await tagNames(db, added),
+					removed: await tagNames(db, removed),
+				},
+			);
+		} else {
+			documentEvents().updated(id);
+		}
 
 		return getDocument(db, id);
 	},
@@ -1554,7 +1687,10 @@ export const addDocumentTag = emitsDocumentEvents(async function addDocumentTag(
 	// Already tagged: nothing changed, nothing to announce.
 	if (inserted.length > 0) {
 		await touchDocuments(db, [id]);
-		documentEvents().updated(id);
+		documentEvents().changed(id, "document.tagged", {
+			added: await tagNames(db, [tagId]),
+			removed: [],
+		});
 	}
 
 	return getDocument(db, id);
@@ -1577,10 +1713,21 @@ export const removeDocumentTag = emitsDocumentEvents(
 			});
 		}
 		await touchDocuments(db, [id]);
-		documentEvents().updated(id);
+		documentEvents().changed(id, "document.untagged", {
+			added: [],
+			removed: await tagNames(db, [tagId]),
+		});
 		return getDocument(db, id);
 	},
 );
+
+/** A custom field value for a summary: long text values are shortened. */
+function summaryFieldValue(value: CustomFieldValue | null): unknown {
+	if (!value) return null;
+	return Object.fromEntries(
+		Object.entries(value).map(([key, item]) => [key, summaryValue(item)]),
+	);
+}
 
 /**
  * Writes a custom field value. `source: "rule"` (with its confidence) is what
@@ -1609,6 +1756,16 @@ export const setDocumentFieldValue = emitsDocumentEvents(
 
 		const source = origin.source ?? "manual";
 		const confidence = source === "rule" ? (origin.confidence ?? null) : null;
+		const [previous] = await db
+			.select({ value: documentFieldValue.value })
+			.from(documentFieldValue)
+			.where(
+				and(
+					eq(documentFieldValue.documentId, id),
+					eq(documentFieldValue.fieldId, fieldId),
+				),
+			)
+			.limit(1);
 
 		// A new value invalidates the approval the old one carried.
 		await db
@@ -1625,7 +1782,14 @@ export const setDocumentFieldValue = emitsDocumentEvents(
 				},
 			});
 		await touchDocuments(db, [id]);
-		documentEvents().updated(id);
+		documentEvents().changed(id, "document.field_set", {
+			field: { id: field.id, name: field.name },
+			value: {
+				before: summaryFieldValue(previous?.value ?? null),
+				after: summaryFieldValue(value),
+			},
+			source,
+		});
 
 		return getDocument(db, id);
 	},
@@ -1646,14 +1810,20 @@ export const clearDocumentFieldValue = emitsDocumentEvents(
 					eq(documentFieldValue.fieldId, fieldId),
 				),
 			)
-			.returning({ fieldId: documentFieldValue.fieldId });
+			.returning({
+				fieldId: documentFieldValue.fieldId,
+				value: documentFieldValue.value,
+			});
 		if (!deleted[0]) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "No value for this custom field on this document.",
 			});
 		}
 		await touchDocuments(db, [id]);
-		documentEvents().updated(id);
+		documentEvents().changed(id, "document.field_cleared", {
+			field: await customFieldName(db, fieldId),
+			value: { before: summaryFieldValue(deleted[0].value), after: null },
+		});
 		return getDocument(db, id);
 	},
 );
@@ -1666,6 +1836,46 @@ export const clearDocumentFieldValue = emitsDocumentEvents(
  * Applies an action to a selection of documents in a single transaction.
  * `updated` counts the documents actually touched.
  */
+/** Activity action and summary of a bulk action, the same for every document. */
+async function bulkActivity(
+	db: Db,
+	action: DocumentBulkInput["action"],
+): Promise<[string, Record<string, unknown>]> {
+	switch (action.type) {
+		case "setCategory":
+			return [
+				"document.categorized",
+				{
+					category: { after: await categoryName(db, action.categoryId) },
+				},
+			];
+		case "setSensitive":
+			return [
+				"document.updated",
+				{ fields: { sensitive: { after: action.sensitive } } },
+			];
+		case "addTags":
+			return [
+				"document.tagged",
+				{ added: await tagNames(db, action.tagIds), removed: [] },
+			];
+		case "removeTags":
+			return [
+				"document.untagged",
+				{ added: [], removed: await tagNames(db, action.tagIds) },
+			];
+		case "addParty": {
+			const [named] = await partyNames(db, [action.partyId]);
+			return [
+				"document.party_linked",
+				{ added: [{ ...named, role: action.role }], removed: [] },
+			];
+		}
+		default:
+			return ["document.updated", {}];
+	}
+}
+
 export const bulkDocuments = emitsDocumentEvents(async function bulkDocuments(
 	db: Db,
 	input: DocumentBulkInput,
@@ -1841,7 +2051,12 @@ export const bulkDocuments = emitsDocumentEvents(async function bulkDocuments(
 
 	if (action.type === "trash") documentEvents().trashed(...changed);
 	else if (action.type === "restore") documentEvents().restored(...changed);
-	else documentEvents().updated(...changed);
+	else {
+		const [activity, summary] = await bulkActivity(db, action);
+		for (const id of changed) {
+			documentEvents().changed(id, activity, { ...summary, bulk: true });
+		}
+	}
 
 	// Re-encryption runs outside the transaction: it touches the filesystem, and
 	// `setSensitive` is idempotent — a document already in the right state costs

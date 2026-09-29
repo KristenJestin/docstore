@@ -1,3 +1,4 @@
+import { logDocumentRead } from "@docstore/api/services/activity.service";
 import { resolveDocumentId } from "@docstore/api/services/document-resolution.service";
 import {
 	contentDispositionFilename,
@@ -9,7 +10,7 @@ import {
 import { getPartyLogoForDownload } from "@docstore/api/services/party-logo.service";
 import { assertSensitiveAccess } from "@docstore/api/services/sensitive-access.service";
 import type { Db } from "@docstore/db";
-import type { IngestionBinding } from "@docstore/ingestion";
+import type { Actor, IngestionBinding } from "@docstore/ingestion";
 import { storageForFile } from "@docstore/ingestion";
 import { callerHasScope } from "@docstore/shared/api-key";
 import { StorageNotFoundError } from "@docstore/storage";
@@ -51,25 +52,53 @@ function errorResponse(c: Context, error: unknown): Response {
 }
 
 /**
- * Authentication and `read` scope (SPEC §6): `null` when the request may read,
- * otherwise the response to send. A browser session keeps every right; an API
- * key needs `read`.
+ * Authentication and `read` scope (SPEC §6): the reader, or the response to
+ * send. A browser session keeps every right; an API key needs `read`. The
+ * reader is the actor the downloads are logged under (issue #15).
  */
+async function authorizeReader(
+	c: Context,
+	auth: AuthInstance,
+): Promise<{ actor: Actor } | { refused: Response }> {
+	const principal = apiKeyPrincipal(c);
+	if (principal) {
+		if (callerHasScope(principal, "read")) {
+			return {
+				actor: {
+					type: "api_key",
+					apiKeyId: principal.id,
+					userId: principal.userId,
+					name: principal.name ?? null,
+				},
+			};
+		}
+		return {
+			refused: c.json(
+				{ error: "FORBIDDEN", message: 'The "read" scope is required.' },
+				403,
+			),
+		};
+	}
+	const session = await auth.api.getSession({ headers: c.req.raw.headers });
+	if (session?.user) {
+		return {
+			actor: {
+				type: "user",
+				userId: session.user.id,
+				name: session.user.name,
+			},
+		};
+	}
+	return { refused: c.json({ error: "UNAUTHORIZED" }, 401) };
+}
+
+/** Same check when the reader itself does not matter (thumbnails, logos). */
 async function refuseUnlessReader(
 	c: Context,
 	auth: AuthInstance,
 ): Promise<Response | null> {
-	const principal = apiKeyPrincipal(c);
-	if (principal) {
-		if (callerHasScope(principal, "read")) return null;
-		return c.json(
-			{ error: "FORBIDDEN", message: 'The "read" scope is required.' },
-			403,
-		);
-	}
-	const session = await auth.api.getSession({ headers: c.req.raw.headers });
-	if (session?.user) return null;
-	return c.json({ error: "UNAUTHORIZED" }, 401);
+	const reader = await authorizeReader(c, auth);
+	return "refused" in reader ? reader.refused : null;
 }
 
 /**
@@ -79,8 +108,10 @@ async function refuseUnlessReader(
  */
 async function serveFile(
 	c: Context,
+	db: Db,
 	ingestion: IngestionBinding,
 	file: FileForDownload,
+	actor: Actor,
 ): Promise<Response> {
 	assertSensitiveAccess(apiKeyPrincipal(c), file.documentSensitive);
 	// A sensitive document is read back through the encrypted driver.
@@ -88,6 +119,24 @@ async function serveFile(
 		file.storageKey,
 	);
 	const inline = c.req.query("disposition") === "inline";
+	// Traced in the background once the file is known to be served (D15-02).
+	logDocumentRead(
+		db,
+		"document.downloaded",
+		{
+			id: file.documentId,
+			title: file.documentTitle,
+			sensitive: file.documentSensitive,
+		},
+		{
+			fileId: file.id,
+			filename: file.filename,
+			kind: file.kind,
+			...(inline ? { inline: true } : {}),
+			route: c.req.routePath,
+		},
+		actor,
+	);
 	return new Response(blob.stream(), {
 		headers: {
 			"Content-Type": file.mime,
@@ -155,13 +204,13 @@ export function registerFileRoutes(
 	{ db, ingestion, auth }: FileRoutesOptions,
 ): void {
 	app.get("/files/:fileId/download", async (c) => {
-		const refused = await refuseUnlessReader(c, auth);
-		if (refused) return refused;
+		const reader = await authorizeReader(c, auth);
+		if ("refused" in reader) return reader.refused;
 		if (!ingestion) return c.json({ error: "STORAGE_UNAVAILABLE" }, 503);
 
 		try {
 			const file = await getFileForDownload(db, c.req.param("fileId"));
-			return await serveFile(c, ingestion, file);
+			return await serveFile(c, db, ingestion, file, reader.actor);
 		} catch (error) {
 			return errorResponse(c, error);
 		}
@@ -171,8 +220,8 @@ export function registerFileRoutes(
 	// Authentication comes first, so an anonymous caller learns nothing of a
 	// merge either.
 	app.get("/d/:docId", async (c) => {
-		const refused = await refuseUnlessReader(c, auth);
-		if (refused) return refused;
+		const reader = await authorizeReader(c, auth);
+		if ("refused" in reader) return reader.refused;
 		if (!ingestion) return c.json({ error: "STORAGE_UNAVAILABLE" }, 503);
 
 		try {
@@ -183,7 +232,7 @@ export function registerFileRoutes(
 				return c.redirect(`/d/${resolved.id}${search}`, 302);
 			}
 			const file = await getPrimaryFileForDownload(db, resolved.id);
-			return await serveFile(c, ingestion, file);
+			return await serveFile(c, db, ingestion, file, reader.actor);
 		} catch (error) {
 			return errorResponse(c, error);
 		}

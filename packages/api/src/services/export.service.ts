@@ -22,6 +22,7 @@ import type { StorageDriver } from "@docstore/storage";
 import { ORPCError } from "@orpc/server";
 import { asc, eq, inArray } from "drizzle-orm";
 import { Zip, ZipDeflate, ZipPassThrough } from "fflate";
+import { logExport } from "./activity.service";
 import { listDocuments } from "./document.service";
 import { getContentLocale } from "./settings.service";
 
@@ -605,6 +606,22 @@ export async function exportDocuments(
 			})();
 		},
 	});
+
+	// Traced as a read (issue #15): the selection and the ids, not the files.
+	const documentIds = [
+		...new Set(plan.entries.map((entry) => entry.documentId)),
+	];
+	logExport(
+		ctx.db,
+		{
+			filters: input.filters,
+			includeSensitive: input.includeSensitive ?? false,
+			includeMetadata: input.includeMetadata ?? false,
+			count: plan.entries.length,
+			documentIds,
+		},
+		plan.entries.some((entry) => entry.document.sensitive),
+	);
 
 	return {
 		stream,

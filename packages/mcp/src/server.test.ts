@@ -204,6 +204,7 @@ describe("handshake", () => {
 				"get_stats",
 				"ignore_duplicate",
 				"link_party",
+				"list_activity",
 				"list_categories",
 				"list_custom_fields",
 				"list_document_types",

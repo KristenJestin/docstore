@@ -13,7 +13,12 @@ import type {
 } from "@docstore/shared/tag";
 import { ORPCError } from "@orpc/server";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
-import { documentEvents, emitsDocumentEvents } from "./document-events";
+import { fieldChanges } from "./activity.service";
+import {
+	documentEvents,
+	emitsDocumentEvents,
+	recordServiceActivity,
+} from "./document-events";
 import { likePattern } from "./sql-utils";
 
 export async function listTags(
@@ -110,6 +115,13 @@ export async function createTag(db: Db, input: CreateTagInput): Promise<Tag> {
 			message: "The tag could not be created.",
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "tag.created",
+		objectType: "tag",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { color: row.color },
+	});
 	return row;
 }
 
@@ -139,6 +151,18 @@ export async function updateTag(db: Db, input: UpdateTagInput): Promise<Tag> {
 			message: `Tag "${input.id}" not found.`,
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "tag.updated",
+		objectType: "tag",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: {
+			fields: fieldChanges(
+				{ name: current.name, color: current.color },
+				{ name: row.name, color: row.color },
+			),
+		},
+	});
 	return row;
 }
 
@@ -146,7 +170,7 @@ export const deleteTag = emitsDocumentEvents(async function deleteTag(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
-	await requireTag(db, id);
+	const existing = await requireTag(db, id);
 	// `document_tag` is deleted by cascade: the documents that carried the tag
 	// lose it, which is a change of theirs.
 	const carriers = await db
@@ -157,6 +181,14 @@ export const deleteTag = emitsDocumentEvents(async function deleteTag(
 	await db.transaction(async (tx) => {
 		await tx.delete(tag).where(eq(tag.id, id));
 		await touchDocuments(tx, carrierIds);
+	});
+	documentEvents().cause("tag.deleted");
+	documentEvents().activity({
+		action: "tag.deleted",
+		objectType: "tag",
+		objectId: id,
+		objectLabel: existing.name,
+		summary: { documents: carrierIds.length },
 	});
 	documentEvents().updated(...carrierIds);
 	return { id, deleted: true };
@@ -175,7 +207,7 @@ export const mergeTags = emitsDocumentEvents(async function mergeTags(
 			message: "A tag cannot be merged with itself.",
 		});
 	}
-	await requireTag(db, input.sourceId);
+	const source = await requireTag(db, input.sourceId);
 	const target = await requireTag(db, input.targetId);
 
 	const moved = await db.transaction(async (tx) => {
@@ -210,6 +242,17 @@ export const mergeTags = emitsDocumentEvents(async function mergeTags(
 		const carrierIds = sourceLinks.map((row) => row.documentId);
 		await touchDocuments(tx, carrierIds);
 		return { count: toInsert.length, carrierIds };
+	});
+	documentEvents().cause("tag.merged");
+	documentEvents().activity({
+		action: "tag.merged",
+		objectType: "tag",
+		objectId: target.id,
+		objectLabel: target.name,
+		summary: {
+			source: { id: source.id, name: source.name },
+			documents: moved.carrierIds.length,
+		},
 	});
 	documentEvents().updated(...moved.carrierIds);
 

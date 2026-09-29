@@ -952,6 +952,7 @@ export const deleteDocumentType = emitsDocumentEvents(
 		input: DeleteDocumentTypeInput,
 	): Promise<{ id: string; deleted: true; detached: number }> {
 		await requireDocumentType(db, input.id);
+		documentEvents().cause("document_type.deleted");
 
 		const carriers = await db
 			.select({ id: document.id })
@@ -1112,6 +1113,7 @@ export const createDocumentTypeFromDocument = emitsDocumentEvents(
 		options: DocumentTypeServiceOptions = {},
 	): Promise<DocumentTypeDetail> {
 		await requireLiveDocument(db, input.documentId);
+		documentEvents().cause("document_type.created_from_document");
 		const prepared = await buildSubject(db, input.documentId);
 		if (!prepared) {
 			throw new ORPCError("NOT_FOUND", {
@@ -1325,6 +1327,7 @@ export const setDocumentOverride = emitsDocumentEvents(
 	): Promise<DocumentTypeDetail> {
 		await requireDocumentType(db, input.documentTypeId);
 		await requireLiveDocument(db, input.documentId);
+		documentEvents().cause("document_type.override_set");
 		// Forcing or excluding a document changes the type it carries.
 		await touchDocuments(db, [input.documentId]);
 		documentEvents().updated(input.documentId);
@@ -1537,6 +1540,7 @@ export const applyDocumentType = emitsDocumentEvents(
 		options: DocumentTypeServiceOptions = {},
 	): Promise<ApplyDocumentTypeResult> {
 		const type = await requireDocumentType(db, input.documentTypeId);
+		documentEvents().cause("document_type.applied");
 		// A disabled type is out of the automatic flow: applying it by hand stays
 		// possible, but only on purpose.
 		if (!type.enabled && !input.force) {
@@ -1871,6 +1875,7 @@ export const regenerateDocumentTypeTitles = emitsDocumentEvents(
 	): Promise<RegenerateTitlesResult> {
 		const row = await requireDocumentType(db, input.id);
 		requireTitleTemplate(row);
+		documentEvents().cause("document_type.titles_regenerated");
 
 		const members = await membersNewestFirst(db, row);
 		const outcomes: (TitleOutcome | null)[] = [];
@@ -1894,6 +1899,7 @@ export const regenerateTitlesForDocuments = emitsDocumentEvents(
 	): Promise<RegenerateTitlesResult> {
 		const ids = [...new Set(documentIds)];
 		if (ids.length === 0) return { updated: 0, skipped: 0 };
+		documentEvents().cause("document.titles_regenerated");
 
 		const rows = await db
 			.select({ id: document.id, documentTypeId: document.documentTypeId })

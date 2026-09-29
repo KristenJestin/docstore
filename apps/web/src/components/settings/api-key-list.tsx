@@ -15,6 +15,7 @@ import { Input } from "@docstore/ui/components/input";
 import { Label } from "@docstore/ui/components/label";
 import { Skeleton } from "@docstore/ui/components/skeleton";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
 	BanIcon,
 	KeyRoundIcon,
@@ -31,6 +32,7 @@ import { EmptyState } from "@/components/empty-state";
 import { FormField } from "@/components/form-field";
 import { MonoLabel } from "@/components/mono-label";
 import { toastApiError } from "@/lib/api-error";
+import { formatInstant, formatRelativeTime } from "@/lib/relative-time";
 import { orpc } from "@/utils/orpc";
 
 import { CopyButton } from "./copy-button";
@@ -166,12 +168,32 @@ export function ApiKeyList() {
 									))}
 								</ul>
 
-								<div className="w-40 shrink-0 text-right">
-									<p className="font-mono text-muted-foreground text-xs tabular-nums">
-										{key.lastUsedAt
-											? `used ${formatDateTime(key.lastUsedAt)}`
-											: "never used"}
+								<div className="w-48 shrink-0 text-right">
+									<p
+										className="font-mono text-muted-foreground text-xs tabular-nums"
+										title={
+											key.lastUsedAt
+												? `${formatInstant(key.lastUsedAt)}${key.lastUsedIp ? ` from ${key.lastUsedIp}` : ""}`
+												: undefined
+										}
+									>
+										{key.lastUsedAt ? (
+											<Link
+												to="/activity"
+												search={{ actorKeyId: key.id }}
+												className="hover:underline"
+											>
+												used {formatRelativeTime(key.lastUsedAt)}
+											</Link>
+										) : (
+											"never used"
+										)}
 									</p>
+									{key.lastUsedIp ? (
+										<p className="truncate font-mono text-muted-foreground text-xs tabular-nums">
+											from {key.lastUsedIp}
+										</p>
+									) : null}
 									<p className="font-mono text-muted-foreground text-xs tabular-nums">
 										{key.expiresAt
 											? `expires ${formatDateTime(key.expiresAt)}`

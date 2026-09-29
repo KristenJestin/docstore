@@ -48,12 +48,12 @@ import {
 	getDocumentStats,
 	ignoreDuplicate,
 	listDocumentDuplicates,
-	listDocuments,
 	mergeAsVersion,
 	nextAsn,
 	removeDocumentParty,
 	removeDocumentTag,
 	restoreDocument,
+	searchDocuments,
 	setDocumentCategory,
 	setDocumentFieldValue,
 	setDocumentParties,
@@ -106,7 +106,7 @@ export const documentRouter = {
 		})
 		.input(listDocumentsInput)
 		.output(paginatedSchema(documentListItemSchema))
-		.handler(({ input, context }) => listDocuments(context.db, input)),
+		.handler(({ input, context }) => searchDocuments(context.db, input)),
 
 	stats: protectedProcedure
 		.route({

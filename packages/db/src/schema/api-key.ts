@@ -29,6 +29,8 @@ export const apiKey = pgTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		/** Updated at most once a minute by the auth middleware. */
 		lastUsedAt: timestamp("last_used_at"),
+		/** Client address of that last use, refreshed with `last_used_at`. */
+		lastUsedIp: text("last_used_ip"),
 		expiresAt: timestamp("expires_at"),
 		revokedAt: timestamp("revoked_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),

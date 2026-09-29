@@ -1,6 +1,7 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
+import { activityRouter } from "./activity";
 import { apiKeyRouter } from "./api-key";
 import { categoryRouter } from "./category";
 import { customFieldRouter } from "./custom-field";
@@ -47,6 +48,7 @@ export const appRouter = {
 	reminder: reminderRouter,
 	settings: settingsRouter,
 	apiKey: apiKeyRouter,
+	activity: activityRouter,
 	intakeSource: intakeSourceRouter,
 	export: exportRouter,
 	shareLink: shareLinkRouter,

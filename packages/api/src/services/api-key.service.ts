@@ -15,6 +15,7 @@ import {
 } from "@docstore/shared/api-key";
 import { ORPCError } from "@orpc/server";
 import { and, desc, eq } from "drizzle-orm";
+import { recordServiceActivity } from "./document-events";
 import { assertFutureExpiry } from "./expiry";
 
 /**
@@ -54,6 +55,7 @@ function toApiKey(row: ApiKeyRow): ApiKey {
 		scopes: row.scopes,
 		userId: row.userId,
 		lastUsedAt: row.lastUsedAt,
+		lastUsedIp: row.lastUsedIp,
 		expiresAt: row.expiresAt,
 		revokedAt: row.revokedAt,
 		createdAt: row.createdAt,
@@ -94,6 +96,13 @@ export async function createApiKey(
 			message: "The API key could not be created.",
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "api_key.created",
+		objectType: "api_key",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { scopes: row.scopes, expiresAt: row.expiresAt },
+	});
 	return { key: toApiKey(row), secret };
 }
 
@@ -137,6 +146,12 @@ export async function revokeApiKey(
 			message: `API key "${id}" not found.`,
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "api_key.revoked",
+		objectType: "api_key",
+		objectId: row.id,
+		objectLabel: row.name,
+	});
 	return toApiKey(row);
 }
 
@@ -145,8 +160,14 @@ export async function deleteApiKey(
 	id: string,
 	userId: string,
 ): Promise<{ id: string; deleted: true }> {
-	await requireApiKeyRow(db, id, userId);
+	const existing = await requireApiKeyRow(db, id, userId);
 	await db.delete(apiKeyTable).where(eq(apiKeyTable.id, id));
+	await recordServiceActivity(db, {
+		action: "api_key.deleted",
+		objectType: "api_key",
+		objectId: id,
+		objectLabel: existing.name,
+	});
 	return { id, deleted: true };
 }
 
@@ -171,13 +192,26 @@ export function extractApiKeySecret(headers: Headers): string | null {
 }
 
 /**
+ * Client address of a request: the first hop of `X-Forwarded-For` (the
+ * reverse proxy in production), else `X-Real-IP`. `null` when neither is set.
+ */
+export function clientIpFromHeaders(headers: Headers): string | null {
+	const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+	if (forwarded) return forwarded.slice(0, 100);
+	const real = headers.get("x-real-ip")?.trim();
+	return real ? real.slice(0, 100) : null;
+}
+
+/**
  * Resolves a plaintext secret: `null` if the key is unknown, revoked or
- * expired. `last_used_at` is refreshed at most once per minute.
+ * expired. `last_used_at` and `last_used_ip` are refreshed at most once per
+ * minute (issue #15): a busy agent does not cost a write per request.
  */
 export async function resolveApiKey(
 	db: Db,
 	secret: string,
 	now: Date = new Date(),
+	ip: string | null = null,
 ): Promise<ApiKeyPrincipal | null> {
 	const rows = await db
 		.select()
@@ -195,21 +229,35 @@ export async function resolveApiKey(
 	if (stale) {
 		await db
 			.update(apiKeyTable)
-			.set({ lastUsedAt: now })
+			.set({ lastUsedAt: now, lastUsedIp: ip ?? row.lastUsedIp })
 			.where(eq(apiKeyTable.id, row.id));
 	}
 
-	return { id: row.id, userId: row.userId, scopes: row.scopes };
+	return {
+		id: row.id,
+		name: row.name,
+		userId: row.userId,
+		scopes: row.scopes,
+	};
 }
 
-/** Resolves the key carried by an HTTP request, if it carries one. */
+/**
+ * Resolves the key carried by an HTTP request, if it carries one. `ip` is the
+ * client address when the server knows it better than the headers do.
+ */
 export async function authenticateApiKey(
 	db: Db,
 	headers: Headers,
+	ip: string | null = null,
 ): Promise<ApiKeyPrincipal | null> {
 	const secret = extractApiKeySecret(headers);
 	if (!secret) return null;
-	return resolveApiKey(db, secret);
+	return resolveApiKey(
+		db,
+		secret,
+		new Date(),
+		clientIpFromHeaders(headers) ?? ip,
+	);
 }
 
 export interface ApiKeyUser {

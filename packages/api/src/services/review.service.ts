@@ -237,7 +237,9 @@ export const approveReview = emitsDocumentEvents(async function approveReview(
 			.where(eq(document.id, id));
 	});
 	// One event, even when the patch went through `updateDocument` first.
-	documentEvents().updated(id);
+	documentEvents().changed(id, "document.review_approved", {
+		patched: Object.keys(patch ?? {}),
+	});
 
 	return getDocument(db, id);
 });
@@ -403,7 +405,11 @@ export const rejectAssignment = emitsDocumentEvents(
 			.update(document)
 			.set({ reviewReasons: remaining })
 			.where(eq(document.id, input.id));
-		documentEvents().updated(input.id);
+		documentEvents().changed(input.id, "document.assignment_rejected", {
+			kind: input.kind,
+			ref: input.ref ?? null,
+			...(input.role ? { role: input.role } : {}),
+		});
 
 		return getDocument(db, input.id);
 	},
@@ -472,7 +478,9 @@ export const requeueDocument = emitsDocumentEvents(
 
 		// Back to `processing`: a change of status. The pipeline announces the
 		// outcome (`document.processed` or `document.review`) when it is done.
-		documentEvents().updated(id);
+		documentEvents().changed(id, "document.reprocessed", {
+			resetReview: options.resetReview ?? false,
+		});
 
 		const jobId = await queue.publishDocumentProcess({
 			documentId: id,

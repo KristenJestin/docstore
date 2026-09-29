@@ -536,13 +536,18 @@ await client.webhook.test({ id: hook.id }); // sends a "ping" event
 ```
 
 The body of a `document.*` event is
-`{ event, document, keptDocumentId? }`, where `document` summarizes the
+`{ event, document, keptDocumentId?, actor }`, where `document` summarizes the
 document: `id`, `title`, `status`, `source`, `sourceRef`, `documentDate`,
 `categoryId`, `sensitive`, `reviewReasons`, `createdAt`, `updatedAt` and
 `deletedAt` (ISO 8601, `null` outside the trash). `updatedAt` is the value
 `document.list` returns for that same state, so a receiver can move its sync
 cursor from the event alone. `document.deleted` carries the last state read
 before the row went away; `keptDocumentId` is only set on `document.merged`.
+`actor` says who caused the event: `{ type, userId, apiKeyId, name }`, with
+`type` one of `user` (a browser session: `apiKeyId` is `null`), `api_key`
+(`apiKeyId` and the key's `name`) or `system` (the pipeline, the intake
+sources and the scheduled rules). An agent recognises its own changes by its
+key id. The same actor is recorded in the activity log (`activity.list`).
 
 The events agree with the stable document ids (see
 [mcp.md](mcp.md#stable-document-references)): after `document.merged`, the

@@ -40,7 +40,12 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
-import { documentEvents, emitsDocumentEvents } from "./document-events";
+import { fieldChanges } from "./activity.service";
+import {
+	documentEvents,
+	emitsDocumentEvents,
+	recordServiceActivity,
+} from "./document-events";
 import { likePattern } from "./sql-utils";
 
 /** Columns exposed for a "summary" Party (links, relations). */
@@ -269,6 +274,13 @@ export async function createParty(
 			message: "The Party could not be created.",
 		});
 	}
+	await recordServiceActivity(db, {
+		action: "party.created",
+		objectType: "party",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { type: row.type },
+	});
 	return row;
 }
 
@@ -339,6 +351,35 @@ export async function updateParty(
 			message: `Party "${id}" not found.`,
 		});
 	}
+	// Notes are free text: only the fact that they changed is kept (D15-05).
+	const changes: Record<string, unknown> = fieldChanges(
+		{
+			type: current.type,
+			name: current.name,
+			aliases: current.aliases,
+			identifiers: current.identifiers,
+			isHouseholdMember: current.isHouseholdMember,
+			archivedAt: current.archivedAt,
+		},
+		{
+			type: row.type,
+			name: row.name,
+			aliases: row.aliases,
+			identifiers: row.identifiers,
+			isHouseholdMember: row.isHouseholdMember,
+			archivedAt: row.archivedAt,
+		},
+	);
+	if ((current.notes ?? null) !== (row.notes ?? null)) {
+		changes.notes = { changed: true };
+	}
+	await recordServiceActivity(db, {
+		action: "party.updated",
+		objectType: "party",
+		objectId: row.id,
+		objectLabel: row.name,
+		summary: { fields: changes },
+	});
 	return row;
 }
 
@@ -437,6 +478,18 @@ export const mergeParties = emitsDocumentEvents(async function mergeParties(
 			movedDocuments: new Set(movedDocuments.map((row) => row.documentId)).size,
 			movedRelations: movedFrom.length + movedTo.length,
 		};
+	});
+	documentEvents().cause("party.merged");
+	documentEvents().activity({
+		action: "party.merged",
+		objectType: "party",
+		objectId: target.id,
+		objectLabel: target.name,
+		summary: {
+			source: { id: source.id, name: source.name },
+			documents: linkedIds.length,
+			relations: counts.movedRelations,
+		},
 	});
 	documentEvents().updated(...linkedIds);
 
@@ -608,7 +661,7 @@ export async function deleteParty(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
-	await requireParty(db, id);
+	const existing = await requireParty(db, id);
 
 	const linkedRows = await db
 		.select({ value: countDistinct(documentParty.documentId) })
@@ -622,6 +675,12 @@ export async function deleteParty(
 	}
 
 	await db.delete(party).where(eq(party.id, id));
+	await recordServiceActivity(db, {
+		action: "party.deleted",
+		objectType: "party",
+		objectId: id,
+		objectLabel: existing.name,
+	});
 	return { id, deleted: true };
 }
 

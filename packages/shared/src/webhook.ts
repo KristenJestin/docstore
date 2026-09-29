@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { activityActorSchema } from "./activity";
 
 /**
  * Outgoing webhooks (SPEC §2 "Misc", §5 `finalize` step).
@@ -149,5 +150,11 @@ export const webhookDocumentEventSchema = z.object({
 	document: webhookDocumentSchema,
 	/** `document.merged` only: the document that absorbed this one. */
 	keptDocumentId: z.string().optional(),
+	/**
+	 * Who caused the event (issue #15): `apiKeyId` names the key, and is `null`
+	 * for a browser session and for docstore itself (`type: "system"`, the
+	 * pipeline and the rules), so an agent can recognise its own changes.
+	 */
+	actor: activityActorSchema,
 });
 export type WebhookDocumentEvent = z.infer<typeof webhookDocumentEventSchema>;

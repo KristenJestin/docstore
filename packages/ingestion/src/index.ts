@@ -1,4 +1,16 @@
 export {
+	type ActivityDraft,
+	type Actor,
+	currentActor,
+	describeActor,
+	logActivityRead,
+	recordActivity,
+	runAsActor,
+	SYSTEM_ACTOR,
+	settleActivityReads,
+	writeActivity,
+} from "./activity";
+export {
 	type AnalyzeOptions,
 	analyzeDocument,
 	computeReviewReasons,
@@ -183,6 +195,7 @@ export {
 	type QueueHealth,
 } from "./queue";
 export {
+	type AppliedRuleActivity,
 	type AppliedRuleResult,
 	type ApplyRulesOptions,
 	type ApplyRulesResult,

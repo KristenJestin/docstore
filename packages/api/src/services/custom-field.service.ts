@@ -249,7 +249,7 @@ export const deleteCustomField = emitsDocumentEvents(
 		db: Db,
 		id: string,
 	): Promise<{ id: string; deleted: true }> {
-		await requireCustomField(db, id);
+		const existing = await requireCustomField(db, id);
 		// `document_field_value` is deleted by cascade: the documents holding a
 		// value lose it, which is a change of theirs.
 		const holders = await db
@@ -260,6 +260,14 @@ export const deleteCustomField = emitsDocumentEvents(
 		await db.transaction(async (tx) => {
 			await tx.delete(customField).where(eq(customField.id, id));
 			await touchDocuments(tx, holderIds);
+		});
+		documentEvents().cause("custom_field.deleted");
+		documentEvents().activity({
+			action: "custom_field.deleted",
+			objectType: "custom_field",
+			objectId: id,
+			objectLabel: existing.name,
+			summary: { documents: holderIds.length },
 		});
 		documentEvents().updated(...holderIds);
 		return { id, deleted: true };

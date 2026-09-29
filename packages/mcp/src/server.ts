@@ -1,7 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpContext } from "./context";
+import { bindMcpActor, type McpContext } from "./context";
 import { registerPrompts } from "./prompts";
 import { registerResources } from "./resources";
+import { registerActivityTools } from "./tools-activity";
 import { registerCollectionTools } from "./tools-collections";
 import { registerDocumentTools } from "./tools-documents";
 import { registerIntakeTools } from "./tools-intake";
@@ -42,6 +43,8 @@ A doc_ id is a stable reference worth citing: after a merge get_document
 returns the kept document with redirectedFrom, and fileUrl (/d/<id>) serves the
 primary file to the same API key.
 Every read requires the read scope, every write the write scope.
+Every change and every read of a document is logged under the API key that
+made it: list_activity with mine: true shows what this key did.
 Search before creating: find_party_by_identifier and list_tags avoid duplicates.`;
 
 export interface CreateMcpServerOptions extends McpContext {}
@@ -64,6 +67,8 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
 		principal: options.principal,
 	};
 
+	bindMcpActor(server, context.principal);
+
 	registerDocumentTools(server, context);
 	registerPartyTools(server, context);
 	registerTaxonomyTools(server, context);
@@ -71,6 +76,7 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
 	registerUploadTool(server, context);
 	registerIntakeTools(server, context);
 	registerSharingTools(server, context);
+	registerActivityTools(server, context);
 	registerResources(server, context);
 	registerPrompts(server);
 

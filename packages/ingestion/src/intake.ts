@@ -22,6 +22,7 @@ import type { DocumentSource, DocumentStatus } from "@docstore/shared/document";
 import type { IntakeDefaults, IntakeMeta } from "@docstore/shared/intake";
 import { documentFileKey, sha256 } from "@docstore/storage";
 import { and, eq, isNull } from "drizzle-orm";
+import { recordActivity } from "./activity";
 import {
 	archiveContent,
 	entryBasename,
@@ -283,6 +284,23 @@ async function storeIntakeFile(
 	}
 	// SPEC §5: `document.created` is sent right at intake, before any processing.
 	await emitDocumentEvent(ctx, "document.created", documentId);
+	// Who brought it in (issue #15): the key or the user of an upload, `system`
+	// for the intake sources. The file name, never the content.
+	await recordActivity(ctx.db, [
+		{
+			action: "document.uploaded",
+			objectType: "document",
+			objectId: documentId,
+			objectLabel: input.title?.trim() || titleFromFilename(input.filename),
+			sensitive: Boolean(defaults.sensitive),
+			summary: {
+				filename: input.filename,
+				mime: options.mime,
+				size: size || byteLength(input.data),
+				source: input.source ?? "upload",
+			},
+		},
+	]);
 
 	return { documentId, fileId };
 }
