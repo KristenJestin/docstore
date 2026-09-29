@@ -45,7 +45,8 @@ public links, and exposes the whole library to an agent over MCP.
   tags, typed custom fields, dossiers, document relations, saved searches,
   physical archive numbers and locations.
 - Sensitive documents are encrypted at rest (AES-256-GCM, per-object derived
-  key), transparent on read and hidden from MCP unless the key allows it.
+  key), transparent on read; an API key without the `sensitive` scope sees
+  their metadata but not their content (files, text, field values, notes).
 - A native MCP server on `/mcp` exposes search, classification, party, dossier,
   reminder, sharing and export tools behind scoped API keys.
 

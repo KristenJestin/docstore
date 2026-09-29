@@ -26,6 +26,7 @@ import {
 	revokeShareLinksForSensitive,
 	touchDocuments,
 } from "@docstore/ingestion";
+import { mayReadSensitive, type ScopedCaller } from "@docstore/shared/api-key";
 import type { CategorySummary } from "@docstore/shared/category";
 import type {
 	CustomField,
@@ -208,6 +209,19 @@ function frenchQuery(query: string): SQL {
 	return sql`websearch_to_tsquery('french', ${query})`;
 }
 
+/**
+ * What a full-text query is matched against (issue #22). A caller that may
+ * read sensitive content searches `search_vector` (title, OCR text, notes) of
+ * every document. For an API key without the `sensitive` scope, a sensitive
+ * document is only searched on its title: its OCR text and notes would
+ * otherwise answer "does it contain this IBAN?" to a key that cannot read
+ * them. The ranking follows the same split, so the order cannot leak either.
+ */
+function searchVectorFor(caller: ScopedCaller): SQL {
+	if (mayReadSensitive(caller)) return sql`${document.searchVector}`;
+	return sql`(case when ${document.sensitive} then to_tsvector('french', coalesce(${document.title}, '')) else ${document.searchVector} end)`;
+}
+
 function orderByClause(sort: DocumentSort): SQL[] {
 	switch (sort) {
 		case "documentDate:asc":
@@ -378,7 +392,10 @@ function updatedSinceCondition(updatedSince: string, afterId?: string): SQL {
 		: sql`${document.updatedAt} > ${instant}::timestamptz`;
 }
 
-function listConditions(input: ListDocumentsInput): SQL[] {
+function listConditions(
+	input: ListDocumentsInput,
+	caller: ScopedCaller,
+): SQL[] {
 	const conditions: SQL[] = [];
 
 	if (input.afterId && !input.updatedSince) {
@@ -479,7 +496,7 @@ function listConditions(input: ListDocumentsInput): SQL[] {
 	}
 	if (input.query) {
 		conditions.push(
-			sql`${document.searchVector} @@ ${frenchQuery(input.query)}`,
+			sql`${searchVectorFor(caller)} @@ ${frenchQuery(input.query)}`,
 		);
 	}
 
@@ -493,6 +510,7 @@ function listConditions(input: ListDocumentsInput): SQL[] {
 async function asyncListConditions(
 	db: Db,
 	input: ListDocumentsInput,
+	caller: ScopedCaller,
 ): Promise<SQL[]> {
 	const conditions: SQL[] = [];
 
@@ -520,9 +538,14 @@ async function asyncListConditions(
 		);
 	}
 
-	conditions.push(
-		...(await fieldFilterConditions(db, input.fieldFilters ?? [])),
-	);
+	const fieldFilters = input.fieldFilters ?? [];
+	conditions.push(...(await fieldFilterConditions(db, fieldFilters)));
+	// Issue #22: a few `gt`/`lt` calls would narrow a masked value down to the
+	// cent. For an API key without `sensitive`, a field-value filter never
+	// matches a sensitive document.
+	if (fieldFilters.length > 0 && !mayReadSensitive(caller)) {
+		conditions.push(eq(document.sensitive, false));
+	}
 
 	return conditions;
 }
@@ -703,12 +726,17 @@ async function loadPrimaryFiles(
  * search traced in the activity log when an API key runs it (issue #15). The
  * query and the filters are logged, never the results. Internal callers (the
  * export, the review queue) use `listDocuments` and log nothing.
+ *
+ * `caller` is the API key of the request (`null` for a browser session): it
+ * decides whether the query and the field filters may look into sensitive
+ * documents (issue #22).
  */
 export async function searchDocuments(
 	db: Db,
 	input: ListDocumentsInput,
+	caller: ScopedCaller,
 ): Promise<Paginated<DocumentListItem>> {
-	const page = await listDocuments(db, input);
+	const page = await listDocuments(db, input, { caller });
 	const { pageSize: _pageSize, ...filters } = input;
 	logSearch(db, { ...filters, total: page.total });
 	return page;
@@ -717,10 +745,19 @@ export async function searchDocuments(
 export async function listDocuments(
 	db: Db,
 	input: ListDocumentsInput,
+	options: {
+		/**
+		 * Who asks: an API key without `sensitive` gets the restricted search
+		 * and field filters of issue #22. Absent means an internal caller or a
+		 * session, which read everything.
+		 */
+		caller?: ScopedCaller;
+	} = {},
 ): Promise<Paginated<DocumentListItem>> {
+	const caller = options.caller ?? null;
 	const conditions = [
-		...listConditions(input),
-		...(await asyncListConditions(db, input)),
+		...listConditions(input, caller),
+		...(await asyncListConditions(db, input, caller)),
 	];
 	const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -736,7 +773,7 @@ export async function listDocuments(
 		: input.query
 			? [
 					desc(
-						sql`ts_rank(${document.searchVector}, ${frenchQuery(input.query)})`,
+						sql`ts_rank(${searchVectorFor(caller)}, ${frenchQuery(input.query)})`,
 					),
 					sql`${document.documentDate} desc nulls last`,
 					asc(document.id),

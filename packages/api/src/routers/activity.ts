@@ -1,6 +1,7 @@
 import {
 	activityEntrySchema,
 	listActivityInput,
+	maskSensitiveActivity,
 } from "@docstore/shared/activity";
 import { paginatedSchema } from "@docstore/shared/pagination";
 import { protectedProcedure } from "../index";
@@ -20,5 +21,13 @@ export const activityRouter = {
 		})
 		.input(listActivityInput)
 		.output(paginatedSchema(activityEntrySchema))
-		.handler(({ input, context }) => listActivity(context.db, input)),
+		.handler(async ({ input, context }) => {
+			const page = await listActivity(context.db, input);
+			return {
+				...page,
+				items: page.items.map((entry) =>
+					maskSensitiveActivity(entry, context.apiKey),
+				),
+			};
+		}),
 };

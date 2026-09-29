@@ -1,7 +1,7 @@
 import type { Db } from "@docstore/db";
 import { document } from "@docstore/db/schema/document";
 import {
-	maskSensitiveContent,
+	maskSensitiveDocument,
 	mayReadSensitive,
 	type ScopedCaller,
 } from "@docstore/shared/api-key";
@@ -50,12 +50,17 @@ export async function assertDocumentSensitiveAccess(
 }
 
 /**
- * Masks the OCR text of a sensitive document for an oRPC caller that may not
- * read it (`content` becomes the MCP placeholder, `masked: true`). Applied to
- * every procedure that returns a document, reads and writes alike.
+ * Masks what a sensitive document says (OCR text, custom field values, notes)
+ * for an oRPC caller that may not read it (`masked: true`, issue #22). Applied
+ * to every procedure that returns a document, reads and writes alike.
  */
-export function withMaskedContent<
-	T extends { sensitive: boolean; content: string | null },
+export function withMaskedDocument<
+	T extends {
+		sensitive: boolean;
+		content: string | null;
+		notes?: string | null;
+		fieldValues?: readonly unknown[];
+	},
 >(context: { apiKey?: ScopedCaller }, document: T): T & { masked: boolean } {
-	return maskSensitiveContent(document, context.apiKey);
+	return maskSensitiveDocument(document, context.apiKey);
 }
