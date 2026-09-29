@@ -3,7 +3,7 @@ import { document, documentFile } from "@docstore/db/schema/document";
 import type { DocumentFileKind } from "@docstore/shared/document";
 import type { StorageDriver } from "@docstore/storage";
 import { ORPCError } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 /** Metadata needed to serve a file from storage. */
 export interface FileForDownload {
@@ -28,6 +28,22 @@ export interface FileForDownload {
 	documentSensitive: boolean;
 }
 
+const fileForDownloadColumns = {
+	id: documentFile.id,
+	documentId: documentFile.documentId,
+	kind: documentFile.kind,
+	filename: documentFile.filename,
+	mime: documentFile.mime,
+	size: documentFile.size,
+	sha256: documentFile.sha256,
+	storageKey: documentFile.storageKey,
+	thumbnailKey: documentFile.thumbnailKey,
+	encrypted: documentFile.encrypted,
+	documentDeletedAt: document.deletedAt,
+	documentTitle: document.title,
+	documentSensitive: document.sensitive,
+};
+
 /**
  * Loads a file and its document. Throws `NOT_FOUND` if either one is missing.
  */
@@ -36,21 +52,7 @@ export async function getFileForDownload(
 	fileId: string,
 ): Promise<FileForDownload> {
 	const [row] = await db
-		.select({
-			id: documentFile.id,
-			documentId: documentFile.documentId,
-			kind: documentFile.kind,
-			filename: documentFile.filename,
-			mime: documentFile.mime,
-			size: documentFile.size,
-			sha256: documentFile.sha256,
-			storageKey: documentFile.storageKey,
-			thumbnailKey: documentFile.thumbnailKey,
-			encrypted: documentFile.encrypted,
-			documentDeletedAt: document.deletedAt,
-			documentTitle: document.title,
-			documentSensitive: document.sensitive,
-		})
+		.select(fileForDownloadColumns)
 		.from(documentFile)
 		.innerJoin(document, eq(document.id, documentFile.documentId))
 		.where(eq(documentFile.id, fileId))
@@ -58,6 +60,36 @@ export async function getFileForDownload(
 
 	if (!row) {
 		throw new ORPCError("NOT_FOUND", { message: "File not found." });
+	}
+	return row;
+}
+
+/**
+ * Primary file of a document, the one its stable URL `/d/<docId>` serves
+ * (issue #2): the `original` file, the oldest one if there are several, else
+ * the oldest file of any kind (the same choice as the list thumbnails). Throws
+ * `NOT_FOUND` when the document has no file at all.
+ */
+export async function getPrimaryFileForDownload(
+	db: Db,
+	documentId: string,
+): Promise<FileForDownload> {
+	const [row] = await db
+		.select(fileForDownloadColumns)
+		.from(documentFile)
+		.innerJoin(document, eq(document.id, documentFile.documentId))
+		.where(eq(documentFile.documentId, documentId))
+		.orderBy(
+			sql`(${documentFile.kind} = 'original') desc`,
+			asc(documentFile.createdAt),
+			asc(documentFile.id),
+		)
+		.limit(1);
+
+	if (!row) {
+		throw new ORPCError("NOT_FOUND", {
+			message: `Document "${documentId}" has no file.`,
+		});
 	}
 	return row;
 }
