@@ -1,5 +1,6 @@
 import type { Db } from "@docstore/db";
-import type { IngestionBinding } from "@docstore/ingestion";
+import type { Actor, IngestionBinding } from "@docstore/ingestion";
+import { runAsActor } from "@docstore/ingestion";
 import type { ApiKeyScope } from "@docstore/shared/api-key";
 import { hasScope, mayReadSensitive } from "@docstore/shared/api-key";
 import type {
@@ -13,6 +14,31 @@ import type { ZodRawShape, z } from "zod";
 export interface McpPrincipal {
 	userId: string;
 	scopes: ApiKeyScope[];
+	/** Id of the key: every change and read of the tools is logged under it. */
+	keyId?: string;
+	/** Name of the key, shown by the activity log and the webhooks. */
+	keyName?: string;
+}
+
+/** The actor of the tool calls of a server, set by `createMcpServer`. */
+const serverActors = new WeakMap<McpServer, Actor>();
+
+/**
+ * Who the tools of `server` act for (issue #15): the key of the principal.
+ * Without a key id (a test harness), the session of its user.
+ */
+export function bindMcpActor(server: McpServer, principal: McpPrincipal): void {
+	serverActors.set(
+		server,
+		principal.keyId
+			? {
+					type: "api_key",
+					apiKeyId: principal.keyId,
+					userId: principal.userId,
+					name: principal.keyName ?? null,
+				}
+			: { type: "user", userId: principal.userId },
+	);
 }
 
 export interface McpContext {
@@ -20,6 +46,15 @@ export interface McpContext {
 	/** Absent on a degraded server: upload and reprocessing are refused. */
 	ingestion?: IngestionBinding;
 	principal: McpPrincipal;
+}
+
+/** Runs `fn` on behalf of the key bound to `server`, if any. */
+export function runAsMcpActor<T>(
+	server: McpServer,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const actor = serverActors.get(server);
+	return actor ? runAsActor(actor, fn) : fn();
 }
 
 /** Business error returned as-is to the agent (`isError: true`). */
@@ -110,7 +145,7 @@ export function defineTool<
 		input: ShapeValue<Input>,
 	): Promise<CallToolResult> => {
 		try {
-			const output = await handler(input);
+			const output = await runAsMcpActor(server, () => handler(input));
 			return {
 				content: [{ type: "text", text: definition.text(output) }],
 				structuredContent: output as Record<string, unknown>,

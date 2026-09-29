@@ -160,6 +160,7 @@ Every read tool requires the `read` scope, every mutation the `write` scope.
 | `export_documents`         | Previews a ZIP export (count, size, paths); download via `POST /api/export` |
 | `assign_asn`               | Gives the document the next free archive serial number                 |
 | `find_by_asn`              | Finds a document by its ASN, or returns the next free number           |
+| `list_activity`            | Activity log: who changed or read what (`since`, `mine`, `actorKeyId`, `objectId`, `action`, `kind`, `sensitive`, paging) |
 
 ### Stable document references
 
@@ -226,6 +227,21 @@ webhook to the subscribers (`document.updated`, `document.trashed`,
 `document.restored`, `document.deleted`, `document.merged`): see
 [webhooks](ingestion.md#6-webhooks) for the payload and for the edge cases of
 the cursor.
+
+### Activity log
+
+Every change a tool makes, and every document it reads (`get_document`,
+`get_document_text`, `/d/<id>`, `/files`, exports, `search_documents` with its
+query and filters), is logged under the API key that made it, with the key's
+name. `list_activity` reads that log: `mine: true` returns what the calling key
+did itself, `objectId` the history of one document, `action` an exact action
+(`document.tagged`) or a prefix ending with a dot (`document.`). Each entry has
+a short `summary` of the change: fields before and after, tags or Parties
+added and removed, never file content nor OCR text. The same log is the
+Activity page of the web app and `GET /api-reference/activity`.
+
+The webhooks name the key too: `actor.apiKeyId` in the body of a `document.*`
+event lets an agent recognise the changes it caused itself.
 
 ### What the tools refuse
 

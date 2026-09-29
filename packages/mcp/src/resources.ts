@@ -1,7 +1,7 @@
 import { listDocuments } from "@docstore/api/services/document.service";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { type McpContext, requireRead } from "./context";
+import { type McpContext, requireRead, runAsMcpActor } from "./context";
 import { readDocumentResource } from "./tools-documents";
 import { readPartyResource } from "./tools-parties";
 
@@ -45,7 +45,9 @@ export function registerResources(
 					{
 						uri: uri.href,
 						mimeType: "application/json",
-						text: await readDocumentResource(context, String(id)),
+						text: await runAsMcpActor(server, () =>
+							readDocumentResource(context, String(id)),
+						),
 					},
 				],
 			};

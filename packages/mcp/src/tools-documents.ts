@@ -1,10 +1,11 @@
+import { logDocumentRead } from "@docstore/api/services/activity.service";
 import {
 	addDocumentParty,
 	getDocument,
 	getDocumentStats,
 	ignoreDuplicate,
-	listDocuments,
 	removeDocumentParty,
+	searchDocuments,
 	setDocumentCategory,
 	setDocumentFieldValue,
 	setDocumentTags,
@@ -123,7 +124,7 @@ export function registerDocumentTools(
 		},
 		async (input) => {
 			requireRead(context);
-			const page = await listDocuments(context.db, {
+			const page = await searchDocuments(context.db, {
 				query: input.query,
 				categoryId: input.categoryId,
 				tagIds: input.tagIds,
@@ -193,6 +194,10 @@ export function registerDocumentTools(
 			requireRead(context);
 			const detail = await getDocument(context.db, input.id);
 			if (detail.sensitive && !canReadSensitive(context)) {
+				// A refused read is traced too: who tried is worth knowing.
+				logDocumentRead(context.db, "document.text_read", detail, {
+					masked: true,
+				});
 				return {
 					id: detail.id,
 					title: detail.title,
@@ -204,6 +209,10 @@ export function registerDocumentTools(
 			}
 			const content = detail.content ?? "";
 			const limit = input.maxChars ?? 20_000;
+			logDocumentRead(context.db, "document.text_read", detail, {
+				masked: false,
+				chars: Math.min(content.length, limit),
+			});
 			return {
 				id: detail.id,
 				title: detail.title,
