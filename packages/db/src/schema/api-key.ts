@@ -28,12 +28,14 @@ export const apiKey = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		/** Updated at most once a minute by the auth middleware. */
-		lastUsedAt: timestamp("last_used_at"),
+		lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
 		/** Client address of that last use, refreshed with `last_used_at`. */
 		lastUsedIp: text("last_used_ip"),
-		expiresAt: timestamp("expires_at"),
-		revokedAt: timestamp("revoked_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }),
+		revokedAt: timestamp("revoked_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [index("api_key_user_id_idx").on(table.userId)],
 );

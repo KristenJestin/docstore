@@ -54,14 +54,16 @@ export const intakeSource = pgTable(
 			.$type<IntakeDefaults>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
-		lastRunAt: timestamp("last_run_at"),
+		lastRunAt: timestamp("last_run_at", { withTimezone: true }),
 		lastError: text("last_error"),
 		stats: jsonb("stats")
 			.$type<IntakeStats>()
 			.notNull()
 			.default(sql`'{"imported":0,"duplicates":0,"errors":0}'::jsonb`),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -85,7 +87,9 @@ export const intakeLog = pgTable(
 		filename: text("filename").notNull(),
 		outcome: intakeOutcomeEnum("outcome").notNull(),
 		message: text("message"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		index("intake_log_source_id_idx").on(table.sourceId),
@@ -104,7 +108,7 @@ export const uploadLink = pgTable(
 		name: text("name").notNull(),
 		/** Text displayed to the sender. */
 		message: text("message"),
-		expiresAt: timestamp("expires_at"),
+		expiresAt: timestamp("expires_at", { withTimezone: true }),
 		/** `null` = unlimited. */
 		maxUses: integer("max_uses"),
 		uses: integer("uses").notNull().default(0),
@@ -116,7 +120,9 @@ export const uploadLink = pgTable(
 		createdById: text("created_by_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [index("upload_link_enabled_idx").on(table.enabled)],
 );

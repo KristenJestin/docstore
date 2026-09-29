@@ -20,7 +20,9 @@ export const tag = pgTable(
 			.$defaultFn(() => createId("tag_")),
 		name: text("name").notNull(),
 		color: text("color"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [uniqueIndex("tag_name_lower_uidx").on(sql`lower(${table.name})`)],
 );
@@ -38,8 +40,10 @@ export const documentTag = pgTable(
 		confidence: real("confidence"),
 		source: assignmentSourceEnum("source").notNull().default("manual"),
 		/** When a human approved this tag in Review (SPEC §4). */
-		confirmedAt: timestamp("confirmed_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.documentId, table.tagId] }),

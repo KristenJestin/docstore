@@ -89,8 +89,10 @@ export const documentType = pgTable(
 		/** Tolerance in days after the expected date before flagging it missing. */
 		graceDays: integer("grace_days"),
 
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -137,8 +139,10 @@ export const documentTypeLayout = pgTable(
 		/** Condition tree identifying the layout; null = no signature. */
 		signature: jsonb("signature").$type<RuleCondition>(),
 		sortOrder: integer("sort_order").notNull().default(0),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -159,7 +163,9 @@ export const documentTypeOverride = pgTable(
 			.notNull()
 			.references(() => documentType.id, { onDelete: "cascade" }),
 		included: boolean("included").notNull(),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.documentId, table.documentTypeId] }),

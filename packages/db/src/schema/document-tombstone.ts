@@ -34,7 +34,9 @@ export const documentTombstone = pgTable(
 		documentId: text("document_id").primaryKey(),
 		reason: documentTombstoneReasonEnum("reason").notNull(),
 		mergedIntoId: text("merged_into_id"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		index("document_tombstone_merged_into_id_idx").on(table.mergedIntoId),

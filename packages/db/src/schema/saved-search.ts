@@ -23,7 +23,9 @@ export const savedSearch = pgTable(
 		name: text("name").notNull(),
 		filters: jsonb("filters").$type<SavedSearchFilters>().notNull(),
 		sortOrder: integer("sort_order").notNull().default(0),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [index("saved_search_sort_order_idx").on(table.sortOrder)],
 );

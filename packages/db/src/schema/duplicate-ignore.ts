@@ -25,7 +25,9 @@ export const duplicateIgnore = pgTable(
 		otherDocumentId: text("other_document_id")
 			.notNull()
 			.references(() => document.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.documentId, table.otherDocumentId] }),
