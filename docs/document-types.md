@@ -20,7 +20,7 @@ template, the page layouts and their extraction rules.
 | Paper original | `paper_original` | hands out an archive number (see "Archive numbers") |
 | Title | `title_template` | rewrites the title **while it still is the one derived from the filename** (see §3) |
 | Detection | `detection`, `detection_confidence` | see §5 |
-| Recurrence | `periodicity`, `start_period`, `end_period`, `expected_month`, `expected_day`, `grace_days` | see §2 |
+| Recurrence | `periodicity`, `start_period`, `end_period`, `expected_month`, `expected_day`, `arrives_after`, `grace_days` | see §2 |
 | Order | `priority`, `enabled` | detection order (ascending) |
 
 The assignment itself is stored on the document: `document_type_id`,
@@ -92,10 +92,27 @@ Filling in the recurrence block turns the type into what a Series used to be.
   Without it, the last day of the expected month is used.
 - `grace_days` (15 by default) absorbs the usual lateness before a period is
   declared missing.
+- `arrives_after` (0 by default, at most 3) is the number of periods after the
+  one they cover that the documents arrive in: 1 for the income tax notice for
+  2025, received in July 2026. The expected date (month, day and grace
+  included) moves that many periods later, so period 2025 is expected in July
+  2026. A document without a `period_start` is filed that many periods before
+  its `document_date` (the notice dated 8 July 2026 covers 2025); a
+  `period_start` set by hand, by a rule or read from the text always wins. The
+  month is learned from the members that arrived in their period plus the
+  offset. The `{period}` token of the title template and the period shown on
+  the document follow the same rule. The type page shows it as "Arrives: The
+  following year". The migration `0039_document-type-arrives-after` adds the
+  column with `0`, so existing types do not move.
 
 A yearly type expected on 15 July with 15 grace days is due on 30 July: its
 current year is `pending` until then, `missing` from 31 July, and its
 `period_gap` reminder is created on the first `reminder.generate` after that.
+
+The same type arriving the following year (`arrives_after` = 1), with no
+expected day, expects 2025 on 31 July 2026 and is due on 15 August 2026: 2025
+stays `pending` until then, then turns `missing` and raises its reminder. The
+current year stays `pending` too, until its own due date the following summer.
 
 Period keys read as `2026-W09`, `2026-03`, `2026-Q1`, `2026-H1`, `2026`.
 
@@ -110,10 +127,11 @@ Members are never stored. They are recomputed from:
    `true` forces).
 
 The period of a document is its `period_start`, falling back to its
-`document_date`. One document per period: the oldest wins. A period is
-`present`, `missing` (its due date, expected date + `grace_days`, has passed)
-or `pending`. The expected date is `expected_day` of the expected month of the
-period (see above).
+`document_date` moved back `arrives_after` periods. One document per period:
+the oldest wins. A period is `present`, `missing` (its due date, expected
+date + `grace_days`, has passed) or `pending`. The expected date is
+`expected_day` of the expected month of the period, `arrives_after` periods
+later (see above).
 
 ### Effective range
 
