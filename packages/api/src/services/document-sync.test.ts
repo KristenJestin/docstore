@@ -13,6 +13,7 @@ import {
 	documentFile,
 	documentParty,
 } from "@docstore/db/schema/document";
+import { documentTombstone } from "@docstore/db/schema/document-tombstone";
 import { documentTag, tag } from "@docstore/db/schema/tag";
 import { webhook } from "@docstore/db/schema/webhook";
 import {
@@ -58,6 +59,7 @@ import {
 	updateDocument,
 } from "./document.service";
 import { bindDocumentEvents } from "./document-events";
+import { resolveDocumentId } from "./document-resolution.service";
 import {
 	applyDocumentType,
 	createDocumentType,
@@ -782,5 +784,126 @@ describe("requirement 4: the payload keeps its shape and adds updatedAt", () => 
 		expect(body.document.updatedAt).toBe(
 			listed.items[0]?.updatedAt.toISOString() ?? "missing",
 		);
+	});
+});
+
+/** The tombstone of `id`, `null` when there is none. */
+async function tombstoneOf(
+	id: string,
+): Promise<{ reason: string; mergedIntoId: string | null } | null> {
+	const [row] = await db
+		.select({
+			reason: documentTombstone.reason,
+			mergedIntoId: documentTombstone.mergedIntoId,
+		})
+		.from(documentTombstone)
+		.where(eq(documentTombstone.documentId, id));
+	return row ?? null;
+}
+
+describe("stable document ids (issue #2) agree with the document events", () => {
+	test("document.merged names the document the merged id now leads to", async () => {
+		const kept = await seedDocument("Invoice");
+		const duplicate = await seedDocument("Invoice (copy)");
+		await mergeAsVersion(db, { documentId: duplicate, intoDocumentId: kept });
+
+		expect(bodyOf(0)).toMatchObject({
+			event: "document.merged",
+			keptDocumentId: kept,
+		});
+		expect(await tombstoneOf(duplicate)).toEqual({
+			reason: "merged",
+			mergedIntoId: kept,
+		});
+		expect(await resolveDocumentId(db, duplicate)).toEqual({
+			id: kept,
+			redirectedFrom: duplicate,
+		});
+		// The merge also moves the kept document for the sync cursor.
+		await expectBumped(kept);
+	});
+
+	test("a chain of merges: each event names its kept document, older ids follow", async () => {
+		const first = await seedDocument("Invoice v1");
+		const second = await seedDocument("Invoice v2");
+		const third = await seedDocument("Invoice v3");
+		await mergeAsVersion(db, { documentId: first, intoDocumentId: second });
+		published.length = 0;
+		await mergeAsVersion(db, { documentId: second, intoDocumentId: third });
+
+		expect(bodyOf(0)).toMatchObject({
+			event: "document.merged",
+			document: { id: second },
+			keptDocumentId: third,
+		});
+		// The id merged earlier is pointed straight at the new kept document.
+		expect(await tombstoneOf(first)).toEqual({
+			reason: "merged",
+			mergedIntoId: third,
+		});
+		expect((await resolveDocumentId(db, first)).id).toBe(third);
+	});
+
+	test("a permanent deletion emits document.deleted and leaves a deleted tombstone", async () => {
+		const id = await seedDocument("Old scan");
+		await trashDocument(db, id);
+		published.length = 0;
+
+		await deleteDocumentPermanently(db, id);
+
+		expect(events()).toEqual([`document.deleted ${id}`]);
+		expect(await tombstoneOf(id)).toEqual({
+			reason: "deleted",
+			mergedIntoId: null,
+		});
+		await expectOrpcError(resolveDocumentId(db, id), "GONE");
+	});
+
+	test("purging a merged document emits document.deleted and keeps its redirect", async () => {
+		const kept = await seedDocument("Invoice");
+		const duplicate = await seedDocument("Invoice (copy)");
+		await mergeAsVersion(db, { documentId: duplicate, intoDocumentId: kept });
+		published.length = 0;
+
+		await deleteDocumentPermanently(db, duplicate);
+
+		expect(events()).toEqual([`document.deleted ${duplicate}`]);
+		expect(await tombstoneOf(duplicate)).toEqual({
+			reason: "merged",
+			mergedIntoId: kept,
+		});
+		expect((await resolveDocumentId(db, duplicate)).id).toBe(kept);
+	});
+
+	test("restoring a merged document emits document.restored and ends its redirect", async () => {
+		const kept = await seedDocument("Invoice");
+		const duplicate = await seedDocument("Invoice (copy)");
+		await mergeAsVersion(db, { documentId: duplicate, intoDocumentId: kept });
+		published.length = 0;
+
+		await restoreDocument(db, duplicate);
+
+		expect(events()).toEqual([`document.restored ${duplicate}`]);
+		expect(await tombstoneOf(duplicate)).toBeNull();
+		expect(await resolveDocumentId(db, duplicate)).toEqual({
+			id: duplicate,
+			redirectedFrom: null,
+		});
+	});
+
+	test("a bulk restore does the same for every merged document it brings back", async () => {
+		const kept = await seedDocument("Invoice");
+		const duplicate = await seedDocument("Invoice (copy)");
+		await mergeAsVersion(db, { documentId: duplicate, intoDocumentId: kept });
+		published.length = 0;
+
+		await bulkDocuments(db, {
+			ids: [duplicate, kept],
+			action: { type: "restore" },
+		});
+
+		// `kept` was not in the trash: neither restored nor announced.
+		expect(events()).toEqual([`document.restored ${duplicate}`]);
+		expect(await tombstoneOf(duplicate)).toBeNull();
 	});
 });
