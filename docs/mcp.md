@@ -42,18 +42,21 @@ therefore cannot mint itself an `admin` key.
 | ----------- | ----------------------------------------------------------------- |
 | `read`      | Every read tool and resource: search, documents, Party, taxonomy, statistics |
 | `write`     | Every mutation (edit, link, upload, rules)                         |
-| `sensitive` | Content of documents marked "sensitive": OCR text, custom field values, notes, and on HTTP the file bytes, thumbnail and OCR layout; personal identifiers and notes of Parties |
+| `sensitive` | Content of documents marked "sensitive": OCR text, custom field values, notes, external references, and on HTTP the file bytes, thumbnail and OCR layout; personal identifiers and notes of Parties |
 | `admin`     | API key administration, `list_intake_sources`, `run_intake_source`, `create_upload_link`; implies every other scope |
 
 A `sensitive` document returns ``[sensitive document: `sensitive` scope required]``
 instead of its text when the key does not carry `sensitive`. For such a key,
 `get_document`, the `docstore://document/{id}` resource and every tool that
 returns a document answer `masked: true` with no custom field values
-(`fieldValues: []`) and no notes (`notes: null`); the title, dates, period,
-category, tags, Parties and document type stay visible. `search_documents`
-matches a sensitive document on its title only (never on its OCR text or
-notes), and `list_activity` shows that a field of a sensitive document changed,
-never the value. `search_documents` never returns content snippets, whatever
+(`fieldValues: []`), no notes (`notes: null`) and no external references
+(`externalRefs: []`, issue #34); the title, dates, period, category, tags,
+Parties and document type stay visible. `search_documents` matches a sensitive
+document on its title only (never on its OCR text or notes), its
+`referencedBy` / `notReferencedBy` filters never return a sensitive document,
+and `list_activity` shows that a field of a sensitive document changed, never
+the value, and how many references a `document.external_refs_set` entry
+changed, never their paths. `search_documents` never returns content snippets, whatever
 the scopes. `test_rule` on a sensitive
 document and `export_documents` with `includeSensitive` are refused without
 `sensitive`. Any read without `read`, and any mutation without `write`, fails
@@ -132,8 +135,8 @@ read tool the `read` scope, every mutation the `write` scope, except:
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
-| `search_documents`         | Full-text search (title, OCR text, notes; title only for a sensitive document without `sensitive`) + category, tag, Party, status, date filters, `referencedBy`/`notReferencedBy` an external system; `updatedSince`/`afterId` for incremental sync |
-| `get_document`             | Full detail of a document (Dossiers, document type and `externalRefs` included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`); `masked: true` without field values and notes if sensitive and the key lacks `sensitive` |
+| `search_documents`         | Full-text search (title, OCR text, notes; title only for a sensitive document without `sensitive`) + category, tag, Party, status, date filters, `referencedBy`/`notReferencedBy` an external system (never a sensitive document without `sensitive`); `updatedSince`/`afterId` for incremental sync |
+| `get_document`             | Full detail of a document (Dossiers, document type and `externalRefs` included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`); `masked: true` without field values, notes and `externalRefs` if sensitive and the key lacks `sensitive` |
 | `get_document_text`        | OCR text; hidden if sensitive and the key lacks `sensitive`           |
 | `list_review_queue`        | Documents "to review" with their reasons                              |
 | `approve_review`           | Approves a document (optional correction) and sets it back to `active` |
@@ -272,6 +275,13 @@ link back to them and the system can find what it never cites:
 - `search_documents` with `notReferencedBy: "wiki"` lists the documents no
   wiki page cites yet (the wiki lint), `referencedBy: "wiki"` those it does.
   The oRPC `document.list`, saved searches and exports take the same filters.
+- On a sensitive document, the references are masked for a key without the
+  `sensitive` scope (issue #34), like its notes: `externalRefs` is empty with
+  `masked: true`, neither filter returns the document (a sensitive document
+  is never reported as cited, nor as an orphan), and the
+  `document.external_refs_set` entries of `list_activity` give the system and
+  the number of refs added, removed or updated, not their paths. A wiki path
+  such as `10-admin/17-sante/...` says too much about such a document.
 
 A call that changes something bumps `updatedAt`, sends `document.updated` and
 leaves a `document.external_refs_set` entry in the activity log. Sending the
