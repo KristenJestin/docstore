@@ -14,6 +14,45 @@ Stack: Bun · Turborepo · Hono + oRPC (`packages/api`) · Drizzle + PostgreSQL
 (`apps/web`) · shadcn on Base UI (`packages/ui`) · Tailwind v4 · Biome (tabs,
 double quotes).
 
+## Tickets and Git workflow
+
+Work starts from a GitHub issue. The full method (roles, framing, phases,
+evidence) is [`docs/METHOD.md`](docs/METHOD.md); this is the summary.
+
+- **Before touching code, read the issue with all its comments,
+  `docs/METHOD.md` and this file.** On a pull request that already exists,
+  also read its comments since your last run and answer a review point by
+  point.
+- Roles: Kris (the maintainer) decides and merges; the framing assistant writes
+  the Proposal, Design, Spec and Tasks in the issue and reviews the pull
+  request against the Spec; the developer agent (`hermes-krisnet[bot]` or a
+  Claude Code agent) implements framed issues.
+- `../docs/SPEC.md` is not available to every agent: a framed issue quotes, in
+  English, the rules of the spec it needs. Work from the issue.
+- **Main only. Every merge into `main` deploys production.** One issue = one
+  branch = one worktree: `feat/<n>-<topic>`, `fix/<n>-<topic>` or
+  `explore/<n>-<topic>` from `main`, created with `bun run wt <branch>`.
+  Housekeeping without an issue uses `chore/<topic>`, `docs/<topic>`,
+  `ci/<topic>` or `build/<topic>`.
+- **Never commit or push on `main`, never merge a pull request.** Only Kris
+  merges, by squash only. The Lefthook `pre-commit` hook refuses a commit on
+  `main` (`scripts/branch-guard.ts`).
+- One pull request per issue, into `main`, opened once (as a draft when a UI
+  gate or an exploration comes first), with `Closes #<n>` in its description.
+  The `pull-request` check requires it (except `ci`, `docs`, `chore`, `build`
+  titles) and copies the issue's labels and milestone. Exploration issues are
+  delivered as draft pull requests with screenshots or measurements.
+- Verification before every push:
+  `bun run check && bun run check-types && bun run test`. Paste what ran in the
+  pull request; a verification not run is "not verified", never green.
+- Tests are named after the Spec scenarios they cover.
+- At most three issues in progress; one agent run at a time per repository.
+- Git identity for every commit, including sub-agents and worktrees:
+  `kris <kristen.jestin@pm.me>`.
+- Issues, pull requests and commits are in English.
+- Releases stay manual: no semantic-release, the version in `package.json` is
+  bumped by hand.
+
 ## Setup commands
 
 - `bun install` installs the workspace.
@@ -75,7 +114,8 @@ database.
 ## Testing instructions
 
 - Unit tests: `*.test.ts` next to the code, `bun:test`. Run `bun test` in a
-  package, or `bun run test` at the root to go through Turbo.
+  package, or `bun run test` at the root to go through Turbo (it also runs
+  the tests of `scripts/`).
 - API integration tests use one test database per package. `createTestDb()`
   derives the name from `TEST_DB_SUFFIX`, or from the current package name
   (`docstore_test_api`, `docstore_test_server`…), and creates it on the fly
@@ -100,9 +140,18 @@ database.
 
 ## Commit and PR conventions
 
-- Angular commits: `type(scope): message`, in English, imperative, lower case
-  (`feat(api): add the dossier share link`). Scope is the package or domain.
+- Angular commits: `type(scope): subject`, in English, imperative, lower case
+  (`feat(api): add the dossier share link`). The **scope is required**: the
+  package or domain (`api`, `web`, `db`, `ingestion`, `mcp`, `rules`…). Types:
+  feat, fix, refactor, test, docs, chore, build, ci, perf (no `style`). The
+  subject line is 72 characters at most (a trailing ` (#n)` from a squash is
+  not counted) and has no trailing period. The Lefthook `commit-msg` hook runs
+  `scripts/commit-message.ts`; `bun scripts/commit-message.ts --range
+  origin/main..HEAD` checks a branch before a push, and the `commit-messages`
+  CI job runs the same tool.
 - One commit per coherent unit of work.
+- The pull request title is a plain Angular subject: it becomes the squash
+  commit on `main`. Fill in the pull request template (what ran, what did not).
 - `bun run check`, `bun run check-types` and the affected tests must pass before
   committing.
 - Never bypass the hooks (`--no-verify`) and never disable signing.

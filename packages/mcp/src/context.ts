@@ -1,7 +1,7 @@
 import type { Db } from "@docstore/db";
 import type { IngestionBinding } from "@docstore/ingestion";
 import type { ApiKeyScope } from "@docstore/shared/api-key";
-import { hasScope } from "@docstore/shared/api-key";
+import { hasScope, mayReadSensitive } from "@docstore/shared/api-key";
 import type {
 	McpServer,
 	ToolCallback,
@@ -39,8 +39,21 @@ export function requireWrite(context: McpContext): void {
 	}
 }
 
+/**
+ * Every read requires the `read` scope, like `protectedProcedure` on oRPC and
+ * the `/files` routes (issue #1).
+ */
+export function requireRead(context: McpContext): void {
+	if (!hasScope(context.principal.scopes, "read")) {
+		throw new McpToolError(
+			"Read refused: this API key does not have the `read` scope.",
+		);
+	}
+}
+
+/** Same decision as oRPC and `/files` (`mayReadSensitive`, D-01 of #1). */
 export function canReadSensitive(context: McpContext): boolean {
-	return hasScope(context.principal.scopes, "sensitive");
+	return mayReadSensitive(context.principal);
 }
 
 export function requireIngestion(context: McpContext): IngestionBinding {

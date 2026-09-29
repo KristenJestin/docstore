@@ -26,6 +26,7 @@ import {
 	toggleRule,
 	updateRule,
 } from "../services/rule.service";
+import { assertDocumentSensitiveAccess } from "../services/sensitive-access.service";
 
 const TAGS = ["Rule"];
 
@@ -121,7 +122,15 @@ export const ruleRouter = {
 		})
 		.input(testRuleInput)
 		.output(testRuleResultSchema)
-		.handler(({ input, context }) => testRule(context.db, input)),
+		.handler(async ({ input, context }) => {
+			// A dry run reads the OCR layer: same rule as the text itself.
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.apiKey,
+				input.documentId,
+			);
+			return testRule(context.db, input);
+		}),
 
 	run: writeProcedure
 		.route({

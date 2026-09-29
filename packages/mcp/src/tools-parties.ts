@@ -17,7 +17,7 @@ import {
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import { defineTool, requireWrite } from "./context";
+import { defineTool, requireRead, requireWrite } from "./context";
 import { mcpBoolean } from "./schema";
 import {
 	partyDetailJson,
@@ -86,6 +86,7 @@ export function registerPartyTools(
 							.join("\n")}`,
 		},
 		async (input) => {
+			requireRead(context);
 			const page = await listParties(context.db, {
 				query: input.query,
 				type: input.type,
@@ -109,7 +110,10 @@ export function registerPartyTools(
 			text: (output) =>
 				`${output.name} (${output.type}) — ${output.documentCount} linked document(s).`,
 		},
-		async (input) => toPartyDetail(await getParty(context.db, input.id)),
+		async (input) => {
+			requireRead(context);
+			return toPartyDetail(await getParty(context.db, input.id));
+		},
 	);
 
 	defineTool(
@@ -223,7 +227,10 @@ export function registerPartyTools(
 					)
 					.join("\n") || "No duplicate Party.",
 		},
-		async () => ({ items: await listPartyDuplicates(context.db) }),
+		async () => {
+			requireRead(context);
+			return { items: await listPartyDuplicates(context.db) };
+		},
 	);
 
 	defineTool(
@@ -246,6 +253,7 @@ export function registerPartyTools(
 							.join("\n"),
 		},
 		async (input) => {
+			requireRead(context);
 			const rows = await findPartiesByIdentifier(
 				context.db,
 				input.kind,
@@ -261,5 +269,6 @@ export async function readPartyResource(
 	context: McpContext,
 	id: string,
 ): Promise<string> {
+	requireRead(context);
 	return JSON.stringify(toPartyDetail(await getParty(context.db, id)), null, 2);
 }

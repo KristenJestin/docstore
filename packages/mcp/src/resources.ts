@@ -1,7 +1,7 @@
 import { listDocuments } from "@docstore/api/services/document.service";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpContext } from "./context";
+import { type McpContext, requireRead } from "./context";
 import { readDocumentResource } from "./tools-documents";
 import { readPartyResource } from "./tools-parties";
 
@@ -16,6 +16,7 @@ export function registerResources(
 		"document",
 		new ResourceTemplate("docstore://document/{id}", {
 			list: async () => {
+				requireRead(context);
 				const page = await listDocuments(context.db, {
 					deleted: "exclude",
 					page: 1,

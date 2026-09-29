@@ -26,6 +26,7 @@ import {
 	getFileForDownload,
 	getThumbnailForDownload,
 } from "../services/file.service";
+import { assertSensitiveAccess } from "../services/sensitive-access.service";
 
 const TAGS = ["File"];
 
@@ -170,6 +171,7 @@ export const fileRouter = {
 		.handler(async ({ input, context }) => {
 			const ingestion = requireIngestion(context);
 			const file = await getFileForDownload(context.db, input.fileId);
+			assertSensitiveAccess(context.apiKey, file.documentSensitive);
 			const blob = await storageForFile(ingestion.ctx, file.encrypted).get(
 				file.storageKey,
 			);
@@ -188,6 +190,7 @@ export const fileRouter = {
 		.handler(async ({ input, context }) => {
 			const ingestion = requireIngestion(context);
 			const file = await getThumbnailForDownload(context.db, input.fileId);
+			assertSensitiveAccess(context.apiKey, file.documentSensitive);
 			const blob = await storageForFile(ingestion.ctx, file.encrypted).get(
 				file.thumbnailKey,
 			);

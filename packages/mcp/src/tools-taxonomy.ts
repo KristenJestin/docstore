@@ -5,13 +5,14 @@ import {
 	runRules,
 	testRule,
 } from "@docstore/api/services/rule.service";
+import { assertDocumentSensitiveAccess } from "@docstore/api/services/sensitive-access.service";
 import { createTag, listTags } from "@docstore/api/services/tag.service";
 import type { CategoryNode } from "@docstore/shared/category";
 import { hexColorSchema } from "@docstore/shared/common";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import { defineTool, requireWrite } from "./context";
+import { defineTool, requireRead, requireWrite } from "./context";
 import { mcpBoolean } from "./schema";
 
 const categoryJson = z.object({
@@ -91,9 +92,12 @@ export function registerTaxonomyTools(
 					.map((item) => `- ${item.id} — ${item.path} (${item.documentCount})`)
 					.join("\n") || "No category.",
 		},
-		async () => ({
-			items: flattenCategories(await listCategories(context.db)),
-		}),
+		async () => {
+			requireRead(context);
+			return {
+				items: flattenCategories(await listCategories(context.db)),
+			};
+		},
 	);
 
 	defineTool(
@@ -110,6 +114,7 @@ export function registerTaxonomyTools(
 					.join("\n") || "No tag.",
 		},
 		async (input) => {
+			requireRead(context);
 			const rows = await listTags(context.db, { query: input.query });
 			return {
 				items: rows.map((row) => ({
@@ -165,6 +170,7 @@ export function registerTaxonomyTools(
 					.join("\n") || "No custom field.",
 		},
 		async () => {
+			requireRead(context);
 			const rows = await listCustomFields(context.db);
 			return {
 				items: rows.map((row) => ({
@@ -201,6 +207,7 @@ export function registerTaxonomyTools(
 					.join("\n") || "No automation.",
 		},
 		async () => {
+			requireRead(context);
 			const rows = await listRules(context.db);
 			return {
 				items: rows.map((row) => ({
@@ -248,6 +255,13 @@ export function registerTaxonomyTools(
 			},
 		},
 		async (input) => {
+			requireRead(context);
+			// A dry run reads the OCR layer: same rule as `get_document_text`.
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.principal,
+				input.documentId,
+			);
 			const result = await testRule(context.db, {
 				ruleId: input.ruleId,
 				documentId: input.documentId,

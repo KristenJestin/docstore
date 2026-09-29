@@ -21,6 +21,11 @@ export interface FileForDownload {
 	/** Non-null if the document is in the trash. */
 	documentDeletedAt: Date | null;
 	documentTitle: string;
+	/**
+	 * `sensitive` flag of the document. Every reader that is not a browser
+	 * session checks it with `assertSensitiveAccess` before sending a byte.
+	 */
+	documentSensitive: boolean;
 }
 
 /**
@@ -44,6 +49,7 @@ export async function getFileForDownload(
 			encrypted: documentFile.encrypted,
 			documentDeletedAt: document.deletedAt,
 			documentTitle: document.title,
+			documentSensitive: document.sensitive,
 		})
 		.from(documentFile)
 		.innerJoin(document, eq(document.id, documentFile.documentId))

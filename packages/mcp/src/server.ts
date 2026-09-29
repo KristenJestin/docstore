@@ -38,7 +38,7 @@ apply_document_type writes all of that onto a document. A Dossier is a flat, cro
 closed. Reminders are generated from valid_until and from the recurring types.
 Two documents are linked by version_of, page_of, supersedes, related_to or
 fulfills (invoice <-> contract).
-Every write requires the write scope.
+Every read requires the read scope, every write the write scope.
 Search before creating: find_party_by_identifier and list_tags avoid duplicates.`;
 
 export interface CreateMcpServerOptions extends McpContext {}

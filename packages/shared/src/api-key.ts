@@ -71,3 +71,49 @@ export function hasScope(
 ): boolean {
 	return scopes.includes("admin") || scopes.includes(required);
 }
+
+/**
+ * Caller of a read, as the scope checks see it: the scopes of an API key, or
+ * `null` / `undefined` for a browser session, which keeps every right.
+ */
+export type ScopedCaller =
+	| { scopes: readonly ApiKeyScope[] }
+	| null
+	| undefined;
+
+/** Scope check shared by every surface: a session passes, a key needs it. */
+export function callerHasScope(
+	caller: ScopedCaller,
+	required: ApiKeyScope,
+): boolean {
+	return !caller || hasScope(caller.scopes, required);
+}
+
+/**
+ * The one decision on sensitive content (file bytes, thumbnail, OCR text, OCR
+ * layout), used by MCP, oRPC and the `/files` routes so they cannot drift.
+ */
+export function mayReadSensitive(caller: ScopedCaller): boolean {
+	return callerHasScope(caller, "sensitive");
+}
+
+/** Text returned instead of the OCR text of a sensitive document. */
+export const SENSITIVE_PLACEHOLDER =
+	"[sensitive document: `sensitive` scope required]";
+
+/**
+ * Replaces `content` with {@link SENSITIVE_PLACEHOLDER} when the document is
+ * sensitive and the caller may not read it; `masked` says which happened.
+ */
+export function maskSensitiveContent<
+	T extends { sensitive: boolean; content: string | null },
+>(document: T, caller: ScopedCaller): T & { masked: boolean } {
+	if (!document.sensitive || mayReadSensitive(caller)) {
+		return { ...document, masked: false };
+	}
+	return {
+		...document,
+		content: document.content === null ? null : SENSITIVE_PLACEHOLDER,
+		masked: true,
+	};
+}
