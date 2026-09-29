@@ -11,6 +11,7 @@ import {
 	trashDocument,
 	updateDocument,
 } from "@docstore/api/services/document.service";
+import { getDocumentWithUrls } from "@docstore/api/services/document-resolution.service";
 import {
 	approveReview,
 	countReview,
@@ -34,7 +35,6 @@ import type { McpContext } from "./context";
 import {
 	canReadSensitive,
 	defineTool,
-	McpToolError,
 	requireIngestion,
 	requireRead,
 	requireWrite,
@@ -42,11 +42,13 @@ import {
 import { mcpBoolean } from "./schema";
 import {
 	describeDocument,
-	describeDocumentDetail,
+	describeDocumentGet,
 	documentDetailJson,
+	documentGetJson,
 	documentSummaryJson,
 	reviewItemJson,
 	toDocumentDetail,
+	toDocumentGet,
 	toDocumentSummary,
 	toReviewItem,
 } from "./serialize";
@@ -129,14 +131,14 @@ export function registerDocumentTools(
 		{
 			title: "Document detail",
 			description:
-				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`).",
+				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`). Also returns the stable URLs worth citing: `webUrl` (the page) and `fileUrl` (`/d/<id>`, the primary file, readable with the same API key). The id of a document merged as a version returns the kept document, with `redirectedFrom` set to the id asked for; a trashed document is still returned with `deletedAt`; a permanently deleted one is an error.",
 			inputSchema: idInput,
-			outputSchema: documentDetailJson.shape,
-			text: (output) => describeDocumentDetail(output),
+			outputSchema: documentGetJson.shape,
+			text: (output) => describeDocumentGet(output),
 		},
 		async (input) => {
 			requireRead(context);
-			return toDocumentDetail(await getDocument(context.db, input.id));
+			return toDocumentGet(await getDocumentWithUrls(context.db, input.id));
 		},
 	);
 
@@ -547,9 +549,6 @@ export async function readDocumentResource(
 	id: string,
 ): Promise<string> {
 	requireRead(context);
-	const detail = await getDocument(context.db, id);
-	if (!detail) {
-		throw new McpToolError(`Document "${id}" not found.`);
-	}
-	return JSON.stringify(toDocumentDetail(detail), null, 2);
+	const detail = await getDocumentWithUrls(context.db, id);
+	return JSON.stringify(toDocumentGet(detail), null, 2);
 }

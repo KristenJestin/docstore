@@ -38,6 +38,9 @@ apply_document_type writes all of that onto a document. A Dossier is a flat, cro
 closed. Reminders are generated from valid_until and from the recurring types.
 Two documents are linked by version_of, page_of, supersedes, related_to or
 fulfills (invoice <-> contract).
+A doc_ id is a stable reference worth citing: after a merge get_document
+returns the kept document with redirectedFrom, and fileUrl (/d/<id>) serves the
+primary file to the same API key.
 Every read requires the read scope, every write the write scope.
 Search before creating: find_party_by_identifier and list_tags avoid duplicates.`;
 
