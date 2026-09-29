@@ -23,6 +23,7 @@ import {
 import { ORPCError } from "@orpc/server";
 import { and, asc, count, eq, inArray, ne, sql } from "drizzle-orm";
 import { documentEvents, emitsDocumentEvents } from "./document-events";
+import { refreshFieldReminders } from "./document-reminders";
 
 /** Values entered per field, in one round trip (list screen). */
 async function valueCounts(db: Db): Promise<Map<string, number>> {
@@ -92,6 +93,27 @@ function assertOptions(type: CustomFieldType, options: CustomFieldOptions) {
 			message: 'The currency only applies to "money" fields.',
 		});
 	}
+
+	if (
+		type !== "date" &&
+		(options.remind || options.reminderLeadDays !== undefined)
+	) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: 'Reminders only apply to "date" fields.',
+		});
+	}
+}
+
+/** Whether two option sets produce different reminders (issue #33). */
+function remindersDiffer(
+	before: CustomFieldOptions,
+	after: CustomFieldOptions,
+): boolean {
+	return (
+		Boolean(before.remind) !== Boolean(after.remind) ||
+		(before.reminderLeadDays ?? []).join(",") !==
+			(after.reminderLeadDays ?? []).join(",")
+	);
 }
 
 async function assertCategoriesExist(db: Db, ids: string[]): Promise<void> {
@@ -240,6 +262,11 @@ export async function updateCustomField(
 		throw new ORPCError("NOT_FOUND", {
 			message: `Custom field "${input.id}" not found.`,
 		});
+	}
+	// "Remind me" switched on or off, or other lead days: the documents that
+	// hold a value get their reminders now, not at the next daily run.
+	if (valueCount > 0 && remindersDiffer(current.options, row.options)) {
+		await refreshFieldReminders(db, row.id);
 	}
 	return { ...row, valueCount };
 }

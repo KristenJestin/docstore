@@ -30,6 +30,7 @@ import { orpc } from "@/utils/orpc";
 /** Icon tone per reminder kind. */
 const KIND_TONES: Record<ReminderKind, BadgeTone> = {
 	expiry: "warning",
+	field_date: "warning",
 	period_gap: "danger",
 	review_pending: "info",
 };
@@ -37,6 +38,7 @@ const KIND_TONES: Record<ReminderKind, BadgeTone> = {
 /** Section heading per reminder kind. */
 const KIND_HEADINGS: Record<ReminderKind, string> = {
 	expiry: "Expiring documents",
+	field_date: "Date fields",
 	period_gap: "Missing documents",
 	review_pending: "Waiting for review",
 };
@@ -91,7 +93,7 @@ export function ReminderList({ items, isLoading = false }: ReminderListProps) {
 				<EmptyState
 					icon={BellIcon}
 					title="Nothing to remember"
-					description="No document is about to expire and no recurring type has a gap. Use “Regenerate” after a bulk import."
+					description="No document is about to expire, no date field is coming up and no recurring type has a gap. Use “Regenerate” after a bulk import."
 				/>
 			</div>
 		);
@@ -145,6 +147,9 @@ export function ReminderList({ items, isLoading = false }: ReminderListProps) {
 											</p>
 										</div>
 
+										{reminder.fieldName ? (
+											<Badge tone="outline">{reminder.fieldName}</Badge>
+										) : null}
 										{reminder.periodKey ? (
 											<Badge tone="outline">{reminder.periodKey}</Badge>
 										) : null}

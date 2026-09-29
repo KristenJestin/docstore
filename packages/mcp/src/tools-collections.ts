@@ -133,6 +133,10 @@ const reminderJson = z.object({
 	documentTypeId: z.string().nullable(),
 	documentTypeName: z.string().nullable(),
 	period: z.string().nullable(),
+	/** `field_date`: the date custom field and the date it holds (issue #33). */
+	fieldId: z.string().nullable(),
+	fieldName: z.string().nullable(),
+	fieldDate: z.string().nullable(),
 });
 
 const savedSearchJson = z.object({
@@ -678,7 +682,7 @@ export function registerCollectionTools(
 		{
 			title: "List reminders",
 			description:
-				"Expiry reminders (`expiry`) and missing periods of the recurring types (`period_gap`), sorted by due date. By default, only pending reminders.",
+				'Expiry reminders (`expiry`), reminders of the date custom fields marked "remind me" (`field_date`, with `fieldName` and `fieldDate`) and missing periods of the recurring types (`period_gap`), sorted by due date. By default, only pending reminders. Without the `sensitive` scope, the `field_date` reminders of sensitive documents are withheld: their date is a masked field value.',
 			inputSchema: {
 				status: reminderStatusSchema.optional(),
 				kind: reminderKindSchema.optional(),
@@ -698,13 +702,17 @@ export function registerCollectionTools(
 		},
 		async (input) => {
 			requireRead(context);
-			const rows = await listReminders(context.db, {
-				status: input.status ?? "pending",
-				kind: input.kind,
-				upcoming: input.upcoming ?? true,
-				dueBefore: input.dueBefore,
-				limit: input.limit ?? 100,
-			});
+			const rows = await listReminders(
+				context.db,
+				{
+					status: input.status ?? "pending",
+					kind: input.kind,
+					upcoming: input.upcoming ?? true,
+					dueBefore: input.dueBefore,
+					limit: input.limit ?? 100,
+				},
+				context.principal,
+			);
 			return {
 				items: rows.map((row) => ({
 					id: row.id,
@@ -718,6 +726,9 @@ export function registerCollectionTools(
 					documentTypeId: row.documentTypeId,
 					documentTypeName: row.documentTypeName,
 					period: row.periodKey,
+					fieldId: row.fieldId,
+					fieldName: row.fieldName,
+					fieldDate: row.fieldDate,
 				})),
 			};
 		},

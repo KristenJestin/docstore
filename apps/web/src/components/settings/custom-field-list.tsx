@@ -54,6 +54,9 @@ import { SettingsPanel, SettingsStack } from "./settings-panel";
 /** Default currency proposed for a `money` field (the API falls back to it). */
 const DEFAULT_CURRENCY = "EUR";
 
+/** Highest lead time accepted by `reminderLeadDaysSchema`. */
+const MAX_LEAD_DAYS = 3650;
+
 /**
  * Custom field definitions (SPEC §2): ordered list reordered by drag and drop
  * (`SortableList`, keyboard included), creation and editing in a side sheet,
@@ -234,6 +237,8 @@ function CustomFieldSheet({
 	const [choices, setChoices] = useState<string[]>([]);
 	const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
 	const [allowNegative, setAllowNegative] = useState(false);
+	const [remind, setRemind] = useState(false);
+	const [leadDays, setLeadDays] = useState<string[]>([]);
 	const [categoryIds, setCategoryIds] = useState<string[]>([]);
 	const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
@@ -252,6 +257,8 @@ function CustomFieldSheet({
 		setChoices(field?.options.choices ?? []);
 		setCurrency(field?.options.currency ?? DEFAULT_CURRENCY);
 		setAllowNegative(field?.options.allowNegative ?? false);
+		setRemind(field?.options.remind ?? false);
+		setLeadDays((field?.options.reminderLeadDays ?? []).map(String));
 		setCategoryIds(field?.categoryIds ?? []);
 	}
 	if (!open && loadedFor !== null) {
@@ -263,6 +270,20 @@ function CustomFieldSheet({
 		if (!slugTouched) {
 			setSlug(slugify(value));
 		}
+	};
+
+	/** Keeps whole days only; the API sorts them and drops duplicates. */
+	const changeLeadDays = (values: string[]) => {
+		for (const value of values) {
+			const day = Number.parseInt(value, 10);
+			if (!/^\d+$/.test(value) || day > MAX_LEAD_DAYS) {
+				toast.error(
+					`"${value}" is not a valid lead time: use whole days between 0 and ${MAX_LEAD_DAYS}.`,
+				);
+				return;
+			}
+		}
+		setLeadDays(values);
 	};
 
 	const submit = async () => {
@@ -278,7 +299,14 @@ function CustomFieldSheet({
 					? { currency: currency.trim().toUpperCase(), allowNegative }
 					: type === "number"
 						? { allowNegative }
-						: {};
+						: type === "date" && remind
+							? {
+									remind,
+									...(leadDays.length > 0
+										? { reminderLeadDays: leadDays.map(Number) }
+										: {}),
+								}
+							: {};
 		try {
 			if (field) {
 				await updateField.mutateAsync({
@@ -419,6 +447,38 @@ function CustomFieldSheet({
 								onCheckedChange={setAllowNegative}
 							/>
 						</div>
+					) : null}
+
+					{type === "date" ? (
+						<div className="flex items-center justify-between gap-4">
+							<div>
+								<p className="font-medium text-sm">Remind me</p>
+								<p className="text-muted-foreground text-xs">
+									A document holding this date gets reminders before it, like an
+									expiry date.
+								</p>
+							</div>
+							<Switch
+								aria-label="Remind me"
+								checked={remind}
+								onCheckedChange={setRemind}
+							/>
+						</div>
+					) : null}
+
+					{type === "date" && remind ? (
+						<FormField
+							label="Days of notice"
+							htmlFor={`${fieldId}-lead-days`}
+							hint="Type a number then press Enter. Leave empty to use the expiry reminders of the settings (D-90, D-30, D-7 by default)."
+						>
+							<ChipsInput
+								id={`${fieldId}-lead-days`}
+								values={leadDays}
+								onValuesChange={changeLeadDays}
+								placeholder="30, then Enter"
+							/>
+						</FormField>
 					) : null}
 
 					<FormField

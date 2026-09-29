@@ -205,10 +205,13 @@ describe("reminder.generate — expiry", () => {
 	test("ignores trashed documents", async () => {
 		const id = await seedDocument("Old lease", { validUntil: "2027-06-30" });
 		await client.reminder.generate({});
+		// Trashing removes the reminders of the document at once (issue #33):
+		// the next run has nothing left to remove.
 		await client.document.trash({ id });
+		expect(await client.reminder.list({})).toHaveLength(0);
 
 		const result = await client.reminder.generate({});
-		expect(result.removed).toBe(3);
+		expect(result.removed).toBe(0);
 		expect(result.total).toBe(0);
 	});
 });

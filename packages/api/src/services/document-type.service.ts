@@ -107,7 +107,6 @@ import {
 } from "drizzle-orm";
 import { categorySubtreeIds } from "./category.service";
 import { documentEvents, emitsDocumentEvents } from "./document-events";
-import { generateRemindersForDocument } from "./reminder.service";
 import { likePattern } from "./sql-utils";
 
 /**
@@ -1620,11 +1619,6 @@ export const applyDocumentType = emitsDocumentEvents(
 		const results: ApplyDocumentTypeResultItem[] = [];
 		for (const documentId of ids) {
 			try {
-				const before = await db
-					.select({ validUntil: document.validUntil })
-					.from(document)
-					.where(eq(document.id, documentId))
-					.limit(1);
 				const outcome = await applyDocumentTypeToDocument(
 					db,
 					documentId,
@@ -1635,16 +1629,9 @@ export const applyDocumentType = emitsDocumentEvents(
 						...(options.ingestion ? { ingestion: options.ingestion } : {}),
 					},
 				);
-				// The type's extraction rules can set `validUntil` (`set_valid_until`):
-				// the expiry reminders are regenerated synchronously when it moved.
-				const after = await db
-					.select({ validUntil: document.validUntil })
-					.from(document)
-					.where(eq(document.id, documentId))
-					.limit(1);
-				if (before[0]?.validUntil !== after[0]?.validUntil) {
-					await generateRemindersForDocument(db, documentId);
-				}
+				// The type's extraction rules can set `validUntil` or a date field:
+				// recording the change is what refreshes the reminders
+				// (`document-events.ts`).
 				documentEvents().updated(documentId);
 				results.push({
 					documentId,
