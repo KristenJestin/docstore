@@ -1,4 +1,4 @@
-import { emitDocumentEvent, setSensitive } from "@docstore/ingestion";
+import { setSensitive } from "@docstore/ingestion";
 import {
 	clearDocumentFieldValueInput,
 	documentBulkInput,
@@ -287,11 +287,7 @@ export const documentRouter = {
 				patch,
 				sensitiveHook(context),
 			);
-			// SPEC §2 "Miscellaneous": `document.updated` subscribers are notified
-			// afterwards, with the state actually persisted.
-			if (context.ingestion) {
-				await emitDocumentEvent(context.ingestion.ctx, "document.updated", id);
-			}
+			// `document.updated` is emitted by the service, whatever the surface.
 			return withMaskedContent(context, updated);
 		}),
 

@@ -24,6 +24,7 @@ import { dateOnlySchema } from "@docstore/shared/common";
 import { customFieldValueSchema } from "@docstore/shared/custom-field";
 import {
 	documentPartyRoleSchema,
+	documentSortSchema,
 	documentStatusSchema,
 	updateDocumentInput,
 } from "@docstore/shared/document";
@@ -80,7 +81,7 @@ export function registerDocumentTools(
 		{
 			title: "Search documents",
 			description:
-				"French full-text search plus filters: category (subtree included), tags (all required), Party, status, year, date range, sensitive flag.",
+				"French full-text search plus filters: category (subtree included), tags (all required), Party, status, year, date range, sensitive flag. Incremental sync: pass `updatedSince` (the largest `updatedAt` you have seen) to get only what changed after it, oldest change first, trashed documents included (`deletedAt` set). When a page comes back full, call again with `updatedSince` and `afterId` set to the `updatedAt` and `id` of its last item.",
 			inputSchema: {
 				query: z.string().trim().min(1).optional(),
 				categoryId: z.string().min(1).optional(),
@@ -91,6 +92,22 @@ export function registerDocumentTools(
 				dateFrom: dateOnlySchema.optional(),
 				dateTo: dateOnlySchema.optional(),
 				sensitive: mcpBoolean.optional(),
+				updatedSince: z.iso
+					.datetime({ offset: true })
+					.optional()
+					.describe(
+						"ISO 8601 instant: only the documents changed strictly after it, trash included, ordered by `updatedAt` ascending (`sort` is ignored).",
+					),
+				afterId: z
+					.string()
+					.min(1)
+					.optional()
+					.describe(
+						"With `updatedSince`: resume after this document among those changed at that same instant (the `id` of the last item read).",
+					),
+				sort: documentSortSchema
+					.optional()
+					.describe("Order of the results (default `documentDate:desc`)."),
 				page: z.number().int().min(1).optional(),
 				pageSize: z.number().int().min(1).max(100).optional(),
 			},
@@ -114,10 +131,13 @@ export function registerDocumentTools(
 				dateFrom: input.dateFrom,
 				dateTo: input.dateTo,
 				sensitive: input.sensitive,
+				updatedSince: input.updatedSince,
+				afterId: input.afterId,
+				// With `updatedSince`, the service widens this to the trash.
 				deleted: "exclude",
 				page: input.page ?? 1,
 				pageSize: input.pageSize ?? 25,
-				sort: "documentDate:desc",
+				sort: input.sort ?? "documentDate:desc",
 			});
 			return { ...page, items: page.items.map(toDocumentSummary) };
 		},

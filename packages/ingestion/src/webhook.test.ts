@@ -6,6 +6,7 @@ import {
 	expect,
 	test,
 } from "bun:test";
+import { document } from "@docstore/db/schema/document";
 import { webhook, webhookDelivery } from "@docstore/db/schema/webhook";
 import type { TestDb } from "@docstore/db/test-utils";
 import { createTestDb, truncateAll } from "@docstore/db/test-utils";
@@ -284,7 +285,14 @@ describe("webhookDocumentSummary", () => {
 			sourceRef: "ulk_test",
 			sensitive: false,
 			reviewReasons: [],
+			deletedAt: null,
 		});
+		// Issue #3: the receiver can move its sync cursor from the event alone.
+		const [row] = await db
+			.select({ updatedAt: document.updatedAt })
+			.from(document)
+			.where(eq(document.id, created.documentId));
+		expect(summary?.updatedAt).toBe(row?.updatedAt.toISOString());
 		expect(await webhookDocumentSummary(db, "doc_missing")).toBeNull();
 	});
 });

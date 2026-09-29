@@ -50,6 +50,7 @@ import {
 import { getContentLocale } from "./settings";
 import type { DocumentSubject } from "./subject";
 import { buildSubject, categoryChainIds, loadExtractionInput } from "./subject";
+import { touchDocuments } from "./touch";
 import { emitRuleWebhook } from "./webhook";
 
 /**
@@ -570,6 +571,13 @@ export async function applyOperations(
 			default:
 				break;
 		}
+	}
+
+	// Tags, parties, field values and dossiers live in their own tables: the
+	// document itself must still read as changed for the sync cursor. A
+	// `webhook` delivery writes nothing on the document.
+	if (result.applied.some((operation) => operation.type !== "webhook")) {
+		await touchDocuments(db, [documentId]);
 	}
 
 	return result;

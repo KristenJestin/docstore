@@ -223,6 +223,7 @@ export {
 	primaryFile,
 	type TitleDateDuplicate,
 } from "./subject";
+export { type DocumentWriter, touchDocuments } from "./touch";
 export {
 	type DeliveryOutcome,
 	deliverWebhook,

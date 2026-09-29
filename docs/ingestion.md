@@ -496,8 +496,34 @@ returns the same `url` on every item, so the management screen never rebuilds it
 | `document.created`   | At intake, before any processing                         |
 | `document.processed` | `finalize` made the document `active`                    |
 | `document.review`    | `finalize` sent it to the "to review" queue              |
-| `document.updated`   | `document.update` changed the metadata                   |
+| `document.updated`   | Any change to what the document is (see below)           |
+| `document.trashed`   | The document went to the trash                           |
+| `document.restored`  | The document came back from the trash                    |
+| `document.deleted`   | The document was deleted permanently                     |
+| `document.merged`    | The document was absorbed by another one (`keptDocumentId`) and went to the trash |
 | `reminder.due`       | A reminder has just been created and its due date is reached |
+
+The `document.*` events come from the business services, not from the
+routers: the web app, the oRPC API, the MCP tools, bulk actions, automation
+runs and document types all go through the same services, so none of them can
+forget to notify. `document.updated` covers metadata, category, tags, parties,
+custom field values, document type (applied, forced or excluded), Dossiers,
+relations, files, the sensitive flag, the archive number, review approval and
+rejection, and reprocessing. It also reaches the documents touched by a
+taxonomy change: a tag, Party or custom field deleted or merged away, a
+category or Dossier deleted.
+
+One operation sends at most one event per document. An approval that applies a
+patch first is one `document.updated`, not two; a bulk action sends one event
+per document it actually changed, and none for a document it left as it was
+(a tag it already carried, a trash it already sat in). When several events
+apply to the same document, the strongest one wins: `deleted`, then `merged`,
+then `trashed`/`restored`, then `updated`. The merge of a duplicate sends
+`document.merged` for the absorbed document and `document.updated` for the
+kept one, which gained its files. An operation that fails sends nothing.
+
+Rule runs inside the pipeline stay covered by `document.processed` and
+`document.review`: the pipeline announces its outcome once, when it is done.
 
 ```ts
 const hook = await client.webhook.create({
@@ -508,6 +534,15 @@ const hook = await client.webhook.create({
 console.log(hook.secret); // signing key, to copy over to the recipient
 await client.webhook.test({ id: hook.id }); // sends a "ping" event
 ```
+
+The body of a `document.*` event is
+`{ event, document, keptDocumentId? }`, where `document` summarizes the
+document: `id`, `title`, `status`, `source`, `sourceRef`, `documentDate`,
+`categoryId`, `sensitive`, `reviewReasons`, `createdAt`, `updatedAt` and
+`deletedAt` (ISO 8601, `null` outside the trash). `updatedAt` is the value
+`document.list` returns for that same state, so a receiver can move its sync
+cursor from the event alone. `document.deleted` carries the last state read
+before the row went away; `keptDocumentId` is only set on `document.merged`.
 
 Every delivery is a JSON `POST` carrying:
 
@@ -554,6 +589,59 @@ import hmac, hashlib
 expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 assert hmac.compare_digest(expected, request.headers["X-Docstore-Signature"])
 ```
+
+### Keep an agent in sync
+
+An agent that keeps notes about the library (a "life wiki") needs two things:
+ask what changed since its last visit, and hear about changes as they happen.
+`document.list` (oRPC, `GET /api-reference/documents` in REST) and the MCP tool
+`search_documents` both take an incremental cursor:
+
+- `updatedSince` (ISO 8601 instant): only the documents whose `updated_at` is
+  strictly after it. The order is then always `updatedAt` ascending, then `id`,
+  whatever `sort` says, and trashed documents are included (with `status` and
+  `deletedAt`) so that a deletion is visible to the cursor. `deleted: "only"`
+  still narrows the result to the trash.
+- `afterId`: the tie-breaker. A bulk action stamps every document it changes
+  with the same instant; with `afterId`, the listing resumes after that
+  document among those sharing the cursor instant.
+
+`updated_at` moves on every change listed above for `document.updated`, and on
+trash, restore and merge. It is stored at millisecond precision, the precision
+of the `updatedAt` the API returns, so the value read back is a valid cursor
+as is.
+
+```ts
+// First visit: no cursor, read everything once.
+let cursor = { updatedSince: "1970-01-01T00:00:00.000Z" } as {
+  updatedSince: string;
+  afterId?: string;
+};
+for (;;) {
+  const page = await client.document.list({ ...cursor, pageSize: 100 });
+  for (const item of page.items) {
+    if (item.deletedAt) forget(item.id); // trashed
+    else refresh(item.id);
+  }
+  const last = page.items.at(-1);
+  if (!last) break;
+  cursor = { updatedSince: last.updatedAt.toISOString(), afterId: last.id };
+}
+save(cursor); // next visit starts from here
+```
+
+Keep calling with the same page (the default `page: 1`) and move the cursor;
+paging with `page` over a moving set can skip a document that changed in
+between. A document deleted permanently leaves no row behind, so the cursor
+cannot report it: subscribe to `document.deleted` for that, or treat a
+`NOT_FOUND` on a document you know about as its deletion.
+
+The cursor is a timestamp written by the application, not a log sequence: a
+write whose transaction commits a few milliseconds after a later one could be
+read behind the cursor. An agent that cannot afford to miss anything moves its
+cursor back by a few seconds on each visit and ignores the `(id, updatedAt)`
+pairs it has already seen, and subscribes to the webhooks for the changes in
+between.
 
 ### `webhook` rule action
 

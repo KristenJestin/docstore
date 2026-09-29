@@ -23,6 +23,7 @@ import {
 	clearDocumentType,
 	computeReviewReasons,
 	revokeShareLinksForSensitive,
+	touchDocuments,
 } from "@docstore/ingestion";
 import type { CategorySummary } from "@docstore/shared/category";
 import type {
@@ -85,6 +86,11 @@ import {
 	requireCustomField,
 } from "./custom-field.service";
 import {
+	documentEvents,
+	documentSnapshot,
+	emitsDocumentEvents,
+} from "./document-events";
+import {
 	applyDocumentType as applyDocumentTypeToDocuments,
 	documentTypeForDocument,
 	documentTypeMemberDocumentIds,
@@ -142,6 +148,7 @@ const documentListColumns = {
 	datePrecision: document.datePrecision,
 	sensitive: document.sensitive,
 	createdAt: document.createdAt,
+	updatedAt: document.updatedAt,
 	deletedAt: document.deletedAt,
 	categoryId: document.categoryId,
 	categorySource: document.categorySource,
@@ -196,6 +203,10 @@ function orderByClause(sort: DocumentSort): SQL[] {
 			return [desc(document.title), asc(document.id)];
 		case "validUntil:asc":
 			return [sql`${document.validUntil} asc nulls last`, asc(document.id)];
+		case "updatedAt:desc":
+			return [desc(document.updatedAt), desc(document.id)];
+		case "updatedAt:asc":
+			return [asc(document.updatedAt), asc(document.id)];
 		default:
 			return [sql`${document.documentDate} desc nulls last`, asc(document.id)];
 	}
@@ -332,13 +343,42 @@ async function fieldFilterConditions(
 	});
 }
 
+/**
+ * Condition of the incremental sync: strictly after the cursor instant, or,
+ * with `afterId`, strictly after the `(updatedAt, id)` pair, which is what the
+ * `updatedAt:asc` order walks through.
+ *
+ * The instant goes through `toISOString()` and a `timestamp` cast, the same
+ * UTC wall-clock value Drizzle writes into the column.
+ */
+function updatedSinceCondition(updatedSince: string, afterId?: string): SQL {
+	const instant = new Date(updatedSince).toISOString();
+	return afterId
+		? sql`(${document.updatedAt}, ${document.id}) > (${instant}::timestamp, ${afterId})`
+		: sql`${document.updatedAt} > ${instant}::timestamp`;
+}
+
 function listConditions(input: ListDocumentsInput): SQL[] {
 	const conditions: SQL[] = [];
 
-	if (input.deleted === "exclude") {
+	if (input.afterId && !input.updatedSince) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "`afterId` only makes sense along with `updatedSince`.",
+		});
+	}
+	// A sync must see the documents leaving for the trash: `exclude`, the
+	// default, reads as `include` there.
+	const deleted =
+		input.updatedSince && input.deleted === "exclude"
+			? "include"
+			: input.deleted;
+	if (deleted === "exclude") {
 		conditions.push(isNull(document.deletedAt));
-	} else if (input.deleted === "only") {
+	} else if (deleted === "only") {
 		conditions.push(isNotNull(document.deletedAt));
+	}
+	if (input.updatedSince) {
+		conditions.push(updatedSinceCondition(input.updatedSince, input.afterId));
 	}
 	if (input.status) {
 		conditions.push(eq(document.status, input.status));
@@ -636,15 +676,19 @@ export async function listDocuments(
 		.where(where);
 	const total = totalRows[0]?.value ?? 0;
 
-	const orderBy = input.query
-		? [
-				desc(
-					sql`ts_rank(${document.searchVector}, ${frenchQuery(input.query)})`,
-				),
-				sql`${document.documentDate} desc nulls last`,
-				asc(document.id),
-			]
-		: orderByClause(input.sort);
+	// The cursor dictates the order: any other one would make "the `updatedAt`
+	// of the last item read" a wrong next cursor.
+	const orderBy = input.updatedSince
+		? orderByClause("updatedAt:asc")
+		: input.query
+			? [
+					desc(
+						sql`ts_rank(${document.searchVector}, ${frenchQuery(input.query)})`,
+					),
+					sql`${document.documentDate} desc nulls last`,
+					asc(document.id),
+				]
+			: orderByClause(input.sort);
 
 	const rows = await db
 		.select(documentListColumns)
@@ -798,7 +842,7 @@ export async function getDocument(db: Db, id: string): Promise<DocumentDetail> {
  * `kind` also frees the sha256 uniqueness of originals —, a `version_of`
  * relation is created and the duplicate goes to the trash.
  */
-export async function mergeAsVersion(
+export const mergeAsVersion = emitsDocumentEvents(async function mergeAsVersion(
 	db: Db,
 	input: MergeAsVersionInput,
 ): Promise<MergeAsVersionResult> {
@@ -831,16 +875,21 @@ export async function mergeAsVersion(
 			.update(document)
 			.set({ deletedAt: new Date() })
 			.where(eq(document.id, input.documentId));
+		// The kept document gained files and a relation.
+		await touchDocuments(tx, [input.intoDocumentId]);
 
 		return moved.length;
 	});
+
+	documentEvents().merged(input.documentId, input.intoDocumentId);
+	documentEvents().updated(input.intoDocumentId);
 
 	return {
 		target: await getDocument(db, input.intoDocumentId),
 		trashedId: input.documentId,
 		movedFiles,
 	};
-}
+});
 
 /** `ocr_layout` is bulky: only this procedure returns it. */
 export async function getDocumentFileLayout(
@@ -944,7 +993,7 @@ export type UpdateDocumentOptions = {
 	ingestion?: IngestionContext;
 };
 
-export async function updateDocument(
+export const updateDocument = emitsDocumentEvents(async function updateDocument(
 	db: Db,
 	id: string,
 	input: UpdateDocumentInput,
@@ -1021,6 +1070,9 @@ export async function updateDocument(
 			}
 			throw error;
 		}
+		// SPEC §2 "Miscellaneous": `document.updated` subscribers are notified
+		// once the operation returns, with the state actually persisted.
+		documentEvents().updated(id);
 	}
 
 	// Re-encryption comes after the write: the flag is already persisted, so a
@@ -1051,7 +1103,7 @@ export async function updateDocument(
 	}
 
 	return getDocument(db, id);
-}
+});
 
 /* ------------------------------------------------------------------ */
 /* Physical archiving (ASN)                                             */
@@ -1081,7 +1133,10 @@ export async function nextAsn(db: Db): Promise<NextAsnResult> {
  * with the automatic numbering: whoever asks, a number is handed out once and
  * never twice.
  */
-export async function assignAsn(db: Db, id: string): Promise<DocumentDetail> {
+export const assignAsn = emitsDocumentEvents(async function assignAsn(
+	db: Db,
+	id: string,
+): Promise<DocumentDetail> {
 	// Numbering a document is filing it in a paper folder: the trash is not one
 	// (SPEC §2), and the number would be burnt on a document nobody keeps.
 	// Already numbered: `allocateAsn` returns null rather than wasting a second
@@ -1089,7 +1144,9 @@ export async function assignAsn(db: Db, id: string): Promise<DocumentDetail> {
 	await requireLiveDocument(db, id);
 
 	try {
-		await allocateAsn(db, id, "manual");
+		if ((await allocateAsn(db, id, "manual")) !== null) {
+			documentEvents().updated(id);
+		}
 	} catch (error) {
 		if (error instanceof AsnAllocationError) {
 			throw new ORPCError("CONFLICT", { message: error.message });
@@ -1097,7 +1154,7 @@ export async function assignAsn(db: Db, id: string): Promise<DocumentDetail> {
 		throw error;
 	}
 	return getDocument(db, id);
-}
+});
 
 /** Document carrying this ASN; `NOT_FOUND` when the number is free. */
 export async function getDocumentByAsn(
@@ -1144,106 +1201,118 @@ async function requireParties(db: Db, partyIds: string[]): Promise<void> {
 }
 
 /** Replaces every link of the document with the provided list. */
-export async function setDocumentParties(
-	db: Db,
-	id: string,
-	parties: DocumentPartyAssignment[],
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
+export const setDocumentParties = emitsDocumentEvents(
+	async function setDocumentParties(
+		db: Db,
+		id: string,
+		parties: DocumentPartyAssignment[],
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
 
-	const unique = new Map<string, DocumentPartyAssignment>();
-	for (const assignment of parties) {
-		unique.set(`${assignment.partyId}:${assignment.role}`, assignment);
-	}
-	const assignments = [...unique.values()];
-	await requireParties(db, [
-		...new Set(assignments.map((item) => item.partyId)),
-	]);
-
-	await db.transaction(async (tx) => {
-		await tx.delete(documentParty).where(eq(documentParty.documentId, id));
-		if (assignments.length > 0) {
-			await tx.insert(documentParty).values(
-				assignments.map((assignment) => ({
-					documentId: id,
-					partyId: assignment.partyId,
-					role: assignment.role,
-					source: "manual" as const,
-					confidence: null,
-				})),
-			);
+		const unique = new Map<string, DocumentPartyAssignment>();
+		for (const assignment of parties) {
+			unique.set(`${assignment.partyId}:${assignment.role}`, assignment);
 		}
-	});
+		const assignments = [...unique.values()];
+		await requireParties(db, [
+			...new Set(assignments.map((item) => item.partyId)),
+		]);
 
-	// `missingIssuer` and the low-confidence reasons on the parties are settled.
-	await computeReviewReasons(db, id);
-	return getDocument(db, id);
-}
-
-export async function addDocumentParty(
-	db: Db,
-	id: string,
-	partyId: string,
-	role: DocumentPartyRole,
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
-	await requireParties(db, [partyId]);
-
-	const existing = await db
-		.select({ documentId: documentParty.documentId })
-		.from(documentParty)
-		.where(
-			and(
-				eq(documentParty.documentId, id),
-				eq(documentParty.partyId, partyId),
-				eq(documentParty.role, role),
-			),
-		)
-		.limit(1);
-	if (existing[0]) {
-		throw new ORPCError("CONFLICT", {
-			message: "This Party is already linked to the document with this role.",
+		await db.transaction(async (tx) => {
+			await tx.delete(documentParty).where(eq(documentParty.documentId, id));
+			if (assignments.length > 0) {
+				await tx.insert(documentParty).values(
+					assignments.map((assignment) => ({
+						documentId: id,
+						partyId: assignment.partyId,
+						role: assignment.role,
+						source: "manual" as const,
+						confidence: null,
+					})),
+				);
+			}
+			await touchDocuments(tx, [id]);
 		});
-	}
+		documentEvents().updated(id);
 
-	await db.insert(documentParty).values({
-		documentId: id,
-		partyId,
-		role,
-		source: "manual",
-		confidence: null,
-	});
+		// `missingIssuer` and the low-confidence reasons on the parties are settled.
+		await computeReviewReasons(db, id);
+		return getDocument(db, id);
+	},
+);
 
-	await computeReviewReasons(db, id);
-	return getDocument(db, id);
-}
+export const addDocumentParty = emitsDocumentEvents(
+	async function addDocumentParty(
+		db: Db,
+		id: string,
+		partyId: string,
+		role: DocumentPartyRole,
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+		await requireParties(db, [partyId]);
 
-export async function removeDocumentParty(
-	db: Db,
-	id: string,
-	partyId: string,
-	role: DocumentPartyRole,
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
+		const existing = await db
+			.select({ documentId: documentParty.documentId })
+			.from(documentParty)
+			.where(
+				and(
+					eq(documentParty.documentId, id),
+					eq(documentParty.partyId, partyId),
+					eq(documentParty.role, role),
+				),
+			)
+			.limit(1);
+		if (existing[0]) {
+			throw new ORPCError("CONFLICT", {
+				message: "This Party is already linked to the document with this role.",
+			});
+		}
 
-	const deleted = await db
-		.delete(documentParty)
-		.where(
-			and(
-				eq(documentParty.documentId, id),
-				eq(documentParty.partyId, partyId),
-				eq(documentParty.role, role),
-			),
-		)
-		.returning({ partyId: documentParty.partyId });
-	if (!deleted[0]) {
-		throw new ORPCError("NOT_FOUND", {
-			message: "This document/Party link does not exist.",
+		await db.insert(documentParty).values({
+			documentId: id,
+			partyId,
+			role,
+			source: "manual",
+			confidence: null,
 		});
-	}
+		await touchDocuments(db, [id]);
+		documentEvents().updated(id);
 
-	return getDocument(db, id);
-}
+		await computeReviewReasons(db, id);
+		return getDocument(db, id);
+	},
+);
+
+export const removeDocumentParty = emitsDocumentEvents(
+	async function removeDocumentParty(
+		db: Db,
+		id: string,
+		partyId: string,
+		role: DocumentPartyRole,
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+
+		const deleted = await db
+			.delete(documentParty)
+			.where(
+				and(
+					eq(documentParty.documentId, id),
+					eq(documentParty.partyId, partyId),
+					eq(documentParty.role, role),
+				),
+			)
+			.returning({ partyId: documentParty.partyId });
+		if (!deleted[0]) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "This document/Party link does not exist.",
+			});
+		}
+		await touchDocuments(db, [id]);
+		documentEvents().updated(id);
+
+		return getDocument(db, id);
+	},
+);
 
 async function setDeletedAt(
 	db: Db,
@@ -1271,15 +1340,31 @@ async function setDeletedAt(
  * Trashing an already trashed document is a no-op — pushing back `deletedAt`
  * would restart the retention clock on something the user dropped long ago.
  */
-export async function trashDocument(db: Db, id: string): Promise<DocumentDto> {
+export const trashDocument = emitsDocumentEvents(async function trashDocument(
+	db: Db,
+	id: string,
+): Promise<DocumentDto> {
 	const current = await requireDocument(db, id);
 	if (current.deletedAt) return current;
-	return setDeletedAt(db, id, new Date());
-}
+	const trashed = await setDeletedAt(db, id, new Date());
+	documentEvents().trashed(id);
+	return trashed;
+});
 
-export function restoreDocument(db: Db, id: string): Promise<DocumentDto> {
-	return setDeletedAt(db, id, null);
-}
+/**
+ * Leaves the trash. Restoring a document that is not in it is a no-op, like
+ * trashing one that already is: nothing changed, so nothing is written or
+ * announced.
+ */
+export const restoreDocument = emitsDocumentEvents(
+	async function restoreDocument(db: Db, id: string): Promise<DocumentDto> {
+		const current = await requireDocument(db, id);
+		if (!current.deletedAt) return current;
+		const restored = await setDeletedAt(db, id, null);
+		documentEvents().restored(id);
+		return restored;
+	},
+);
 
 export type DeleteDocumentOptions = {
 	/**
@@ -1289,40 +1374,45 @@ export type DeleteDocumentOptions = {
 	onDeleteFiles?: (storageKeys: string[]) => Promise<void>;
 };
 
-export async function deleteDocumentPermanently(
-	db: Db,
-	id: string,
-	options: DeleteDocumentOptions = {},
-): Promise<{ id: string; deleted: true; storageKeys: string[] }> {
-	await requireDocument(db, id);
+export const deleteDocumentPermanently = emitsDocumentEvents(
+	async function deleteDocumentPermanently(
+		db: Db,
+		id: string,
+		options: DeleteDocumentOptions = {},
+	): Promise<{ id: string; deleted: true; storageKeys: string[] }> {
+		await requireDocument(db, id);
+		// `document.deleted` carries the last known state: read before the row goes.
+		const snapshot = await documentSnapshot(db, id);
 
-	const files = await db
-		.select({
-			storageKey: documentFile.storageKey,
-			thumbnailKey: documentFile.thumbnailKey,
-		})
-		.from(documentFile)
-		.where(eq(documentFile.documentId, id));
+		const files = await db
+			.select({
+				storageKey: documentFile.storageKey,
+				thumbnailKey: documentFile.thumbnailKey,
+			})
+			.from(documentFile)
+			.where(eq(documentFile.documentId, id));
 
-	const storageKeys = files.flatMap((file) =>
-		file.thumbnailKey
-			? [file.storageKey, file.thumbnailKey]
-			: [file.storageKey],
-	);
+		const storageKeys = files.flatMap((file) =>
+			file.thumbnailKey
+				? [file.storageKey, file.thumbnailKey]
+				: [file.storageKey],
+		);
 
-	// `document_file` and `document_party` are deleted by cascade. So is the
-	// ASN, which goes with the row: the sheet is out of the binder for good, so
-	// its number is free again and `nextAsn` hands it out to the next document.
-	// Trashing does not do this — a trashed document keeps its number, because
-	// restoring it has to put it back under the number written on the sheet.
-	await db.delete(document).where(eq(document.id, id));
+		// `document_file` and `document_party` are deleted by cascade. So is the
+		// ASN, which goes with the row: the sheet is out of the binder for good, so
+		// its number is free again and `nextAsn` hands it out to the next document.
+		// Trashing does not do this — a trashed document keeps its number, because
+		// restoring it has to put it back under the number written on the sheet.
+		await db.delete(document).where(eq(document.id, id));
+		if (snapshot) documentEvents().deleted(snapshot);
 
-	if (options.onDeleteFiles) {
-		await options.onDeleteFiles(storageKeys);
-	}
+		if (options.onDeleteFiles) {
+			await options.onDeleteFiles(storageKeys);
+		}
 
-	return { id, deleted: true, storageKeys };
-}
+		return { id, deleted: true, storageKeys };
+	},
+);
 
 /* ------------------------------------------------------------------ */
 /* Category, tags and custom fields                                     */
@@ -1333,58 +1423,65 @@ export async function deleteDocumentPermanently(
  * A category someone typed is theirs, so the approval stamp goes with the value
  * it described.
  */
-export async function setDocumentCategory(
-	db: Db,
-	id: string,
-	categoryId: string | null,
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
-	if (categoryId) {
-		await assertCategoryExists(db, categoryId);
-	}
-	await db
-		.update(document)
-		.set({
-			categoryId,
-			categorySource: "manual",
-			categoryConfidence: null,
-			categoryConfirmedAt: null,
-		})
-		.where(eq(document.id, id));
-	// `missingCategory` and the low-confidence reason on the category no longer
-	// apply once a human has decided.
-	await computeReviewReasons(db, id);
-	return getDocument(db, id);
-}
+export const setDocumentCategory = emitsDocumentEvents(
+	async function setDocumentCategory(
+		db: Db,
+		id: string,
+		categoryId: string | null,
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+		if (categoryId) {
+			await assertCategoryExists(db, categoryId);
+		}
+		await db
+			.update(document)
+			.set({
+				categoryId,
+				categorySource: "manual",
+				categoryConfidence: null,
+				categoryConfirmedAt: null,
+			})
+			.where(eq(document.id, id));
+		documentEvents().updated(id);
+		// `missingCategory` and the low-confidence reason on the category no longer
+		// apply once a human has decided.
+		await computeReviewReasons(db, id);
+		return getDocument(db, id);
+	},
+);
 
 /** Replaces every tag of the document (source "manual"). */
-export async function setDocumentTags(
-	db: Db,
-	id: string,
-	tagIds: string[],
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
-	const unique = [...new Set(tagIds)];
-	await requireTags(db, unique);
+export const setDocumentTags = emitsDocumentEvents(
+	async function setDocumentTags(
+		db: Db,
+		id: string,
+		tagIds: string[],
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+		const unique = [...new Set(tagIds)];
+		await requireTags(db, unique);
 
-	await db.transaction(async (tx) => {
-		await tx.delete(documentTag).where(eq(documentTag.documentId, id));
-		if (unique.length > 0) {
-			await tx.insert(documentTag).values(
-				unique.map((tagId) => ({
-					documentId: id,
-					tagId,
-					source: "manual" as const,
-					confidence: null,
-				})),
-			);
-		}
-	});
+		await db.transaction(async (tx) => {
+			await tx.delete(documentTag).where(eq(documentTag.documentId, id));
+			if (unique.length > 0) {
+				await tx.insert(documentTag).values(
+					unique.map((tagId) => ({
+						documentId: id,
+						tagId,
+						source: "manual" as const,
+						confidence: null,
+					})),
+				);
+			}
+			await touchDocuments(tx, [id]);
+		});
+		documentEvents().updated(id);
 
-	return getDocument(db, id);
-}
+		return getDocument(db, id);
+	},
+);
 
-export async function addDocumentTag(
+export const addDocumentTag = emitsDocumentEvents(async function addDocumentTag(
 	db: Db,
 	id: string,
 	tagId: string,
@@ -1392,99 +1489,117 @@ export async function addDocumentTag(
 	await requireLiveDocument(db, id);
 	await requireTags(db, [tagId]);
 
-	await db
+	const inserted = await db
 		.insert(documentTag)
 		.values({ documentId: id, tagId, source: "manual", confidence: null })
-		.onConflictDoNothing();
-
-	return getDocument(db, id);
-}
-
-export async function removeDocumentTag(
-	db: Db,
-	id: string,
-	tagId: string,
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
-	const deleted = await db
-		.delete(documentTag)
-		.where(and(eq(documentTag.documentId, id), eq(documentTag.tagId, tagId)))
+		.onConflictDoNothing()
 		.returning({ tagId: documentTag.tagId });
-	if (!deleted[0]) {
-		throw new ORPCError("NOT_FOUND", {
-			message: "This tag is not associated with the document.",
-		});
+	// Already tagged: nothing changed, nothing to announce.
+	if (inserted.length > 0) {
+		await touchDocuments(db, [id]);
+		documentEvents().updated(id);
 	}
+
 	return getDocument(db, id);
-}
+});
+
+export const removeDocumentTag = emitsDocumentEvents(
+	async function removeDocumentTag(
+		db: Db,
+		id: string,
+		tagId: string,
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+		const deleted = await db
+			.delete(documentTag)
+			.where(and(eq(documentTag.documentId, id), eq(documentTag.tagId, tagId)))
+			.returning({ tagId: documentTag.tagId });
+		if (!deleted[0]) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "This tag is not associated with the document.",
+			});
+		}
+		await touchDocuments(db, [id]);
+		documentEvents().updated(id);
+		return getDocument(db, id);
+	},
+);
 
 /**
  * Writes a custom field value. `source: "rule"` (with its confidence) is what
  * the "Extract" action of a field uses when the user applies the result of a
  * tested extraction rule; everything else is a manual entry.
  */
-export async function setDocumentFieldValue(
-	db: Db,
-	id: string,
-	fieldId: string,
-	value: CustomFieldValue,
-	origin: { source?: "manual" | "rule"; confidence?: number | null } = {},
-): Promise<DocumentDetail> {
-	const current = await requireLiveDocument(db, id);
-	const field = await requireCustomField(db, fieldId);
-	assertFieldAppliesToCategory(
-		field,
-		await categoryChainIds(db, current.categoryId),
-	);
-	assertValueMatchesField(field, value);
+export const setDocumentFieldValue = emitsDocumentEvents(
+	async function setDocumentFieldValue(
+		db: Db,
+		id: string,
+		fieldId: string,
+		value: CustomFieldValue,
+		origin: { source?: "manual" | "rule"; confidence?: number | null } = {},
+	): Promise<DocumentDetail> {
+		const current = await requireLiveDocument(db, id);
+		const field = await requireCustomField(db, fieldId);
+		assertFieldAppliesToCategory(
+			field,
+			await categoryChainIds(db, current.categoryId),
+		);
+		assertValueMatchesField(field, value);
 
-	if (value.kind === "party_ref") {
-		await requireParties(db, [value.partyId]);
-	}
+		if (value.kind === "party_ref") {
+			await requireParties(db, [value.partyId]);
+		}
 
-	const source = origin.source ?? "manual";
-	const confidence = source === "rule" ? (origin.confidence ?? null) : null;
+		const source = origin.source ?? "manual";
+		const confidence = source === "rule" ? (origin.confidence ?? null) : null;
 
-	// A new value invalidates the approval the old one carried.
-	await db
-		.insert(documentFieldValue)
-		.values({ documentId: id, fieldId, value, source, confidence })
-		.onConflictDoUpdate({
-			target: [documentFieldValue.documentId, documentFieldValue.fieldId],
-			set: {
-				value,
-				source,
-				confidence,
-				confirmedAt: null,
-				updatedAt: new Date(),
-			},
-		});
+		// A new value invalidates the approval the old one carried.
+		await db
+			.insert(documentFieldValue)
+			.values({ documentId: id, fieldId, value, source, confidence })
+			.onConflictDoUpdate({
+				target: [documentFieldValue.documentId, documentFieldValue.fieldId],
+				set: {
+					value,
+					source,
+					confidence,
+					confirmedAt: null,
+					updatedAt: new Date(),
+				},
+			});
+		await touchDocuments(db, [id]);
+		documentEvents().updated(id);
 
-	return getDocument(db, id);
-}
+		return getDocument(db, id);
+	},
+);
 
-export async function clearDocumentFieldValue(
-	db: Db,
-	id: string,
-	fieldId: string,
-): Promise<DocumentDetail> {
-	await requireLiveDocument(db, id);
-	const deleted = await db
-		.delete(documentFieldValue)
-		.where(
-			and(
-				eq(documentFieldValue.documentId, id),
-				eq(documentFieldValue.fieldId, fieldId),
-			),
-		)
-		.returning({ fieldId: documentFieldValue.fieldId });
-	if (!deleted[0]) {
-		throw new ORPCError("NOT_FOUND", {
-			message: "No value for this custom field on this document.",
-		});
-	}
-	return getDocument(db, id);
-}
+export const clearDocumentFieldValue = emitsDocumentEvents(
+	async function clearDocumentFieldValue(
+		db: Db,
+		id: string,
+		fieldId: string,
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+		const deleted = await db
+			.delete(documentFieldValue)
+			.where(
+				and(
+					eq(documentFieldValue.documentId, id),
+					eq(documentFieldValue.fieldId, fieldId),
+				),
+			)
+			.returning({ fieldId: documentFieldValue.fieldId });
+		if (!deleted[0]) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "No value for this custom field on this document.",
+			});
+		}
+		await touchDocuments(db, [id]);
+		documentEvents().updated(id);
+		return getDocument(db, id);
+	},
+);
 
 /* ------------------------------------------------------------------ */
 /* Bulk actions                                                         */
@@ -1494,7 +1609,7 @@ export async function clearDocumentFieldValue(
  * Applies an action to a selection of documents in a single transaction.
  * `updated` counts the documents actually touched.
  */
-export async function bulkDocuments(
+export const bulkDocuments = emitsDocumentEvents(async function bulkDocuments(
 	db: Db,
 	input: DocumentBulkInput,
 	options: UpdateDocumentOptions = {},
@@ -1547,6 +1662,7 @@ export async function bulkDocuments(
 		// not belong in the single transaction the other actions share.
 		if (action.documentTypeId === null) {
 			for (const id of found) await clearDocumentType(db, id);
+			documentEvents().updated(...found);
 			return { updated: found.length };
 		}
 		const outcome = await applyDocumentTypeToDocuments(
@@ -1564,7 +1680,9 @@ export async function bulkDocuments(
 		return { updated: outcome.applied };
 	}
 
-	const result = await db.transaction(async (tx) => {
+	// Every branch returns the documents it actually changed: they are the
+	// ones whose `updated_at` moves and that get an event.
+	const changed = await db.transaction(async (tx): Promise<string[]> => {
 		switch (action.type) {
 			case "setCategory": {
 				const rows = await tx
@@ -1577,7 +1695,7 @@ export async function bulkDocuments(
 					})
 					.where(inArray(document.id, found))
 					.returning({ id: document.id });
-				return { updated: rows.length };
+				return rows.map((row) => row.id);
 			}
 			case "setSensitive": {
 				const rows = await tx
@@ -1585,7 +1703,7 @@ export async function bulkDocuments(
 					.set({ sensitive: action.sensitive })
 					.where(inArray(document.id, found))
 					.returning({ id: document.id });
-				return { updated: rows.length };
+				return rows.map((row) => row.id);
 			}
 			case "trash": {
 				const rows = await tx
@@ -1593,7 +1711,7 @@ export async function bulkDocuments(
 					.set({ deletedAt: new Date() })
 					.where(and(inArray(document.id, found), isNull(document.deletedAt)))
 					.returning({ id: document.id });
-				return { updated: rows.length };
+				return rows.map((row) => row.id);
 			}
 			case "restore": {
 				const rows = await tx
@@ -1603,7 +1721,7 @@ export async function bulkDocuments(
 						and(inArray(document.id, found), isNotNull(document.deletedAt)),
 					)
 					.returning({ id: document.id });
-				return { updated: rows.length };
+				return rows.map((row) => row.id);
 			}
 			case "addTags": {
 				const tagIds = [...new Set(action.tagIds)];
@@ -1621,7 +1739,9 @@ export async function bulkDocuments(
 					)
 					.onConflictDoNothing()
 					.returning({ documentId: documentTag.documentId });
-				return { updated: new Set(rows.map((row) => row.documentId)).size };
+				const ids = [...new Set(rows.map((row) => row.documentId))];
+				await touchDocuments(tx, ids);
+				return ids;
 			}
 			case "removeTags": {
 				const tagIds = [...new Set(action.tagIds)];
@@ -1634,7 +1754,9 @@ export async function bulkDocuments(
 						),
 					)
 					.returning({ documentId: documentTag.documentId });
-				return { updated: new Set(rows.map((row) => row.documentId)).size };
+				const ids = [...new Set(rows.map((row) => row.documentId))];
+				await touchDocuments(tx, ids);
+				return ids;
 			}
 			default: {
 				const rows = await tx
@@ -1650,10 +1772,17 @@ export async function bulkDocuments(
 					)
 					.onConflictDoNothing()
 					.returning({ documentId: documentParty.documentId });
-				return { updated: new Set(rows.map((row) => row.documentId)).size };
+				const ids = [...new Set(rows.map((row) => row.documentId))];
+				await touchDocuments(tx, ids);
+				return ids;
 			}
 		}
 	});
+	const result: DocumentBulkResult = { updated: changed.length };
+
+	if (action.type === "trash") documentEvents().trashed(...changed);
+	else if (action.type === "restore") documentEvents().restored(...changed);
+	else documentEvents().updated(...changed);
 
 	// Re-encryption runs outside the transaction: it touches the filesystem, and
 	// `setSensitive` is idempotent — a document already in the right state costs
@@ -1669,7 +1798,7 @@ export async function bulkDocuments(
 	}
 
 	return result;
-}
+});
 
 /* ------------------------------------------------------------------ */
 /* Duplicates                                                           */

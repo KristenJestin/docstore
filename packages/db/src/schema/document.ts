@@ -176,8 +176,14 @@ export const document = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "restrict" }),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
+		/**
+		 * Cursor of the incremental sync (`document.list` with `updatedSince`).
+		 * Kept at millisecond precision, the precision of a JavaScript `Date`: a
+		 * client hands back the value it read, and a microsecond default would
+		 * make that value compare lower than the row it came from.
+		 */
 		updatedAt: timestamp("updated_at")
-			.defaultNow()
+			.default(sql`date_trunc('milliseconds', now())`)
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 		/** Trash: non-null = soft-deleted. */
@@ -189,6 +195,8 @@ export const document = pgTable(
 		index("document_deleted_at_idx").on(table.deletedAt),
 		index("document_category_id_idx").on(table.categoryId),
 		index("document_document_type_id_idx").on(table.documentTypeId),
+		// Keyset of the incremental sync: `(updated_at, id) > (cursor, afterId)`.
+		index("document_updated_at_id_idx").on(table.updatedAt, table.id),
 		index("document_search_vector_idx").using("gin", table.searchVector),
 	],
 );

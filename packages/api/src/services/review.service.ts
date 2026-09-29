@@ -44,6 +44,7 @@ import {
 	TRASHED_DOCUMENT_MESSAGE,
 	updateDocument,
 } from "./document.service";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 
 /**
  * Review queue (SPEC §4).
@@ -179,7 +180,7 @@ function assertAutomatic(sources: AssignmentSource[]): void {
  * wrote stays theirs to refresh, and only what someone typed is `manual`
  * (SPEC §4).
  */
-export async function approveReview(
+export const approveReview = emitsDocumentEvents(async function approveReview(
 	db: Db,
 	id: string,
 	patch?: Omit<UpdateDocumentInput, "status">,
@@ -235,54 +236,58 @@ export async function approveReview(
 			.set({ status: "active", reviewReasons: [] })
 			.where(eq(document.id, id));
 	});
+	// One event, even when the patch went through `updateDocument` first.
+	documentEvents().updated(id);
 
 	return getDocument(db, id);
-}
+});
 
 /**
  * Approves a batch of documents (SPEC): each document is approved in its own
  * transaction, so a problem on one does not roll back the others. A missing
  * id is reported in `failed` rather than raised as an error.
  */
-export async function approveManyReview(
-	db: Db,
-	input: ApproveManyReviewInput,
-): Promise<ApproveManyReviewResult> {
-	const ids = [...new Set(input.ids)];
-	const existing = await db
-		.select({ id: document.id, deletedAt: document.deletedAt })
-		.from(document)
-		.where(inArray(document.id, ids));
-	const found = new Set(existing.map((row) => row.id));
+export const approveManyReview = emitsDocumentEvents(
+	async function approveManyReview(
+		db: Db,
+		input: ApproveManyReviewInput,
+	): Promise<ApproveManyReviewResult> {
+		const ids = [...new Set(input.ids)];
+		const existing = await db
+			.select({ id: document.id, deletedAt: document.deletedAt })
+			.from(document)
+			.where(inArray(document.id, ids));
+		const found = new Set(existing.map((row) => row.id));
 
-	// A trashed document in the selection is a caller mistake, not a per-item
-	// failure: reported as such rather than buried in `failed` (SPEC §2).
-	const trashed = existing
-		.filter((row) => row.deletedAt !== null)
-		.map((row) => row.id);
-	if (trashed.length > 0) {
-		throw new ORPCError("CONFLICT", {
-			message: `${TRASHED_DOCUMENT_MESSAGE} (${trashed.join(", ")})`,
-		});
-	}
-
-	let approved = 0;
-	const failed: string[] = [];
-	for (const id of ids) {
-		if (!found.has(id)) {
-			failed.push(id);
-			continue;
+		// A trashed document in the selection is a caller mistake, not a per-item
+		// failure: reported as such rather than buried in `failed` (SPEC §2).
+		const trashed = existing
+			.filter((row) => row.deletedAt !== null)
+			.map((row) => row.id);
+		if (trashed.length > 0) {
+			throw new ORPCError("CONFLICT", {
+				message: `${TRASHED_DOCUMENT_MESSAGE} (${trashed.join(", ")})`,
+			});
 		}
-		try {
-			await approveReview(db, id, input.patch);
-			approved += 1;
-		} catch {
-			failed.push(id);
-		}
-	}
 
-	return { approved, failed };
-}
+		let approved = 0;
+		const failed: string[] = [];
+		for (const id of ids) {
+			if (!found.has(id)) {
+				failed.push(id);
+				continue;
+			}
+			try {
+				await approveReview(db, id, input.patch);
+				approved += 1;
+			} catch {
+				failed.push(id);
+			}
+		}
+
+		return { approved, failed };
+	},
+);
 
 /** Review reasons to drop when an assignment is rejected. */
 function reasonMatchesRejection(
@@ -309,96 +314,100 @@ function reasonMatchesRejection(
  * "rejected", and clearing it here would silently undo their work. An
  * assignment that does not exist is a `NOT_FOUND`, never a silent no-op.
  */
-export async function rejectAssignment(
-	db: Db,
-	input: RejectAssignmentInput,
-): Promise<DocumentDetail> {
-	const current = await requireReviewDocument(db, input.id);
-	assertNotTrashed(current);
+export const rejectAssignment = emitsDocumentEvents(
+	async function rejectAssignment(
+		db: Db,
+		input: RejectAssignmentInput,
+	): Promise<DocumentDetail> {
+		const current = await requireReviewDocument(db, input.id);
+		assertNotTrashed(current);
 
-	if (input.kind !== "category" && !input.ref) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "`ref` is required to reject a Party, a tag or a custom field.",
-		});
-	}
+		if (input.kind !== "category" && !input.ref) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"`ref` is required to reject a Party, a tag or a custom field.",
+			});
+		}
 
-	switch (input.kind) {
-		case "party": {
-			const conditions = [
-				eq(documentParty.documentId, input.id),
-				eq(documentParty.partyId, input.ref ?? ""),
-			];
-			if (input.role) conditions.push(eq(documentParty.role, input.role));
-			const links = await db
-				.select({ source: documentParty.source })
-				.from(documentParty)
-				.where(and(...conditions));
-			assertAutomatic(links.map((link) => link.source));
-			await db
-				.delete(documentParty)
-				.where(and(...conditions, ne(documentParty.source, "manual")));
-			break;
+		switch (input.kind) {
+			case "party": {
+				const conditions = [
+					eq(documentParty.documentId, input.id),
+					eq(documentParty.partyId, input.ref ?? ""),
+				];
+				if (input.role) conditions.push(eq(documentParty.role, input.role));
+				const links = await db
+					.select({ source: documentParty.source })
+					.from(documentParty)
+					.where(and(...conditions));
+				assertAutomatic(links.map((link) => link.source));
+				await db
+					.delete(documentParty)
+					.where(and(...conditions, ne(documentParty.source, "manual")));
+				break;
+			}
+			case "tag": {
+				const conditions = [
+					eq(documentTag.documentId, input.id),
+					eq(documentTag.tagId, input.ref ?? ""),
+				];
+				const links = await db
+					.select({ source: documentTag.source })
+					.from(documentTag)
+					.where(and(...conditions));
+				assertAutomatic(links.map((link) => link.source));
+				await db
+					.delete(documentTag)
+					.where(and(...conditions, ne(documentTag.source, "manual")));
+				break;
+			}
+			case "category": {
+				assertAutomatic(current.categoryId ? [current.categorySource] : []);
+				await db
+					.update(document)
+					.set({
+						categoryId: null,
+						categorySource: "manual",
+						categoryConfidence: null,
+						categoryConfirmedAt: null,
+					})
+					.where(eq(document.id, input.id));
+				break;
+			}
+			default: {
+				const conditions = [
+					eq(documentFieldValue.documentId, input.id),
+					eq(documentFieldValue.fieldId, input.ref ?? ""),
+				];
+				const values = await db
+					.select({ source: documentFieldValue.source })
+					.from(documentFieldValue)
+					.where(and(...conditions));
+				assertAutomatic(values.map((value) => value.source));
+				await db
+					.delete(documentFieldValue)
+					.where(and(...conditions, ne(documentFieldValue.source, "manual")));
+				break;
+			}
 		}
-		case "tag": {
-			const conditions = [
-				eq(documentTag.documentId, input.id),
-				eq(documentTag.tagId, input.ref ?? ""),
-			];
-			const links = await db
-				.select({ source: documentTag.source })
-				.from(documentTag)
-				.where(and(...conditions));
-			assertAutomatic(links.map((link) => link.source));
-			await db
-				.delete(documentTag)
-				.where(and(...conditions, ne(documentTag.source, "manual")));
-			break;
-		}
-		case "category": {
-			assertAutomatic(current.categoryId ? [current.categorySource] : []);
-			await db
-				.update(document)
-				.set({
-					categoryId: null,
-					categorySource: "manual",
-					categoryConfidence: null,
-					categoryConfirmedAt: null,
-				})
-				.where(eq(document.id, input.id));
-			break;
-		}
-		default: {
-			const conditions = [
-				eq(documentFieldValue.documentId, input.id),
-				eq(documentFieldValue.fieldId, input.ref ?? ""),
-			];
-			const values = await db
-				.select({ source: documentFieldValue.source })
-				.from(documentFieldValue)
-				.where(and(...conditions));
-			assertAutomatic(values.map((value) => value.source));
-			await db
-				.delete(documentFieldValue)
-				.where(and(...conditions, ne(documentFieldValue.source, "manual")));
-			break;
-		}
-	}
 
-	const rows = await db
-		.select({ reviewReasons: document.reviewReasons })
-		.from(document)
-		.where(eq(document.id, input.id))
-		.limit(1);
-	const remaining = (rows[0]?.reviewReasons ?? []).filter(
-		(reason) => !reasonMatchesRejection(reason, input),
-	);
-	await db
-		.update(document)
-		.set({ reviewReasons: remaining })
-		.where(eq(document.id, input.id));
+		const rows = await db
+			.select({ reviewReasons: document.reviewReasons })
+			.from(document)
+			.where(eq(document.id, input.id))
+			.limit(1);
+		const remaining = (rows[0]?.reviewReasons ?? []).filter(
+			(reason) => !reasonMatchesRejection(reason, input),
+		);
+		await db
+			.update(document)
+			.set({ reviewReasons: remaining })
+			.where(eq(document.id, input.id));
+		documentEvents().updated(input.id);
 
-	return getDocument(db, input.id);
-}
+		return getDocument(db, input.id);
+	},
+);
 
 /**
  * Recomputes the review reasons of a document without re-running the whole
@@ -421,49 +430,55 @@ export async function recomputeReview(
  * Republishes the `document.process` job: the whole pipeline is replayed
  * (extraction, analysis, rules, status).
  */
-export async function requeueDocument(
-	db: Db,
-	id: string,
-	ingestion: IngestionBinding | undefined,
-	options: { resetReview?: boolean } = {},
-): Promise<RequeueResult> {
-	// Replaying the pipeline on a trashed document would rewrite its metadata and
-	// put it back into `processing`: the trash is read-only (SPEC §2).
-	assertNotTrashed(await requireReviewDocument(db, id));
+export const requeueDocument = emitsDocumentEvents(
+	async function requeueDocument(
+		db: Db,
+		id: string,
+		ingestion: IngestionBinding | undefined,
+		options: { resetReview?: boolean } = {},
+	): Promise<RequeueResult> {
+		// Replaying the pipeline on a trashed document would rewrite its metadata and
+		// put it back into `processing`: the trash is read-only (SPEC §2).
+		assertNotTrashed(await requireReviewDocument(db, id));
 
-	const queue = ingestion?.queue;
-	if (!queue) {
-		throw new ORPCError("SERVICE_UNAVAILABLE", {
-			message:
-				"The ingestion queue is not available: processing cannot be restarted.",
+		const queue = ingestion?.queue;
+		if (!queue) {
+			throw new ORPCError("SERVICE_UNAVAILABLE", {
+				message:
+					"The ingestion queue is not available: processing cannot be restarted.",
+			});
+		}
+
+		const files = await db
+			.select({ id: documentFile.id, kind: documentFile.kind })
+			.from(documentFile)
+			.where(eq(documentFile.documentId, id))
+			.orderBy(asc(documentFile.createdAt), asc(documentFile.id));
+		const file = files.find((row) => row.kind === "original") ?? files[0];
+		if (!file) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "This document has no file to reprocess.",
+			});
+		}
+
+		await db
+			.update(document)
+			.set({
+				status: "processing",
+				processingError: null,
+				...(options.resetReview ? { reviewReasons: [] } : {}),
+			})
+			.where(eq(document.id, id));
+
+		// Back to `processing`: a change of status. The pipeline announces the
+		// outcome (`document.processed` or `document.review`) when it is done.
+		documentEvents().updated(id);
+
+		const jobId = await queue.publishDocumentProcess({
+			documentId: id,
+			fileId: file.id,
 		});
-	}
 
-	const files = await db
-		.select({ id: documentFile.id, kind: documentFile.kind })
-		.from(documentFile)
-		.where(eq(documentFile.documentId, id))
-		.orderBy(asc(documentFile.createdAt), asc(documentFile.id));
-	const file = files.find((row) => row.kind === "original") ?? files[0];
-	if (!file) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "This document has no file to reprocess.",
-		});
-	}
-
-	await db
-		.update(document)
-		.set({
-			status: "processing",
-			processingError: null,
-			...(options.resetReview ? { reviewReasons: [] } : {}),
-		})
-		.where(eq(document.id, id));
-
-	const jobId = await queue.publishDocumentProcess({
-		documentId: id,
-		fileId: file.id,
-	});
-
-	return { id, jobId };
-}
+		return { id, jobId };
+	},
+);

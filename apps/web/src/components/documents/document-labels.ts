@@ -242,6 +242,8 @@ export const DOCUMENT_SORT_LABELS: Record<DocumentSort, string> = {
 	"title:asc": "Title A to Z",
 	"title:desc": "Title Z to A",
 	"validUntil:asc": "Expiring first",
+	"updatedAt:desc": "Recently changed",
+	"updatedAt:asc": "Least recently changed",
 };
 
 export const DOCUMENT_SORT_ICONS: Record<DocumentSort, LucideIcon> = {
@@ -252,6 +254,8 @@ export const DOCUMENT_SORT_ICONS: Record<DocumentSort, LucideIcon> = {
 	"title:asc": ArrowDownAZIcon,
 	"title:desc": ArrowUpAZIcon,
 	"validUntil:asc": CalendarClockIcon,
+	"updatedAt:desc": ArrowDownIcon,
+	"updatedAt:asc": ArrowUpIcon,
 };
 
 /** Trash filter exposed in the URL, translated to `deleted` for the API. */

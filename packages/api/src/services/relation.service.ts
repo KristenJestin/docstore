@@ -1,6 +1,7 @@
 import type { Db } from "@docstore/db";
 import { document } from "@docstore/db/schema/document";
 import { documentRelation } from "@docstore/db/schema/relation";
+import { touchDocuments } from "@docstore/ingestion";
 import type { DocumentRelationLink } from "@docstore/shared/document";
 import type {
 	AddRelationInput,
@@ -9,6 +10,7 @@ import type {
 } from "@docstore/shared/relation";
 import { ORPCError } from "@orpc/server";
 import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 
 /**
  * Relations between documents (SPEC §2 "DocumentRelation").
@@ -169,7 +171,7 @@ export async function loadDocumentRelations(
 	}));
 }
 
-export async function addRelation(
+export const addRelation = emitsDocumentEvents(async function addRelation(
 	db: Db,
 	input: AddRelationInput,
 ): Promise<DocumentRelationDto> {
@@ -205,10 +207,13 @@ export async function addRelation(
 			message: "This relation already exists between these two documents.",
 		});
 	}
+	// A relation is part of what both of its ends are.
+	await touchDocuments(db, [input.fromDocumentId, input.toDocumentId]);
+	documentEvents().updated(input.fromDocumentId, input.toDocumentId);
 	return row;
-}
+});
 
-export async function removeRelation(
+export const removeRelation = emitsDocumentEvents(async function removeRelation(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
@@ -230,5 +235,7 @@ export async function removeRelation(
 	await requireLiveDocumentIds(db, [existing.from, existing.to]);
 
 	await db.delete(documentRelation).where(eq(documentRelation.id, id));
+	await touchDocuments(db, [existing.from, existing.to]);
+	documentEvents().updated(existing.from, existing.to);
 	return { id, deleted: true as const };
-}
+});

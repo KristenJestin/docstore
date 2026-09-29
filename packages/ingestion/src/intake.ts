@@ -38,6 +38,7 @@ import {
 	titleFromFilename,
 } from "./media";
 import { getSetting } from "./settings";
+import { touchDocuments } from "./touch";
 import { emitDocumentEvent } from "./webhook";
 
 export interface IntakeFileInput {
@@ -465,4 +466,6 @@ async function relateToArchive(
 			kind: "related_to",
 		})
 		.onConflictDoNothing();
+	// The archive gained a relation: it changed for the sync cursor.
+	await touchDocuments(ctx.db, [archiveDocumentId]);
 }

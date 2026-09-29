@@ -1835,6 +1835,14 @@ describe("API key scopes on every surface (issue #1)", () => {
 		expect(isToolError(search)).toBe(true);
 		expect(textOf(search)).toContain("`read` scope");
 
+		// The incremental sync cursor (issue #3) goes through the same check.
+		const sync = await client.callTool({
+			name: "search_documents",
+			arguments: { updatedSince: "2000-01-01T00:00:00.000Z" },
+		});
+		expect(isToolError(sync)).toBe(true);
+		expect(textOf(sync)).toContain("`read` scope");
+
 		const text = await client.callTool({
 			name: "get_document_text",
 			arguments: { id: seeded.id },

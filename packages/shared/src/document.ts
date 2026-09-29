@@ -77,6 +77,8 @@ export const DOCUMENT_SORTS = [
 	"title:asc",
 	"title:desc",
 	"validUntil:asc",
+	"updatedAt:desc",
+	"updatedAt:asc",
 ] as const;
 
 export const documentStatusSchema = z.enum(DOCUMENT_STATUSES);
@@ -299,8 +301,24 @@ export const listDocumentsInput = z.object({
 	tagIds: z.array(z.string().min(1)).optional(),
 	/** Filters on custom field values (combined with "and"). */
 	fieldFilters: z.array(documentFieldFilterSchema).optional(),
-	/** `exclude` (default) ignores the trash, `only` shows only it. */
+	/**
+	 * `exclude` (default) ignores the trash, `only` shows only it. With
+	 * `updatedSince`, `exclude` reads as `include`: a trashed document is a
+	 * change the sync cursor must see.
+	 */
 	deleted: documentDeletedScopeSchema.default("exclude"),
+	/**
+	 * Incremental sync: only the documents changed strictly after this instant
+	 * (ISO 8601). The order then is always `updatedAt` ascending, then `id`, so
+	 * the `updatedAt` of the last item read is the next cursor.
+	 */
+	updatedSince: z.iso.datetime({ offset: true }).optional(),
+	/**
+	 * Tie-breaker of `updatedSince`: resumes after this document among those
+	 * sharing the cursor instant (a bulk action stamps them all alike). Pass
+	 * the `id` of the last item read along with its `updatedAt`.
+	 */
+	afterId: z.string().min(1).optional(),
 	page: z.int().min(1).default(1),
 	pageSize: z.int().min(1).max(100).default(25),
 	sort: documentSortSchema.default("documentDate:desc"),
@@ -393,6 +411,8 @@ export const documentListItemSchema = z.object({
 	datePrecision: datePrecisionSchema.nullable(),
 	sensitive: z.boolean(),
 	createdAt: z.date(),
+	/** Last change of any kind: the cursor of the incremental sync. */
+	updatedAt: z.date(),
 	deletedAt: z.date().nullable(),
 	parties: z.array(documentPartyLinkSchema),
 	category: categorySummarySchema.nullable(),
