@@ -217,6 +217,57 @@ export function enumeratePeriods(
 }
 
 /**
+ * Largest number of periods a document may arrive after the period it covers
+ * (`arrivesAfter`, D39-01): the next period, or a few more.
+ */
+export const MAX_ARRIVES_AFTER = 3;
+
+/**
+ * First day of the period `count` periods after the one starting at
+ * `periodStart` (before it when `count` is negative).
+ */
+export function shiftPeriod(
+	periodicity: Periodicity,
+	periodStart: string,
+	count: number,
+): string {
+	if (count === 0) return periodStart;
+	return periodicity === "weekly"
+		? addDays(periodStart, 7 * count)
+		: addMonths(periodStart, periodLengthInMonths(periodicity) * count);
+}
+
+/**
+ * Date deciding the period of a document for a recurrence (D39-02).
+ *
+ * A `periodStart` set on the document (by hand, by a rule, or read from its
+ * text) always wins. Otherwise its `documentDate` is used, moved back
+ * `arrivesAfter` periods: the tax notice dated 8 July 2024 of a type arriving
+ * the following year covers 2023. Without a recurrence nothing moves.
+ */
+export function periodAnchorOf(
+	periodicity: Periodicity | null,
+	periodStart: string | null,
+	documentDate: string | null,
+	arrivesAfter = 0,
+): string | null {
+	if (periodStart) return periodStart;
+	if (!documentDate) return null;
+	if (!periodicity || arrivesAfter === 0) return documentDate;
+	if (periodicity === "weekly") return addDays(documentDate, -7 * arrivesAfter);
+	// `addMonths` would overflow 31 March into 3 March; clamp to the month end.
+	const { year, month, day } = parseDate(documentDate);
+	const target = parseDate(
+		makeDate(year, month - periodLengthInMonths(periodicity) * arrivesAfter, 1),
+	);
+	return makeDate(
+		target.year,
+		target.month,
+		Math.min(day, daysInMonth(target.year, target.month)),
+	);
+}
+
+/**
  * Whether a periodicity spans several months, and so has an expected month
  * (`quarterly`, `semiannual`, `yearly`). D32-01.
  */
@@ -237,13 +288,20 @@ export function hasExpectedMonth(periodicity: Periodicity): boolean {
  * for `weekly` it is an ISO weekday (1 = Monday … 7 = Sunday). Without it, the
  * last day of the month is used, which is the last day of the period when no
  * month is expected either. The usual lateness is absorbed by `graceDays`.
+ *
+ * `arrivesAfter` moves all of that that many periods later (D39-03): the tax
+ * notice for 2025, arriving the following year, is expected in July 2026.
  */
 export function expectedDateOf(
 	periodicity: Periodicity,
-	periodStart: string,
+	period: string,
 	expectedDay: number | null,
 	expectedMonth: number | null = null,
+	arrivesAfter = 0,
 ): string {
+	// D39-03: a document arriving after its period is expected in the period
+	// it arrives in, on the same month and day of it.
+	const periodStart = shiftPeriod(periodicity, period, arrivesAfter);
 	if (periodicity === "weekly") {
 		if (expectedDay === null) return periodEndOf(periodicity, periodStart);
 		return addDays(periodStart, Math.min(Math.max(expectedDay, 1), 7) - 1);
@@ -269,9 +327,16 @@ export function dueDateOf(
 	expectedDay: number | null,
 	graceDays: number,
 	expectedMonth: number | null = null,
+	arrivesAfter = 0,
 ): string {
 	return addDays(
-		expectedDateOf(periodicity, periodStart, expectedDay, expectedMonth),
+		expectedDateOf(
+			periodicity,
+			periodStart,
+			expectedDay,
+			expectedMonth,
+			arrivesAfter,
+		),
 		graceDays,
 	);
 }
@@ -286,16 +351,25 @@ export function dueDateOf(
  * count, as a month of that period; the lower median of those months wins, so
  * one late document does not move the rhythm. `null` for `weekly` and
  * `monthly`, and when no member tells anything.
+ *
+ * With `arrivesAfter`, "its own period" is the period `arrivesAfter` periods
+ * after the one it covers (D39-03): the 2023 notice received in July 2024
+ * teaches July.
  */
 export function learnExpectedMonth(
 	periodicity: Periodicity,
 	samples: readonly { anchor: string; arrival: string | null }[],
+	arrivesAfter = 0,
 ): number | null {
 	if (!hasExpectedMonth(periodicity)) return null;
 	const months: number[] = [];
 	for (const sample of samples) {
 		if (!sample.arrival) continue;
-		const start = periodStartOf(periodicity, sample.anchor);
+		const start = shiftPeriod(
+			periodicity,
+			periodStartOf(periodicity, sample.anchor),
+			arrivesAfter,
+		);
 		if (periodStartOf(periodicity, sample.arrival) !== start) continue;
 		months.push(monthsBetween(start, sample.arrival) + 1);
 	}

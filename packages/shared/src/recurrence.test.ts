@@ -7,11 +7,13 @@ import {
 	expectedDateOf,
 	learnExpectedMonth,
 	nextPeriodStart,
+	periodAnchorOf,
 	periodEndOf,
 	periodicityFromDayGaps,
 	periodKeyOf,
 	periodLengthInMonths,
 	periodStartOf,
+	shiftPeriod,
 } from "./recurrence";
 
 /**
@@ -147,6 +149,79 @@ describe("expected month (#32)", () => {
 		expect(
 			learnExpectedMonth("monthly", [
 				{ anchor: "2026-03-05", arrival: "2026-03-05" },
+			]),
+		).toBeNull();
+	});
+});
+
+/**
+ * Issue #39: some documents arrive after the period they cover. The income tax
+ * notice for 2025 arrives in July 2026. D39-01: the type says how many periods
+ * later (`arrivesAfter`); D39-02: a document without a period is filed that
+ * many periods before its date; D39-03: the expected date and the learned
+ * month move by the same number of periods.
+ */
+describe("documents arriving after their period (#39)", () => {
+	test("a period is shifted by whole periods", () => {
+		expect(shiftPeriod("yearly", "2025-01-01", 1)).toBe("2026-01-01");
+		expect(shiftPeriod("yearly", "2025-01-01", -2)).toBe("2023-01-01");
+		expect(shiftPeriod("semiannual", "2025-07-01", 1)).toBe("2026-01-01");
+		expect(shiftPeriod("quarterly", "2025-10-01", 1)).toBe("2026-01-01");
+		expect(shiftPeriod("monthly", "2025-12-01", 1)).toBe("2026-01-01");
+		expect(shiftPeriod("weekly", "2025-12-29", 1)).toBe("2026-01-05");
+		expect(shiftPeriod("yearly", "2025-01-01", 0)).toBe("2025-01-01");
+	});
+
+	test("a yearly type arriving the following year is due in July of the next year", () => {
+		expect(expectedDateOf("yearly", "2025-01-01", null, 7, 1)).toBe(
+			"2026-07-31",
+		);
+		expect(dueDateOf("yearly", "2025-01-01", 8, 15, 7, 1)).toBe("2026-07-23");
+		// Without an expected month, the last month of the following period.
+		expect(expectedDateOf("yearly", "2025-01-01", 15, null, 1)).toBe(
+			"2026-12-15",
+		);
+		expect(expectedDateOf("monthly", "2026-03-01", 5, null, 1)).toBe(
+			"2026-04-05",
+		);
+		expect(expectedDateOf("weekly", "2026-09-21", 1, null, 1)).toBe(
+			"2026-09-28",
+		);
+	});
+
+	test("a document without a period is filed in the period before its date", () => {
+		// Tax notice dated 8 July 2024, no period: it covers 2023.
+		expect(periodAnchorOf("yearly", null, "2024-07-08", 1)).toBe("2023-07-08");
+		expect(periodStartOf("yearly", "2023-07-08")).toBe("2023-01-01");
+		expect(periodAnchorOf("monthly", null, "2026-03-31", 1)).toBe("2026-02-28");
+		// A period set on the document (by hand, a rule or the text) wins.
+		expect(periodAnchorOf("yearly", "2023-01-01", "2024-07-08", 1)).toBe(
+			"2023-01-01",
+		);
+		// Nothing moves without an offset, nor without a recurrence.
+		expect(periodAnchorOf("yearly", null, "2024-07-08", 0)).toBe("2024-07-08");
+		expect(periodAnchorOf(null, null, "2024-07-08", 1)).toBe("2024-07-08");
+		expect(periodAnchorOf("yearly", null, null, 1)).toBeNull();
+	});
+
+	test("the month is learned from documents arriving in their period plus the offset", () => {
+		expect(
+			learnExpectedMonth(
+				"yearly",
+				[
+					// Periods 2023 and 2024, received in July of the next year.
+					{ anchor: "2023-01-01", arrival: "2024-07-08" },
+					{ anchor: "2024-01-01", arrival: "2025-07-08" },
+					// Received inside its own period: not the rhythm of this type.
+					{ anchor: "2022-01-01", arrival: "2022-03-01" },
+				],
+				1,
+			),
+		).toBe(7);
+		// Without the offset, those documents teach nothing.
+		expect(
+			learnExpectedMonth("yearly", [
+				{ anchor: "2023-01-01", arrival: "2024-07-08" },
 			]),
 		).toBeNull();
 	});
