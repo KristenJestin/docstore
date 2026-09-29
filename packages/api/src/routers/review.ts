@@ -22,7 +22,7 @@ import {
 	rejectAssignment,
 	requeueDocument,
 } from "../services/review.service";
-import { withMaskedContent } from "../services/sensitive-access.service";
+import { withMaskedDocument } from "../services/sensitive-access.service";
 
 const TAGS = ["Review"];
 
@@ -59,7 +59,7 @@ export const reviewRouter = {
 		.input(approveReviewInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await approveReview(context.db, input.id, input.patch),
 			),
@@ -87,7 +87,7 @@ export const reviewRouter = {
 		.input(rejectAssignmentInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await rejectAssignment(context.db, input)),
+			withMaskedDocument(context, await rejectAssignment(context.db, input)),
 		),
 
 	recompute: writeProcedure
@@ -101,7 +101,7 @@ export const reviewRouter = {
 		.input(recomputeReviewInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await recomputeReview(context.db, input.id)),
+			withMaskedDocument(context, await recomputeReview(context.db, input.id)),
 		),
 
 	requeue: writeProcedure

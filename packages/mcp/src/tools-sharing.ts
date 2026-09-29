@@ -270,7 +270,10 @@ export function registerSharingTools(
 		},
 		async (input) => {
 			requireWrite(context);
-			return toDocumentDetail(await assignAsn(context.db, input.id));
+			return toDocumentDetail(
+				await assignAsn(context.db, input.id),
+				context.principal,
+			);
 		},
 	);
 
@@ -308,6 +311,7 @@ export function registerSharingTools(
 				nextAsn: null,
 				document: toDocumentDetail(
 					await getDocumentByAsn(context.db, input.asn),
+					context.principal,
 				),
 			};
 		},

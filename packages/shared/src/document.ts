@@ -279,7 +279,8 @@ export type DocumentDeletedScope = z.infer<typeof documentDeletedScopeSchema>;
 export const listDocumentsInput = z.object({
 	/**
 	 * French full-text search (`websearch_to_tsquery`) over the title, the OCR
-	 * text and the notes.
+	 * text and the notes. For an API key without the `sensitive` scope, a
+	 * sensitive document matches on its title only (issue #22).
 	 */
 	query: z.string().trim().min(1).optional(),
 	status: documentStatusSchema.optional(),
@@ -307,7 +308,10 @@ export const listDocumentsInput = z.object({
 	categoryId: z.string().min(1).optional(),
 	/** Every listed tag must be present on the document. */
 	tagIds: z.array(z.string().min(1)).optional(),
-	/** Filters on custom field values (combined with "and"). */
+	/**
+	 * Filters on custom field values (combined with "and"). They never match a
+	 * sensitive document for an API key without the `sensitive` scope.
+	 */
 	fieldFilters: z.array(documentFieldFilterSchema).optional(),
 	/**
 	 * `exclude` (default) ignores the trash, `only` shows only it. With
@@ -486,8 +490,9 @@ export const documentSchema = z.object({
 	physicalLocation: z.string().nullable(),
 	content: z.string().nullable(),
 	/**
-	 * True when `content` was replaced by the sensitive placeholder because the
-	 * API key lacks the `sensitive` scope; `false` when it is served in full.
+	 * True when the document is sensitive and the API key lacks the `sensitive`
+	 * scope: `content` is the sensitive placeholder, and the detail carries no
+	 * `fieldValues` and no `notes` (issue #22). `false` when served in full.
 	 */
 	masked: z.boolean().optional(),
 	/** Free-text notes typed by a human, in light Markdown. */

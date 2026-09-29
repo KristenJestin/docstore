@@ -69,7 +69,7 @@ import { addRelation, removeRelation } from "../services/relation.service";
 import { requeueDocument } from "../services/review.service";
 import {
 	assertSensitiveAccess,
-	withMaskedContent,
+	withMaskedDocument,
 } from "../services/sensitive-access.service";
 
 const TAGS = ["Document"];
@@ -106,7 +106,9 @@ export const documentRouter = {
 		})
 		.input(listDocumentsInput)
 		.output(paginatedSchema(documentListItemSchema))
-		.handler(({ input, context }) => searchDocuments(context.db, input)),
+		.handler(({ input, context }) =>
+			searchDocuments(context.db, input, context.apiKey),
+		),
 
 	stats: protectedProcedure
 		.route({
@@ -173,7 +175,10 @@ export const documentRouter = {
 		.input(documentByAsnInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await getDocumentByAsn(context.db, input.asn)),
+			withMaskedDocument(
+				context,
+				await getDocumentByAsn(context.db, input.asn),
+			),
 		),
 
 	assignAsn: writeProcedure
@@ -186,7 +191,7 @@ export const documentRouter = {
 		.input(idInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await assignAsn(context.db, input.id)),
+			withMaskedDocument(context, await assignAsn(context.db, input.id)),
 		),
 
 	bulk: writeProcedure
@@ -237,7 +242,7 @@ export const documentRouter = {
 		.output(mergeAsVersionResultSchema)
 		.handler(async ({ input, context }) => {
 			const result = await mergeAsVersion(context.db, input);
-			return { ...result, target: withMaskedContent(context, result.target) };
+			return { ...result, target: withMaskedDocument(context, result.target) };
 		}),
 
 	getFileLayout: protectedProcedure
@@ -276,7 +281,7 @@ export const documentRouter = {
 			},
 		})
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await getDocumentWithUrls(context.db, input.id),
 			),
@@ -300,7 +305,7 @@ export const documentRouter = {
 				sensitiveHook(context),
 			);
 			// `document.updated` is emitted by the service, whatever the surface.
-			return withMaskedContent(context, updated);
+			return withMaskedDocument(context, updated);
 		}),
 
 	setParties: writeProcedure
@@ -313,7 +318,7 @@ export const documentRouter = {
 		.input(setDocumentPartiesInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await setDocumentParties(context.db, input.id, input.parties),
 			),
@@ -329,7 +334,7 @@ export const documentRouter = {
 		.input(partyLinkInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await addDocumentParty(context.db, input.id, input.partyId, input.role),
 			),
@@ -345,7 +350,7 @@ export const documentRouter = {
 		.input(partyLinkInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await removeDocumentParty(
 					context.db,
@@ -366,7 +371,7 @@ export const documentRouter = {
 		.input(setDocumentCategoryInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await setDocumentCategory(context.db, input.id, input.categoryId),
 			),
@@ -382,7 +387,7 @@ export const documentRouter = {
 		.input(setDocumentTagsInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await setDocumentTags(context.db, input.id, input.tagIds),
 			),
@@ -398,7 +403,7 @@ export const documentRouter = {
 		.input(documentTagInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await addDocumentTag(context.db, input.id, input.tagId),
 			),
@@ -414,7 +419,7 @@ export const documentRouter = {
 		.input(documentTagInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await removeDocumentTag(context.db, input.id, input.tagId),
 			),
@@ -430,7 +435,7 @@ export const documentRouter = {
 		.input(setDocumentFieldValueInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await setDocumentFieldValue(
 					context.db,
@@ -455,7 +460,7 @@ export const documentRouter = {
 		.input(clearDocumentFieldValueInput)
 		.output(documentDetailSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(
+			withMaskedDocument(
 				context,
 				await clearDocumentFieldValue(context.db, input.id, input.fieldId),
 			),
@@ -484,7 +489,7 @@ export const documentRouter = {
 		.input(idInput)
 		.output(documentSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await trashDocument(context.db, input.id)),
+			withMaskedDocument(context, await trashDocument(context.db, input.id)),
 		),
 
 	restore: writeProcedure
@@ -497,7 +502,7 @@ export const documentRouter = {
 		.input(idInput)
 		.output(documentSchema)
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await restoreDocument(context.db, input.id)),
+			withMaskedDocument(context, await restoreDocument(context.db, input.id)),
 		),
 
 	deletePermanently: writeProcedure
