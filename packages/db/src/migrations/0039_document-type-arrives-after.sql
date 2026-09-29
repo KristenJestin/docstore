@@ -1,0 +1,1 @@
+ALTER TABLE "document_type" ADD COLUMN "arrives_after" integer DEFAULT 0 NOT NULL;

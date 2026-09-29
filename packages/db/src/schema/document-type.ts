@@ -92,6 +92,13 @@ export const documentType = pgTable(
 		 * documents, else the last month of the period (D32-01, D32-02).
 		 */
 		expectedMonth: integer("expected_month"),
+		/**
+		 * Periods after the one they cover that the documents arrive in: 1 = the
+		 * following period (a tax notice for 2025 received in 2026). The expected
+		 * date moves by as many periods, and a document without a period is filed
+		 * that many periods before its date (D39-01, D39-02).
+		 */
+		arrivesAfter: integer("arrives_after").notNull().default(0),
 		/** Tolerance in days after the expected date before flagging it missing. */
 		graceDays: integer("grace_days"),
 
