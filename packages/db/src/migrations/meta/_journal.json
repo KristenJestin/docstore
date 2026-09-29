@@ -218,6 +218,20 @@
 			"when": 1788857425034,
 			"tag": "0030_document-type-generic",
 			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "7",
+			"when": 1790704860852,
+			"tag": "0031_stable-document-ids",
+			"breakpoints": true
+		},
+		{
+			"idx": 32,
+			"version": "7",
+			"when": 1790704865456,
+			"tag": "0032_backfill-merged-tombstones",
+			"breakpoints": true
 		}
 	]
 }

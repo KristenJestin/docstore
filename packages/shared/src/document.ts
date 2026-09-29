@@ -69,6 +69,14 @@ export const DOCUMENT_SOURCES = [
  */
 export const ASN_SOURCES = ["manual", "auto"] as const;
 
+/**
+ * Why a document id no longer answers for a live document of its own
+ * (issue #2): absorbed by `mergeAsVersion`, or permanently deleted.
+ */
+export const DOCUMENT_TOMBSTONE_REASONS = ["merged", "deleted"] as const;
+export type DocumentTombstoneReason =
+	(typeof DOCUMENT_TOMBSTONE_REASONS)[number];
+
 export const DOCUMENT_SORTS = [
 	"documentDate:desc",
 	"documentDate:asc",

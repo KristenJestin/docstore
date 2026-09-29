@@ -25,6 +25,8 @@ import { Pool } from "pg";
  *   the bare host every lookup now normalizes to.
  * - `0019_revoke-sensitive-share-links`: public links left open on sensitive
  *   content are closed.
+ * - `0032_backfill-merged-tombstones`: documents merged before issue #2 get the
+ *   tombstone that redirects their id to the kept document.
  *
  * The tests run in order on the same database: each one replays the migrations
  * between the previous target and its own.
@@ -47,6 +49,7 @@ const NORMALIZE_IDENTIFIERS_TAG = "0016_normalize-identifiers";
 const ORPHAN_PRECISION_TAG = "0017_fix-orphan-date-precision";
 const NORMALIZE_DOMAINS_TAG = "0018_normalize-domains";
 const REVOKE_SENSITIVE_TAG = "0019_revoke-sensitive-share-links";
+const MERGED_TOMBSTONES_TAG = "0032_backfill-merged-tombstones";
 
 type Journal = { entries: { idx: number; tag: string }[] };
 
@@ -602,6 +605,77 @@ describe("0019_revoke-sensitive-share-links", () => {
 			};
 			expect(manual.revoked_reason).toBe("manual");
 			expect(manual.revoked_at.getUTCFullYear()).toBe(2026);
+		},
+		SETUP_TIMEOUT_MS,
+	);
+});
+
+describe("0032_backfill-merged-tombstones", () => {
+	test(
+		"redirects the documents merged before the tombstones existed",
+		async () => {
+			const tags = migrationTags();
+			const from = tags.indexOf(REVOKE_SENSITIVE_TAG) + 1;
+			const targetIndex = tags.indexOf(MERGED_TOMBSTONES_TAG);
+			expect(targetIndex).toBeGreaterThan(from - 1);
+
+			for (const tag of tags.slice(from, targetIndex)) {
+				for (const statement of statementsOf(tag)) {
+					await pool.query(statement);
+				}
+			}
+
+			await pool.query(`
+				insert into document (id, title, status, deleted_at, created_by_id)
+				values
+					('doc_kept', 'Invoice', 'active', null, 'usr_legacy'),
+					('doc_newer', 'Invoice v3', 'active', null, 'usr_legacy'),
+					('doc_merged', 'Invoice (copy)', 'active', now(), 'usr_legacy'),
+					('doc_twice', 'Invoice v2', 'active', now(), 'usr_legacy'),
+					('doc_manual', 'Draft', 'active', now(), 'usr_legacy'),
+					('doc_live', 'Amendment', 'active', null, 'usr_legacy'),
+					('doc_trashed', 'Old scan', 'active', now(), 'usr_legacy')
+			`);
+			await pool.query(`
+				insert into document_file (id, document_id, kind, filename, mime, size, sha256, storage_key)
+				values
+					('fil_kept', 'doc_kept', 'original', 'a.pdf', 'application/pdf', 1, 'sha_a', 'k/a'),
+					('fil_moved', 'doc_kept', 'attachment', 'b.pdf', 'application/pdf', 1, 'sha_b', 'k/b'),
+					('fil_manual', 'doc_manual', 'original', 'c.pdf', 'application/pdf', 1, 'sha_c', 'k/c')
+			`);
+			await pool.query(`
+				insert into document_relation (id, from_document_id, to_document_id, kind, created_at)
+				values
+					('drl_merge', 'doc_merged', 'doc_kept', 'version_of', now()),
+					('drl_old', 'doc_twice', 'doc_kept', 'version_of', now() - interval '2 days'),
+					('drl_new', 'doc_twice', 'doc_newer', 'version_of', now()),
+					('drl_manual', 'doc_manual', 'doc_kept', 'version_of', now()),
+					('drl_live', 'doc_live', 'doc_kept', 'version_of', now()),
+					('drl_other', 'doc_trashed', 'doc_kept', 'related_to', now())
+			`);
+
+			for (const statement of statementsOf(MERGED_TOMBSTONES_TAG)) {
+				await pool.query(statement);
+			}
+
+			const rows = await pool.query(
+				"select document_id, reason, merged_into_id from document_tombstone order by document_id",
+			);
+			expect(rows.rows).toEqual([
+				{
+					document_id: "doc_merged",
+					reason: "merged",
+					merged_into_id: "doc_kept",
+				},
+				// Several `version_of`: the most recent merge wins.
+				{
+					document_id: "doc_twice",
+					reason: "merged",
+					merged_into_id: "doc_newer",
+				},
+			]);
+			// Untouched: a trashed document that kept its file (hand-made
+			// relation), a live one, and a relation other than `version_of`.
 		},
 		SETUP_TIMEOUT_MS,
 	);
