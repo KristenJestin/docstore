@@ -34,7 +34,9 @@ export const documentRelation = pgTable(
 			.notNull()
 			.references(() => document.id, { onDelete: "cascade" }),
 		kind: documentRelationKindEnum("kind").notNull(),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		uniqueIndex("document_relation_uidx").on(

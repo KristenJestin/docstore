@@ -367,14 +367,15 @@ async function fieldFilterConditions(
  * with `afterId`, strictly after the `(updatedAt, id)` pair, which is what the
  * `updatedAt:asc` order walks through.
  *
- * The instant goes through `toISOString()` and a `timestamp` cast, the same
- * UTC wall-clock value Drizzle writes into the column.
+ * The instant goes through `toISOString()` and a `timestamptz` cast: the
+ * trailing `Z` keeps it the same instant whatever the session time zone
+ * (issue #12).
  */
 function updatedSinceCondition(updatedSince: string, afterId?: string): SQL {
 	const instant = new Date(updatedSince).toISOString();
 	return afterId
-		? sql`(${document.updatedAt}, ${document.id}) > (${instant}::timestamp, ${afterId})`
-		: sql`${document.updatedAt} > ${instant}::timestamp`;
+		? sql`(${document.updatedAt}, ${document.id}) > (${instant}::timestamptz, ${afterId})`
+		: sql`${document.updatedAt} > ${instant}::timestamptz`;
 }
 
 function listConditions(input: ListDocumentsInput): SQL[] {

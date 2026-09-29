@@ -1,6 +1,6 @@
 {
-	"id": "7cce2f26-c578-4738-82c2-ac50bac8dbb0",
-	"prevId": "9b889386-9dcf-4a86-b3fb-c849c8caee47",
+	"id": "edf7bdba-3dce-4239-9fe4-519ce223d32d",
+	"prevId": "7cce2f26-c578-4738-82c2-ac50bac8dbb0",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -2378,6 +2378,128 @@
 					"value": "\"duplicate_ignore\".\"document_id\" < \"duplicate_ignore\".\"other_document_id\""
 				}
 			},
+			"isRLSEnabled": false
+		},
+		"public.document_external_ref": {
+			"name": "document_external_ref",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"document_id": {
+					"name": "document_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"system": {
+					"name": "system",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ref": {
+					"name": "ref",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"url": {
+					"name": "url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"label": {
+					"name": "label",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"document_external_ref_uidx": {
+					"name": "document_external_ref_uidx",
+					"columns": [
+						{
+							"expression": "document_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "system",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "ref",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"document_external_ref_system_idx": {
+					"name": "document_external_ref_system_idx",
+					"columns": [
+						{
+							"expression": "system",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "document_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"document_external_ref_document_id_document_id_fk": {
+					"name": "document_external_ref_document_id_document_id_fk",
+					"tableFrom": "document_external_ref",
+					"tableTo": "document",
+					"columnsFrom": ["document_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
 			"isRLSEnabled": false
 		},
 		"public.intake_log": {

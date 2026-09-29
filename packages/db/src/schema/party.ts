@@ -41,9 +41,11 @@ export const party = pgTable(
 		isHouseholdMember: boolean("is_household_member").notNull().default(false),
 		userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
 		notes: text("notes"),
-		archivedAt: timestamp("archived_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		archivedAt: timestamp("archived_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -71,7 +73,9 @@ export const partyRelation = pgTable(
 		kind: partyRelationKindEnum("kind").notNull(),
 		validFrom: date("valid_from"),
 		validUntil: date("valid_until"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		index("party_relation_from_idx").on(table.fromPartyId),
