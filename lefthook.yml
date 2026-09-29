@@ -4,7 +4,21 @@
 pre-commit:
   parallel: true
   jobs:
+    # Every merge into main deploys production: main only moves through a
+    # squash-merged pull request (see AGENTS.md, "Tickets and Git workflow").
+    - name: branch-guard
+      run: bun scripts/branch-guard.ts
     - name: biome
       glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
       run: bun biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
       stage_fixed: true
+
+commit-msg:
+  jobs:
+    # Lefthook skips pre-commit when nothing is staged (`--allow-empty`):
+    # the guard runs again here, where it always runs.
+    - name: branch-guard
+      run: bun scripts/branch-guard.ts
+    # Angular convention, scope required; CI runs the same tool with --range.
+    - name: commit-message
+      run: bun scripts/commit-message.ts {1}
