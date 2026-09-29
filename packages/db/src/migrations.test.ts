@@ -668,11 +668,12 @@ describe("0033_backfill-merged-tombstones", () => {
 		async () => {
 			const tags = migrationTags();
 			// The table comes from `0032`, right after the cursor of `0031`.
-			expect(tags.slice(tags.indexOf(UPDATED_AT_CURSOR_TAG))).toEqual([
-				UPDATED_AT_CURSOR_TAG,
-				STABLE_IDS_TAG,
-				MERGED_TOMBSTONES_TAG,
-			]);
+			expect(
+				tags.slice(
+					tags.indexOf(UPDATED_AT_CURSOR_TAG),
+					tags.indexOf(MERGED_TOMBSTONES_TAG) + 1,
+				),
+			).toEqual([UPDATED_AT_CURSOR_TAG, STABLE_IDS_TAG, MERGED_TOMBSTONES_TAG]);
 			const from = tags.indexOf(UPDATED_AT_CURSOR_TAG) + 1;
 			const targetIndex = tags.indexOf(MERGED_TOMBSTONES_TAG);
 			expect(targetIndex).toBeGreaterThan(from - 1);
