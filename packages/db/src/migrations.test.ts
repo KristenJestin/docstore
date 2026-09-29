@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { Pool } from "pg";
+import { currentTestDbScope, testDbName } from "./test-db-name";
 
 /**
  * Data migrations replayed on a throwaway database, with legacy rows inserted
@@ -42,7 +43,11 @@ dotenv.config({
 const MIGRATIONS_FOLDER = fileURLToPath(
 	new URL("./migrations", import.meta.url),
 );
-const DATABASE = "docstore_test_migration";
+/**
+ * Unique per checkout like every test database (issue #10): two worktrees
+ * replaying the migrations at once would drop each other's schema.
+ */
+const DATABASE = testDbName("db_migration", currentTestDbScope());
 /** Migrations replayed by the tests; everything before them is just setup. */
 const TARGET_TAG = "0011_document-types";
 const EXTRACTION_TAG = "0012_extraction-in-types";

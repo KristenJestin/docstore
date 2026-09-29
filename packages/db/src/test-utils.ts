@@ -7,6 +7,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import type * as schema from "./schema";
+import { currentTestDbScope, packagePart, testDbName } from "./test-db-name";
 
 // Dev env variables live in apps/server/.env (same as drizzle.config.ts).
 dotenv.config({
@@ -25,23 +26,12 @@ export type TestDb = NodePgDatabase<typeof schema> & {
 };
 
 /**
- * One test database per package.
- *
- * `truncateAll` empties the whole schema, so two packages sharing a single
- * database wipe each other's fixtures mid-test — and `truncate … cascade`
- * against concurrent transactions deadlocks, which is what made
- * `turbo run test` hang without `--concurrency=1`. Each package therefore gets
- * `docstore_test_<pkg>`, created on the fly.
+ * Connections per test database pool. Every package runs its tests at the same
+ * time, and several worktrees may run the suite at once against the shared
+ * dev Postgres (100 connections by default, issue #10): the default pool of 10
+ * per package made two parallel runs exhaust it ("too many clients").
  */
-export const TEST_DB_PREFIX = "docstore_test_";
-
-/** `@docstore/api` → `api`, `server` → `server`. */
-function sanitize(name: string): string {
-	return (name.split("/").pop() ?? name)
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "_")
-		.replace(/^_+|_+$/g, "");
-}
+const TEST_POOL_MAX = 3;
 
 /**
  * Name of the package being tested, read from the nearest `package.json`.
@@ -49,14 +39,14 @@ function sanitize(name: string): string {
  * `bun test` runs with the package directory as cwd (that is how Turbo invokes
  * it), so walking up from there lands on the right manifest.
  */
-function packageSuffix(): string | null {
+function packageName(): string | null {
 	let dir = process.cwd();
 	for (let depth = 0; depth < 8; depth += 1) {
 		try {
 			const manifest = JSON.parse(
 				readFileSync(join(dir, "package.json"), "utf8"),
 			) as { name?: string };
-			if (manifest.name) return sanitize(manifest.name) || null;
+			if (manifest.name) return packagePart(manifest.name) || null;
 		} catch {
 			// No manifest here: keep walking up.
 		}
@@ -93,8 +83,8 @@ async function ensureDatabase(
 			[database],
 		);
 		if (found.rowCount === 0) {
-			// An identifier cannot be a bound parameter. The name is built from a
-			// sanitized package name, never from user input.
+			// An identifier cannot be a bound parameter. The name is built from
+			// sanitized package and branch names, never from user input.
 			await admin.query(`create database "${database}"`);
 		}
 	} catch (error) {
@@ -104,35 +94,26 @@ async function ensureDatabase(
 	}
 }
 
-export interface CreateTestDbOptions {
-	/**
-	 * Database discriminator. Defaults to `TEST_DB_SUFFIX`, then to the name of
-	 * the package being tested.
-	 */
-	suffix?: string;
-}
-
 /**
- * Opens a connection to the package's test database, creating it if needed, and
+ * Opens a connection to the test database of this checkout and package
+ * (`docstore_test_<pkg>`, or `docstore_test_<scope>__<pkg>` in a worktree or
+ * with `TEST_DB_SUFFIX`, see `test-db-name.ts`), creating it if needed, and
  * applies the migrations. Close it with `db.$client.end()`.
  *
  * The server and credentials come from `DATABASE_URL_TEST`; only the database
- * name changes. When no suffix can be determined, that URL is used as is.
+ * name changes. When no package can be determined, that URL is used as is.
  */
-export async function createTestDb(
-	options: CreateTestDbOptions = {},
-): Promise<TestDb> {
+export async function createTestDb(): Promise<TestDb> {
 	const connectionString = process.env.DATABASE_URL_TEST;
 	if (!connectionString) {
 		throw new Error("DATABASE_URL_TEST is required for DB integration tests.");
 	}
 
-	const suffix =
-		options.suffix ?? process.env.TEST_DB_SUFFIX ?? packageSuffix();
+	const pkg = packageName();
 
 	let target = connectionString;
-	if (suffix) {
-		const database = `${TEST_DB_PREFIX}${suffix}`;
+	if (pkg) {
+		const database = testDbName(pkg, currentTestDbScope());
 		await ensureDatabase(connectionString, database);
 		target = withDatabase(connectionString, database);
 	}
@@ -141,7 +122,7 @@ export async function createTestDb(
 	// the whole server environment when it is evaluated, and the `dotenv.config`
 	// call above is what makes those variables available.
 	const { createDb } = await import("./index");
-	const db = createDb(target) as TestDb;
+	const db = createDb(target, { max: TEST_POOL_MAX }) as TestDb;
 	db.connectionString = target;
 	await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 	return db;

@@ -52,6 +52,9 @@
 			"inputs": ["$TURBO_DEFAULT$", ".env*"],
 			"passThroughEnv": ["TEST_DB_SUFFIX"]
 		},
+		"//#test:scripts": {
+			"cache": false
+		},
 		"test:e2e": {
 			"cache": false,
 			"passThroughEnv": [
