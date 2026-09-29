@@ -89,7 +89,13 @@ test.describe("organisation", () => {
 		await page.getByRole("link", { name: typeName }).first().click();
 		await expect(page).toHaveURL(/\/types\/[^/]+/);
 		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
-		await expect(page.getByTestId("recurrence-timeline")).toBeVisible();
+		// A new type has no member and no first period: its timeline is there,
+		// empty, and says why.
+		const timeline = page.getByTestId("recurrence-timeline");
+		await expect(timeline).toBeVisible();
+		await expect(
+			timeline.getByText("No period", { exact: true }),
+		).toBeVisible();
 	});
 
 	test("/series redirects to the recurring document types", async ({
