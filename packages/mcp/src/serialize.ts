@@ -1,3 +1,7 @@
+import {
+	maskSensitiveDocument,
+	type ScopedCaller,
+} from "@docstore/shared/api-key";
 import type {
 	DocumentDetail,
 	DocumentGetResult,
@@ -178,6 +182,12 @@ export const documentDetailJson = documentSummaryJson.extend({
 	physicalLocation: z.string().nullable(),
 	/** Free-text notes typed by a human, in light Markdown. */
 	notes: z.string().nullable(),
+	/**
+	 * `true` when the document is sensitive and the API key lacks the
+	 * `sensitive` scope: `fieldValues` is then empty and `notes` null, whatever
+	 * the document holds (the OCR text is masked the same way).
+	 */
+	masked: z.boolean(),
 	/** Fields a human set by hand: the ingestion never rewrites them. */
 	manualFields: z.array(z.string()),
 	source: z.string(),
@@ -212,16 +222,28 @@ export const documentGetJson = documentDetailJson.extend({
 });
 export type DocumentGetJson = z.infer<typeof documentGetJson>;
 
-export function toDocumentGet(result: DocumentGetResult): DocumentGetJson {
+export function toDocumentGet(
+	result: DocumentGetResult,
+	caller: ScopedCaller,
+): DocumentGetJson {
 	return {
-		...toDocumentDetail(result),
+		...toDocumentDetail(result, caller),
 		webUrl: result.webUrl,
 		fileUrl: result.fileUrl,
 		redirectedFrom: result.redirectedFrom,
 	};
 }
 
-export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
+/**
+ * Every document an MCP tool or resource returns goes through here, so the
+ * masking of a sensitive document (issue #22) cannot be forgotten by a tool:
+ * `caller` is the principal of the server.
+ */
+export function toDocumentDetail(
+	unmasked: DocumentDetail,
+	caller: ScopedCaller,
+): DocumentDetailJson {
+	const detail = maskSensitiveDocument(unmasked, caller);
 	return {
 		...toDocumentSummary({
 			id: detail.id,
@@ -257,6 +279,7 @@ export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 		asnSource: detail.asnSource,
 		physicalLocation: detail.physicalLocation,
 		notes: detail.notes,
+		masked: detail.masked,
 		manualFields: detail.manualFields,
 		source: detail.source,
 		processingError: detail.processingError,
@@ -402,7 +425,10 @@ export function describeDocumentGet(item: DocumentGetJson): string {
 
 /** Same line, plus the document type the document belongs to. */
 export function describeDocumentDetail(item: DocumentDetailJson): string {
-	const line = describeDocument(item);
+	const base = describeDocument(item);
+	const line = item.masked
+		? `${base}\ncustom fields and notes masked: \`sensitive\` scope required`
+		: base;
 	const type = item.documentType;
 	if (!type) return line;
 	const period = type.period ? ` ${type.period}` : "";

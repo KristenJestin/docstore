@@ -10,7 +10,8 @@ import { futureDatetimeSchema } from "./common";
  * Scopes granted to a key:
  * - `read`: read documents and taxonomy;
  * - `write`: every mutation;
- * - `sensitive`: access to the text of documents marked Sensitive;
+ * - `sensitive`: access to the content of documents marked Sensitive (files,
+ *   OCR text, custom field values, notes);
  * - `admin`: settings and administration (reserved, v1).
  */
 export const API_KEY_SCOPES = ["read", "write", "sensitive", "admin"] as const;
@@ -107,11 +108,24 @@ export const SENSITIVE_PLACEHOLDER =
 	"[sensitive document: `sensitive` scope required]";
 
 /**
- * Replaces `content` with {@link SENSITIVE_PLACEHOLDER} when the document is
- * sensitive and the caller may not read it; `masked` says which happened.
+ * What a caller without the `sensitive` scope may see of a sensitive document
+ * (issue #22): its metadata (title, dates, period, category, tags, Parties,
+ * document type), never what it says. The OCR text becomes
+ * {@link SENSITIVE_PLACEHOLDER}, the custom field values an empty list and the
+ * notes `null`; `masked` says which happened. `fieldValues` and `notes` are
+ * only touched when the shape carries them (`document.trash` returns neither
+ * values nor relations).
+ *
+ * The one helper every surface applies where a document leaves the service
+ * layer (oRPC, MCP tools, MCP resource), so they cannot drift.
  */
-export function maskSensitiveContent<
-	T extends { sensitive: boolean; content: string | null },
+export function maskSensitiveDocument<
+	T extends {
+		sensitive: boolean;
+		content: string | null;
+		notes?: string | null;
+		fieldValues?: readonly unknown[];
+	},
 >(document: T, caller: ScopedCaller): T & { masked: boolean } {
 	if (!document.sensitive || mayReadSensitive(caller)) {
 		return { ...document, masked: false };
@@ -119,6 +133,8 @@ export function maskSensitiveContent<
 	return {
 		...document,
 		content: document.content === null ? null : SENSITIVE_PLACEHOLDER,
+		...("notes" in document ? { notes: null } : {}),
+		...("fieldValues" in document ? { fieldValues: [] } : {}),
 		masked: true,
 	};
 }

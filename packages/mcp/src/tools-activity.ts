@@ -4,6 +4,7 @@ import {
 	activityActorTypeSchema,
 	activityKindSchema,
 	listActivityInput,
+	maskSensitiveActivity,
 } from "@docstore/shared/activity";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -123,7 +124,12 @@ export function registerActivityTools(
 			});
 			if (!parsed.success) throw new McpToolError(parsed.error.message);
 			const page = await listActivity(context.db, parsed.data);
-			return { ...page, items: page.items.map(toJson) };
+			return {
+				...page,
+				items: page.items.map((entry) =>
+					toJson(maskSensitiveActivity(entry, context.principal)),
+				),
+			};
 		},
 	);
 }

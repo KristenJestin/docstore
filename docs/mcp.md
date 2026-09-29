@@ -42,12 +42,19 @@ therefore cannot mint itself an `admin` key.
 | ----------- | ----------------------------------------------------------------- |
 | `read`      | Every read tool and resource: search, documents, Party, taxonomy, statistics |
 | `write`     | Every mutation (edit, link, upload, rules)                         |
-| `sensitive` | Content of documents marked "sensitive": OCR text, and on HTTP the file bytes, thumbnail and OCR layout |
+| `sensitive` | Content of documents marked "sensitive": OCR text, custom field values, notes, and on HTTP the file bytes, thumbnail and OCR layout |
 | `admin`     | API key administration, `list_intake_sources`, `run_intake_source`, `create_upload_link`; implies every other scope |
 
 A `sensitive` document returns ``[sensitive document: `sensitive` scope required]``
-instead of its text when the key does not carry `sensitive`; `search_documents`
-never returns content snippets, whatever the scopes. `test_rule` on a sensitive
+instead of its text when the key does not carry `sensitive`. For such a key,
+`get_document`, the `docstore://document/{id}` resource and every tool that
+returns a document answer `masked: true` with no custom field values
+(`fieldValues: []`) and no notes (`notes: null`); the title, dates, period,
+category, tags, Parties and document type stay visible. `search_documents`
+matches a sensitive document on its title only (never on its OCR text or
+notes), and `list_activity` shows that a field of a sensitive document changed,
+never the value. `search_documents` never returns content snippets, whatever
+the scopes. `test_rule` on a sensitive
 document and `export_documents` with `includeSensitive` are refused without
 `sensitive`. Any read without `read`, and any mutation without `write`, fails
 with an MCP result `isError: true` and an English message.
@@ -113,8 +120,8 @@ read tool the `read` scope, every mutation the `write` scope, except:
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
-| `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters; `updatedSince`/`afterId` for incremental sync |
-| `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`) |
+| `search_documents`         | Full-text search (title, OCR text, notes; title only for a sensitive document without `sensitive`) + category, tag, Party, status, date filters; `updatedSince`/`afterId` for incremental sync |
+| `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`); `masked: true` without field values and notes if sensitive and the key lacks `sensitive` |
 | `get_document_text`        | OCR text; hidden if sensitive and the key lacks `sensitive`           |
 | `list_review_queue`        | Documents "to review" with their reasons                              |
 | `approve_review`           | Approves a document (optional correction) and sets it back to `active` |

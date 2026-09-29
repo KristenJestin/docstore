@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mayReadSensitive, type ScopedCaller } from "./api-key";
 
 /**
  * Activity log (issue #15): who did what, whatever the surface.
@@ -78,6 +79,40 @@ export const activityEntrySchema = z.object({
 	sensitive: z.boolean(),
 });
 export type ActivityEntry = z.infer<typeof activityEntrySchema>;
+
+/** Actions whose summary carries a custom field value (`value`). */
+const FIELD_VALUE_ACTIONS: ReadonlySet<string> = new Set([
+	"document.field_set",
+	"document.field_cleared",
+]);
+
+/**
+ * The summary of a field change without its value: "Net pay changed", never
+ * the amount (issue #22). Other summaries are returned as they are.
+ */
+export function withoutFieldValue(
+	action: string,
+	summary: ActivitySummary,
+): ActivitySummary {
+	if (!FIELD_VALUE_ACTIONS.has(action) || !("value" in summary)) {
+		return summary;
+	}
+	return { ...summary, value: { changed: true } };
+}
+
+/**
+ * An entry as a caller may read it. Entries written since issue #22 never
+ * store the value of a field change on a sensitive document; this also hides
+ * the values of older entries from an API key without the `sensitive` scope.
+ */
+export function maskSensitiveActivity(
+	entry: ActivityEntry,
+	caller: ScopedCaller,
+): ActivityEntry {
+	if (!entry.sensitive || mayReadSensitive(caller)) return entry;
+	const summary = withoutFieldValue(entry.action, entry.summary);
+	return summary === entry.summary ? entry : { ...entry, summary };
+}
 
 const isoInstant = z.iso.datetime({ offset: true });
 

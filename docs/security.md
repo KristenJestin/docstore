@@ -74,7 +74,9 @@ call reconciles the rest (`setSensitive` is idempotent).
   at all.
 - Backups of the database, for the same reason.
 - Thumbnails of non-sensitive documents, and the metadata of sensitive ones
-  (title, dates, category, tags), which stay in the clear.
+  (title, dates, category, tags), which stay in the clear. The custom field
+  values and notes of a sensitive document are hidden from API keys without
+  the `sensitive` scope (section 4), but stored in the clear in the database.
 
 The threat model is a stolen disk or a leaked backup of the storage folder. A
 compromised server is out of scope.
@@ -163,7 +165,7 @@ from `X-Forwarded-For`.
 | ----------- | ------------- |
 | `read`      | Every read: search, documents, files and thumbnails, Party, taxonomy, statistics, `POST /api/export` |
 | `write`     | Every mutation, including creating, listing and revoking share links |
-| `sensitive` | The content of a sensitive document: file bytes, thumbnail, OCR text, OCR layout, and `includeSensitive` on the export |
+| `sensitive` | The content of a sensitive document: file bytes, thumbnail, OCR text, OCR layout, custom field values, notes, and `includeSensitive` on the export |
 | `admin`     | API keys, webhooks, upload links, intake sources and settings, reads included; implies every other scope |
 
 A browser session keeps every right: the scopes only narrow what an API key can
@@ -191,7 +193,10 @@ One helper decides whether a caller may read sensitive content:
 | Surface | Without `sensitive`, on a sensitive document |
 | ------- | -------------------------------------------- |
 | `GET /files/:id/download`, `GET /files/:id/thumbnail`, `GET /d/:docId`, oRPC `file.download`, `file.thumbnail` | `403 FORBIDDEN`, checked before the storage is read: no byte of the file is sent |
-| oRPC `document.get`, `document.byAsn`, and every write that returns the document (`document.update`, `setTags`, `review.approve`…) | `content` is replaced by ``[sensitive document: `sensitive` scope required]`` and `masked: true` is set |
+| oRPC `document.get`, `document.byAsn`, and every write that returns the document (`document.update`, `setTags`, `setFieldValue`, `review.approve`…); MCP `get_document`, the `docstore://document/{id}` resource and every tool that returns the document | `content` is replaced by ``[sensitive document: `sensitive` scope required]``, `fieldValues` is empty, `notes` is `null`, and `masked: true` is set (`maskSensitiveDocument`) |
+| Full-text search (`query` on `document.list`, MCP `search_documents`) | A sensitive document matches on its title only, never on its OCR text or notes, and is ranked the same way |
+| Field-value filters (`fieldFilters` on `document.list`) | Never match a sensitive document |
+| Activity log (`activity.list`, MCP `list_activity`) | A field change on a sensitive document says which field changed, never its value (older entries written with values are masked for such a key) |
 | oRPC `document.getFileLayout` | `403 FORBIDDEN` |
 | Dry runs over the OCR layer: `extractionRule.test`, `extractionRule.preview`, `documentType.preview`, `documentType.testLayout`, `rule.test`, MCP `test_rule` | `403 FORBIDDEN` (MCP: tool error) |
 | MCP `get_document_text` | The same placeholder, `masked: true` |
@@ -208,9 +213,12 @@ same target through `document.get`. The `sensitive` check then runs on the
 document actually served, the kept one.
 
 What stays readable with `read` alone: the metadata of a sensitive document
-(title, dates, category, tags, Parties, custom field values), in search
-results as in the detail. `search_documents` never returns content snippets at
-all, for any document.
+(title, dates, period, validity, category, tags, Parties, document type, ASN,
+files list), in search results as in the detail. That is what an agent needs to
+know a document exists and to sync; titles generated from templates cannot
+carry a custom field value. `search_documents` never returns content snippets
+at all, for any document. The study behind this rule is
+`docs/technical/sensitive-field-masking.md` (issue #13, delivered by #22).
 
 ### Administration
 
@@ -250,7 +258,9 @@ Every change (web, API, MCP, rules, pipeline) and every read of a document
 API key) writes an entry to `activity_log`: when, who (the session user, the
 API key with its name, or `system`), the action, the object and a short
 summary. Summaries hold fields before and after, never file content, OCR text,
-free-text notes, share tokens or webhook secrets. A read carries the
+free-text notes, share tokens or webhook secrets. A custom field change on a
+sensitive document is stored as `{ changed: true }`, without the value, for
+every reader. A read carries the
 `sensitive` flag of its document, so "sensitive reads by keys" is one filter
 on the Activity page. Thumbnails and the list views of the web app are not
 logged; a browser session re-reading the same document within a minute is
