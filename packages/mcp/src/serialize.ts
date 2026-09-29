@@ -193,8 +193,9 @@ export const documentDetailJson = documentSummaryJson.extend({
 	notes: z.string().nullable(),
 	/**
 	 * `true` when the document is sensitive and the API key lacks the
-	 * `sensitive` scope: `fieldValues` is then empty and `notes` null, whatever
-	 * the document holds (the OCR text is masked the same way).
+	 * `sensitive` scope: `fieldValues` and `externalRefs` are then empty and
+	 * `notes` null, whatever the document holds (the OCR text is masked the
+	 * same way).
 	 */
 	masked: z.boolean(),
 	/** Fields a human set by hand: the ingestion never rewrites them. */
@@ -462,7 +463,7 @@ export function describeDocumentGet(item: DocumentGetJson): string {
 export function describeDocumentDetail(item: DocumentDetailJson): string {
 	const base = describeDocument(item);
 	const line = item.masked
-		? `${base}\ncustom fields and notes masked: \`sensitive\` scope required`
+		? `${base}\ncustom fields, notes and external references masked: \`sensitive\` scope required`
 		: base;
 	const type = item.documentType;
 	if (!type) return line;

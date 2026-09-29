@@ -475,6 +475,17 @@ function listConditions(
 	if (input.notReferencedBy) {
 		conditions.push(externalRefCondition(input.notReferencedBy, false));
 	}
+	// Issue #34: the refs of a sensitive document are masked for an API key
+	// without `sensitive`, so neither filter may answer on them (no oracle).
+	// Like the field-value filters (#22), such a key never gets a sensitive
+	// document back from them, which also keeps a wiki lint from taking it
+	// for an orphan.
+	if (
+		(input.referencedBy || input.notReferencedBy) &&
+		!mayReadSensitive(caller)
+	) {
+		conditions.push(eq(document.sensitive, false));
+	}
 	if (input.physicalLocation) {
 		conditions.push(
 			sql`${document.physicalLocation} ilike ${likePattern(input.physicalLocation)}`,
