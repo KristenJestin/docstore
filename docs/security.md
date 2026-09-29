@@ -164,9 +164,9 @@ from `X-Forwarded-For`.
 | Scope       | What it opens |
 | ----------- | ------------- |
 | `read`      | Every read: search, documents, files and thumbnails, Party, taxonomy, statistics, `POST /api/export` |
-| `write`     | Every mutation, including creating and revoking share links |
+| `write`     | Every mutation, including creating, listing and revoking share links |
 | `sensitive` | The content of a sensitive document: file bytes, thumbnail, OCR text, OCR layout, custom field values, notes, and `includeSensitive` on the export |
-| `admin`     | API keys, settings, upload links; implies every other scope |
+| `admin`     | API keys, webhooks, upload links, intake sources and settings, reads included; implies every other scope |
 
 A browser session keeps every right: the scopes only narrow what an API key can
 do. The same rules apply on every surface (oRPC and the REST API generated from
@@ -223,7 +223,22 @@ at all, for any document. The study behind this rule is
 ### Administration
 
 `apiKey.create` / `revoke` / `delete` require `admin`, so a `write` key cannot
-mint itself a stronger one. Likewise `settings.set` on `auth.allowSignUp`
+mint itself a stronger one.
+
+Listing an object takes the same scope as managing it (issue #11), so a
+`read` key cannot collect working public URLs or administration data:
+
+| Procedure | Scope |
+| --------- | ----- |
+| `shareLink.list`, MCP `list_share_links` | `write` (the list returns working public URLs) |
+| `uploadLink.list` | `admin` (same reason) |
+| `apiKey.list`, `webhook.deliveries` | `admin` |
+| `intakeSource.list`, `intakeSource.get`, `intakeSource.logs`, MCP `list_intake_sources` | `admin` |
+
+A key without that scope gets `403 FORBIDDEN` (MCP: a tool error); a browser
+session is unaffected. `settings.serverInfo` stays on `read`: it returns the
+public origins, the version, the path of the configuration file and a count,
+no secret. Likewise `settings.set` on `auth.allowSignUp`
 requires `admin` (or a browser session): opening sign-up lets someone new into
 the whole library.
 

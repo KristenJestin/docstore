@@ -99,7 +99,7 @@ export function registerDocumentTools(
 					.datetime({ offset: true })
 					.optional()
 					.describe(
-						"ISO 8601 instant: only the documents changed strictly after it, trash included, ordered by `updatedAt` ascending (`sort` is ignored).",
+						"ISO 8601 instant: only the documents changed strictly after it, trash included, ordered by `updatedAt` ascending. Leave `sort` out (or set it to `updatedAt:asc`): any other sort is refused.",
 					),
 				afterId: z
 					.string()
@@ -110,7 +110,9 @@ export function registerDocumentTools(
 					),
 				sort: documentSortSchema
 					.optional()
-					.describe("Order of the results (default `documentDate:desc`)."),
+					.describe(
+						"Order of the results (default `documentDate:desc`, or `updatedAt:asc` with `updatedSince`, the only one accepted there).",
+					),
 				page: z.number().int().min(1).optional(),
 				pageSize: z.number().int().min(1).max(100).optional(),
 			},
@@ -142,7 +144,8 @@ export function registerDocumentTools(
 					deleted: "exclude",
 					page: input.page ?? 1,
 					pageSize: input.pageSize ?? 25,
-					sort: input.sort ?? "documentDate:desc",
+					// Left undefined, the service picks the default that fits the cursor.
+					sort: input.sort,
 				},
 				context.principal,
 			);

@@ -6,7 +6,7 @@ import {
 } from "@docstore/shared/upload-link";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { adminProcedure, protectedProcedure } from "../index";
+import { adminProcedure } from "../index";
 import {
 	createUploadLink,
 	deleteUploadLink,
@@ -26,7 +26,8 @@ const idInput = z.object({ id: z.string().min(1) });
  * `admin` callers, like API keys.
  */
 export const uploadLinkRouter = {
-	list: protectedProcedure
+	// Listing returns working public URLs: same scope as creating one (issue #11).
+	list: adminProcedure
 		.route({
 			method: "GET",
 			path: "/upload-links",

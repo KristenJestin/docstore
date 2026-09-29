@@ -58,6 +58,8 @@ export interface RecurrenceTimelineProps {
 /**
  * Period-by-period grid of a recurring document type: a filled period links to
  * its document, a missing one is red, a period that is not due yet stays muted.
+ * A recurrence nothing bounds yet has an empty timeline (docs/document-types.md,
+ * "Effective range"): the timeline is still there, holding its empty state.
  */
 export function RecurrenceTimeline({
 	timeline,
@@ -65,15 +67,17 @@ export function RecurrenceTimeline({
 }: RecurrenceTimelineProps) {
 	if (timeline.length === 0) {
 		return (
-			<EmptyState
-				size="sm"
-				title="No period"
-				description={
-					range
-						? "The first period of this document type is in the future."
-						: "Without a first period, the recurrence starts at the oldest document of the type — and this one has none yet."
-				}
-			/>
+			<div data-testid="recurrence-timeline">
+				<EmptyState
+					size="sm"
+					title="No period"
+					description={
+						range
+							? "The first period of this document type is in the future."
+							: "Without a first period, the recurrence starts at the oldest document of the type — and this one has none yet."
+					}
+				/>
+			</div>
 		);
 	}
 

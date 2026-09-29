@@ -111,7 +111,7 @@ export function registerSharingTools(
 		{
 			title: "List share links",
 			description:
-				"Public links onto a document or a dossier, with their expiry, quota and view counter. Filter by `documentId` or `dossierId`.",
+				"Public links onto a document or a dossier, with their expiry, quota and view counter. Filter by `documentId` or `dossierId`. Requires the `write` scope, since the links are working public URLs.",
 			inputSchema: {
 				documentId: z.string().min(1).optional(),
 				dossierId: z.string().min(1).optional(),
@@ -128,7 +128,9 @@ export function registerSharingTools(
 							.join("\n"),
 		},
 		async (input) => {
-			requireRead(context);
+			// Listed links are working public URLs: same scope as creating one,
+			// like `shareLink.list` (issue #11).
+			requireWrite(context);
 			const links = await listShareLinks(context.db, {
 				documentId: input.documentId,
 				dossierId: input.dossierId,

@@ -37,7 +37,7 @@ import {
 } from "@docstore/shared/webhook";
 import { eq, inArray } from "drizzle-orm";
 import { createTestUser, expectOrpcError, type TestUser } from "../test-utils";
-import { deleteCategory } from "./category.service";
+import { deleteCategory, updateCategory } from "./category.service";
 import { deleteCustomField } from "./custom-field.service";
 import {
 	addDocumentParty,
@@ -71,10 +71,10 @@ import {
 	deleteDossier,
 	removeDossierDocument,
 } from "./dossier.service";
-import { createParty, mergeParties } from "./party.service";
+import { createParty, mergeParties, updateParty } from "./party.service";
 import { addRelation, removeRelation } from "./relation.service";
 import { approveReview, rejectAssignment } from "./review.service";
-import { deleteTag, mergeTags } from "./tag.service";
+import { deleteTag, mergeTags, updateTag } from "./tag.service";
 
 /**
  * Issue #3: an agent keeping notes about the library asks "what changed since
@@ -120,11 +120,11 @@ beforeEach(async () => {
 	});
 });
 
+/** No `sort`: the service picks the one that fits the cursor. */
 const listDefaults: ListDocumentsInput = {
 	deleted: "exclude",
 	page: 1,
 	pageSize: 25,
-	sort: "documentDate:desc",
 };
 
 /** Well before anything the tests do. */
@@ -331,7 +331,7 @@ describe("requirement 1: incremental listing with updatedSince", () => {
 		expect(seen).toEqual([...ids].sort());
 	});
 
-	test("the cursor order wins over sort and full-text ranking", async () => {
+	test("the cursor order wins over full-text ranking", async () => {
 		const second = await seedDocument("Invoice two", {
 			content: "invoice invoice invoice",
 			updatedAt: new Date("2026-09-03T10:00:00.000Z"),
@@ -344,10 +344,38 @@ describe("requirement 1: incremental listing with updatedSince", () => {
 		const page = await listDocuments(db, {
 			...listDefaults,
 			query: "invoice",
-			sort: "title:desc",
 			updatedSince: "2026-09-01T00:00:00.000Z",
 		});
 		expect(page.items.map((item) => item.id)).toEqual([first, second]);
+	});
+
+	test("with updatedSince, a sort other than updatedAt:asc is refused", async () => {
+		for (const sort of [
+			"documentDate:desc",
+			"title:desc",
+			"updatedAt:desc",
+		] as const) {
+			await expectOrpcError(
+				listDocuments(db, {
+					...listDefaults,
+					sort,
+					updatedSince: "2026-09-01T00:00:00.000Z",
+				}),
+				"BAD_REQUEST",
+			);
+		}
+	});
+
+	test("with updatedSince, sort updatedAt:asc is accepted", async () => {
+		const id = await seedDocument("Late", {
+			updatedAt: new Date("2026-09-02T10:00:00.000Z"),
+		});
+		const page = await listDocuments(db, {
+			...listDefaults,
+			sort: "updatedAt:asc",
+			updatedSince: "2026-09-01T00:00:00.000Z",
+		});
+		expect(page.items.map((item) => item.id)).toEqual([id]);
 	});
 
 	test("a cursor with an offset designates the same instant", async () => {
@@ -720,6 +748,25 @@ describe("requirement 3: webhooks cover every change, from the service layer", (
 		expect(events().sort()).toEqual(
 			[`document.updated ${first}`, `document.updated ${second}`].sort(),
 		);
+	});
+
+	test("renaming a tag, a Party or a category leaves its documents unchanged", async () => {
+		const id = await seedDocument("Lease");
+		const urgent = await seedTag("urgent");
+		const landlord = await seedParty("Landlord");
+		const housing = await seedCategory("Housing");
+		await setDocumentTags(db, id, [urgent]);
+		await addDocumentParty(db, id, landlord, "issuer");
+		await setDocumentCategory(db, id, housing);
+		await backdate(id);
+
+		await updateTag(db, { id: urgent, name: "pressing" });
+		await updateParty(db, landlord, { name: "Owner" });
+		await updateCategory(db, { id: housing, name: "Home" });
+
+		// The document points to them by id: it did not change (issue #14).
+		expect((await updatedAtOf(id)).getTime()).toBe(LONG_AGO.getTime());
+		expect(published).toEqual([]);
 	});
 
 	test("a failed operation emits nothing", async () => {

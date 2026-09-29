@@ -10,8 +10,8 @@ import { z } from "zod";
 import type { McpContext } from "./context";
 import {
 	defineTool,
+	requireAdmin,
 	requireIngestion,
-	requireRead,
 	requireWrite,
 } from "./context";
 
@@ -44,7 +44,7 @@ export function registerIntakeTools(
 		{
 			title: "List intake sources",
 			description:
-				"Configured watched folders and mailboxes, with their last poll, their last error and their cumulative counters. Passwords are never returned. A `managed` source comes from the server configuration file and cannot be edited.",
+				"Configured watched folders and mailboxes, with their last poll, their last error and their cumulative counters. Passwords are never returned. A `managed` source comes from the server configuration file and cannot be edited. Requires the `admin` scope.",
 			inputSchema: {},
 			outputSchema: { sources: z.array(intakeSourceJson) },
 			text: (output) =>
@@ -58,7 +58,8 @@ export function registerIntakeTools(
 							.join("\n"),
 		},
 		async () => {
-			requireRead(context);
+			// Same scope as `intakeSource.list` (issue #11).
+			requireAdmin(context);
 			const sources = await listIntakeSources(context.db);
 			return {
 				sources: sources.map((source) => ({
