@@ -310,6 +310,12 @@ describe("the trash is read-only — every writer", () => {
 				client.document.setCategory({ id: trashed, categoryId }),
 			"document.setTags": () =>
 				client.document.setTags({ id: trashed, tagIds: [] }),
+			"document.setExternalRefs": () =>
+				client.document.setExternalRefs({
+					id: trashed,
+					system: "wiki",
+					refs: [{ ref: "a.md" }],
+				}),
 			"document.addTag": () => client.document.addTag({ id: trashed, tagId }),
 			"document.removeTag": () =>
 				client.document.removeTag({ id: trashed, tagId }),

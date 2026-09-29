@@ -7,6 +7,7 @@ import {
 	removeDocumentParty,
 	searchDocuments,
 	setDocumentCategory,
+	setDocumentExternalRefs,
 	setDocumentFieldValue,
 	setDocumentTags,
 	trashDocument,
@@ -30,6 +31,10 @@ import {
 	documentStatusSchema,
 	updateDocumentInput,
 } from "@docstore/shared/document";
+import {
+	externalRefSystemSchema,
+	setExternalRefsInput,
+} from "@docstore/shared/external-ref";
 import { reviewAssignmentKindSchema } from "@docstore/shared/review";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -84,7 +89,7 @@ export function registerDocumentTools(
 		{
 			title: "Search documents",
 			description:
-				"French full-text search plus filters (without the `sensitive` scope, a sensitive document only matches the query on its title): category (subtree included), tags (all required), Party, status, year, date range, sensitive flag. Incremental sync: pass `updatedSince` (the largest `updatedAt` you have seen) to get only what changed after it, oldest change first, trashed documents included (`deletedAt` set). When a page comes back full, call again with `updatedSince` and `afterId` set to the `updatedAt` and `id` of its last item.",
+				"French full-text search plus filters (without the `sensitive` scope, a sensitive document only matches the query on its title): category (subtree included), tags (all required), Party, status, year, date range, sensitive flag, external references (`referencedBy` / `notReferencedBy` a system such as `wiki`). Incremental sync: pass `updatedSince` (the largest `updatedAt` you have seen) to get only what changed after it, oldest change first, trashed documents included (`deletedAt` set). When a page comes back full, call again with `updatedSince` and `afterId` set to the `updatedAt` and `id` of its last item.",
 			inputSchema: {
 				query: z.string().trim().min(1).optional(),
 				categoryId: z.string().min(1).optional(),
@@ -95,6 +100,16 @@ export function registerDocumentTools(
 				dateFrom: dateOnlySchema.optional(),
 				dateTo: dateOnlySchema.optional(),
 				sensitive: mcpBoolean.optional(),
+				referencedBy: externalRefSystemSchema
+					.optional()
+					.describe(
+						"Only the documents a note of this external system references (`wiki`).",
+					),
+				notReferencedBy: externalRefSystemSchema
+					.optional()
+					.describe(
+						"Only the documents no note of this external system references: what the wiki does not cite yet.",
+					),
 				updatedSince: z.iso
 					.datetime({ offset: true })
 					.optional()
@@ -138,6 +153,8 @@ export function registerDocumentTools(
 					dateFrom: input.dateFrom,
 					dateTo: input.dateTo,
 					sensitive: input.sensitive,
+					referencedBy: input.referencedBy,
+					notReferencedBy: input.notReferencedBy,
 					updatedSince: input.updatedSince,
 					afterId: input.afterId,
 					// With `updatedSince`, the service widens this to the trash.
@@ -159,7 +176,7 @@ export function registerDocumentTools(
 		{
 			title: "Document detail",
 			description:
-				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`). A document flagged as sensitive comes back with `masked: true`, no custom field values and no notes unless the API key has the `sensitive` scope. Also returns the stable URLs worth citing: `webUrl` (the page) and `fileUrl` (`/d/<id>`, the primary file, readable with the same API key). The id of a document merged as a version returns the kept document, with `redirectedFrom` set to the id asked for; a trashed document is still returned with `deletedAt`; a permanently deleted one is an error.",
+				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, the notes of external systems that reference it (`externalRefs`), and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`). A document flagged as sensitive comes back with `masked: true`, no custom field values and no notes unless the API key has the `sensitive` scope. Also returns the stable URLs worth citing: `webUrl` (the page) and `fileUrl` (`/d/<id>`, the primary file, readable with the same API key). The id of a document merged as a version returns the kept document, with `redirectedFrom` set to the id asked for; a trashed document is still returned with `deletedAt`; a permanently deleted one is an error.",
 			inputSchema: idInput,
 			outputSchema: documentGetJson.shape,
 			text: (output) => describeDocumentGet(output),
@@ -389,6 +406,40 @@ export function registerDocumentTools(
 			requireWrite(context);
 			return toDocumentDetail(
 				await setDocumentTags(context.db, input.id, input.tagIds),
+				context.principal,
+			);
+		},
+	);
+
+	defineTool(
+		server,
+		"set_external_refs",
+		{
+			title: "Declare the external notes citing a document",
+			description:
+				'Replaces the references one external system declares on a document: the notes that cite it, e.g. `system: "wiki"`, `refs: [{ ref: "10-admin/12-logement/contrat-edf.md", label: "Contrat EDF", url? }]`. `system` is a lowercase slug; each `ref` appears once. The references of other systems are left alone; an empty `refs` clears this system. Sending the same list again changes nothing (no `updatedAt` bump, no webhook). They come back in `get_document` (`externalRefs`) and feed the `referencedBy` / `notReferencedBy` filters of `search_documents`.',
+			inputSchema: {
+				documentId: z.string().min(1),
+				system: externalRefSystemSchema,
+				refs: setExternalRefsInput.shape.refs,
+			},
+			outputSchema: documentDetailJson.shape,
+			text: (output) =>
+				`External references of ${output.id}: ${
+					output.externalRefs
+						.map((item) => `${item.system}:${item.ref}`)
+						.join(", ") || "none"
+				}.`,
+		},
+		async (input) => {
+			requireWrite(context);
+			return toDocumentDetail(
+				await setDocumentExternalRefs(
+					context.db,
+					input.documentId,
+					input.system,
+					input.refs,
+				),
 				context.principal,
 			);
 		},

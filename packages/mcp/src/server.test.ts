@@ -230,6 +230,7 @@ describe("handshake", () => {
 				"search_documents",
 				"set_document_category",
 				"set_document_tags",
+				"set_external_refs",
 				"set_field_value",
 				"test_rule",
 				"trash_document",

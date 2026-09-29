@@ -61,6 +61,7 @@ import {
 	DateSourceBadge,
 	DocumentStatusBadge,
 } from "./document-badges";
+import { DocumentExternalRefsCard } from "./document-external-refs-card";
 import {
 	approvalBlockedReason,
 	DOCUMENT_FILE_KIND_LABELS,
@@ -564,6 +565,15 @@ export function DocumentMetaPanel({
 						documentId={document.id}
 						relations={document.relations}
 					/>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<MonoLabel>Referenced by</MonoLabel>
+				</CardHeader>
+				<CardContent>
+					<DocumentExternalRefsCard externalRefs={document.externalRefs} />
 				</CardContent>
 			</Card>
 

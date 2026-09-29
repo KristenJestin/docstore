@@ -151,6 +151,14 @@ export const documentRelationJson = z.object({
 	documentDate: z.string().nullable(),
 });
 
+/** Note of an external system (the life wiki) referencing the document. */
+export const documentExternalRefJson = z.object({
+	system: z.string(),
+	ref: z.string(),
+	url: z.string().nullable(),
+	label: z.string().nullable(),
+});
+
 /** Dossier a document belongs to. */
 export const documentDossierJson = z.object({
 	id: z.string(),
@@ -205,6 +213,8 @@ export const documentDetailJson = documentSummaryJson.extend({
 	fieldValues: z.array(documentFieldValueJson),
 	relations: z.array(documentRelationJson),
 	dossiers: z.array(documentDossierJson),
+	/** Notes of external systems citing the document, by system then ref. */
+	externalRefs: z.array(documentExternalRefJson),
 	documentType: documentTypeJson.nullable(),
 });
 export type DocumentDetailJson = z.infer<typeof documentDetailJson>;
@@ -318,6 +328,12 @@ export function toDocumentDetail(
 			id: item.id,
 			name: item.name,
 			status: item.status,
+		})),
+		externalRefs: detail.externalRefs.map((item) => ({
+			system: item.system,
+			ref: item.ref,
+			url: item.url,
+			label: item.label,
 		})),
 		documentType: detail.documentType
 			? {
@@ -435,6 +451,10 @@ export function describeDocumentGet(item: DocumentGetJson): string {
 		lines.push(`${item.redirectedFrom} was merged into ${item.id}`);
 	}
 	lines.push(`page: ${item.webUrl}`, `file: ${item.fileUrl}`);
+	for (const ref of item.externalRefs) {
+		const label = ref.label ? ` (${ref.label})` : "";
+		lines.push(`referenced by ${ref.system}: ${ref.ref}${label}`);
+	}
 	return lines.join("\n");
 }
 

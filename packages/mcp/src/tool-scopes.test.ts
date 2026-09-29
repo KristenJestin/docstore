@@ -39,6 +39,7 @@ const TOOL_PROCEDURES: Record<string, string> = {
 	update_document: "document.update",
 	set_document_category: "document.setCategory",
 	set_document_tags: "document.setTags",
+	set_external_refs: "document.setExternalRefs",
 	link_party: "document.addParty",
 	unlink_party: "document.removeParty",
 	set_field_value: "document.setFieldValue",
