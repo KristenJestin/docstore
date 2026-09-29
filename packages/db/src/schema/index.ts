@@ -8,6 +8,7 @@ export * from "./document-tombstone";
 export * from "./document-type";
 export * from "./dossier";
 export * from "./duplicate-ignore";
+export * from "./external-ref";
 export * from "./intake";
 export * from "./party";
 export * from "./relation";
