@@ -18,6 +18,20 @@ describe("describeActivitySummary: the Activity page says what changed", () => {
 		).toBe("+energy · −home");
 	});
 
+	test("external references read system · +ref · −ref · ~ref", () => {
+		expect(
+			describeActivitySummary({
+				action: "document.external_refs_set",
+				summary: {
+					system: "wiki",
+					added: [{ name: "10-admin/12-logement/contrat-edf.md" }],
+					removed: [{ name: "old.md" }],
+					updated: [{ name: "kept.md" }],
+				},
+			}),
+		).toBe("wiki · +10-admin/12-logement/contrat-edf.md · −old.md · ~kept.md");
+	});
+
 	test("fields read before → after, and notes only say they changed", () => {
 		expect(
 			describeActivitySummary({

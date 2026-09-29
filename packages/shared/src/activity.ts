@@ -184,6 +184,11 @@ export function describeActivitySummary(
 			parts.push(describeChange(field, change));
 		}
 	}
+	// `document.external_refs_set` (issue #4): "wiki · +path · −path · ~path".
+	const refsSet = entry.action === "document.external_refs_set";
+	if (refsSet && typeof summary.system === "string") {
+		parts.push(summary.system);
+	}
 	const added = namedList(summary.added);
 	const removed = namedList(summary.removed);
 	for (const item of added) {
@@ -191,6 +196,11 @@ export function describeActivitySummary(
 	}
 	for (const item of removed) {
 		parts.push(`−${item.name ?? item.id}${item.role ? ` (${item.role})` : ""}`);
+	}
+	if (refsSet) {
+		for (const item of namedList(summary.updated)) {
+			parts.push(`~${item.name ?? item.id}`);
+		}
 	}
 	if ("category" in summary)
 		parts.push(describeChange("category", summary.category));

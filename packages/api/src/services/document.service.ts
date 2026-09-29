@@ -61,6 +61,7 @@ import {
 	MANUAL_DOCUMENT_FIELDS,
 } from "@docstore/shared/document";
 import type { DocumentTypeSummary } from "@docstore/shared/document-type";
+import type { ExternalRefItem } from "@docstore/shared/external-ref";
 import type { Paginated } from "@docstore/shared/pagination";
 import { paginationMeta } from "@docstore/shared/pagination";
 import { addDays, todayIso } from "@docstore/shared/recurrence";
@@ -107,6 +108,12 @@ import {
 	regenerateTitlesForDocuments,
 } from "./document-type.service";
 import { listDossiersForDocument } from "./dossier.service";
+import {
+	externalRefCondition,
+	loadExternalRefs,
+	moveExternalRefs,
+	replaceExternalRefs,
+} from "./external-ref.service";
 import {
 	loadDocumentRelations,
 	requireDocumentIds,
@@ -429,6 +436,12 @@ function listConditions(input: ListDocumentsInput): SQL[] {
 				or ${documentRelation.toDocumentId} = ${document.id}
 		)`;
 		conditions.push(input.hasRelation ? linked : sql`not ${linked}`);
+	}
+	if (input.referencedBy) {
+		conditions.push(externalRefCondition(input.referencedBy, true));
+	}
+	if (input.notReferencedBy) {
+		conditions.push(externalRefCondition(input.notReferencedBy, false));
 	}
 	if (input.physicalLocation) {
 		conditions.push(
@@ -834,6 +847,7 @@ export async function getDocument(db: Db, id: string): Promise<DocumentDetail> {
 		relations,
 		dossiers,
 		documentTypeMembership,
+		externalRefs,
 	] = await Promise.all([
 		db
 			.select(documentFileColumns)
@@ -847,6 +861,7 @@ export async function getDocument(db: Db, id: string): Promise<DocumentDetail> {
 		loadDocumentRelations(db, id),
 		listDossiersForDocument(db, id),
 		documentTypeForDocument(db, id),
+		loadExternalRefs(db, id),
 	]);
 
 	return {
@@ -858,6 +873,7 @@ export async function getDocument(db: Db, id: string): Promise<DocumentDetail> {
 		category: categorySummaryOf(row, categoryBases),
 		relations,
 		dossiers,
+		externalRefs,
 		documentType: documentTypeMembership,
 	};
 }
@@ -905,7 +921,9 @@ export const mergeAsVersion = emitsDocumentEvents(async function mergeAsVersion(
 			.update(document)
 			.set({ deletedAt: new Date() })
 			.where(eq(document.id, input.documentId));
-		// The kept document gained files and a relation.
+		// The notes citing the duplicate now lead to the kept document (D4-05).
+		await moveExternalRefs(tx, input.documentId, input.intoDocumentId);
+		// The kept document gained files, a relation and maybe references.
 		await touchDocuments(tx, [input.intoDocumentId]);
 
 		await tx
@@ -1667,6 +1685,23 @@ export const setDocumentTags = emitsDocumentEvents(
 			documentEvents().updated(id);
 		}
 
+		return getDocument(db, id);
+	},
+);
+
+/**
+ * Replaces the references one external system (the life wiki) declares on the
+ * document (issue #4); the other systems are left alone.
+ */
+export const setDocumentExternalRefs = emitsDocumentEvents(
+	async function setDocumentExternalRefs(
+		db: Db,
+		id: string,
+		system: string,
+		refs: readonly ExternalRefItem[],
+	): Promise<DocumentDetail> {
+		await requireLiveDocument(db, id);
+		await replaceExternalRefs(db, id, system, refs);
 		return getDocument(db, id);
 	},
 );

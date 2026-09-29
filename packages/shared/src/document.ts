@@ -7,6 +7,10 @@ import {
 	documentFieldFilterSchema,
 } from "./custom-field";
 import { dossierSummarySchema } from "./dossier";
+import {
+	documentExternalRefSchema,
+	externalRefSystemSchema,
+} from "./external-ref";
 import { partyTypeSchema } from "./party";
 import { membershipKindSchema } from "./recurrence";
 import {
@@ -299,6 +303,16 @@ export const listDocumentsInput = z.object({
 	documentTypeId: z.string().min(1).optional(),
 	/** `true`: documents linked to at least one other; `false`: no link. */
 	hasRelation: z.boolean().optional(),
+	/**
+	 * Documents at least one note of this external system references
+	 * (`wiki`), see `document.setExternalRefs`.
+	 */
+	referencedBy: externalRefSystemSchema.optional(),
+	/**
+	 * Documents no note of this external system references: what the wiki
+	 * never cites yet.
+	 */
+	notReferencedBy: externalRefSystemSchema.optional(),
 	/** Physical filing place, case-insensitive "contains". */
 	physicalLocation: z.string().trim().min(1).max(200).optional(),
 	/** `true`: documents carrying an ASN; `false`: those still without one. */
@@ -554,6 +568,11 @@ export const documentDetailSchema = documentSchema.extend({
 	fieldValues: z.array(documentFieldValueSchema),
 	relations: z.array(documentRelationLinkSchema),
 	dossiers: z.array(dossierSummarySchema),
+	/**
+	 * Notes of external systems that reference the document (the life wiki),
+	 * ordered by system then ref.
+	 */
+	externalRefs: z.array(documentExternalRefSchema),
 	/** Document type carried by the document, `null` when it has none. */
 	documentType: documentTypeMembershipSchema.nullable(),
 });

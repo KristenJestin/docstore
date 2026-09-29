@@ -25,6 +25,7 @@ import {
 	setDocumentTagsInput,
 	updateDocumentInput,
 } from "@docstore/shared/document";
+import { setExternalRefsInput } from "@docstore/shared/external-ref";
 import { paginatedSchema } from "@docstore/shared/pagination";
 import {
 	addRelationInput,
@@ -55,6 +56,7 @@ import {
 	restoreDocument,
 	searchDocuments,
 	setDocumentCategory,
+	setDocumentExternalRefs,
 	setDocumentFieldValue,
 	setDocumentParties,
 	setDocumentTags,
@@ -385,6 +387,29 @@ export const documentRouter = {
 			withMaskedContent(
 				context,
 				await setDocumentTags(context.db, input.id, input.tagIds),
+			),
+		),
+
+	setExternalRefs: writeProcedure
+		.route({
+			method: "PUT",
+			path: "/documents/{id}/external-refs/{system}",
+			tags: TAGS,
+			summary: "Replace the references one external system declares",
+			description:
+				"Replaces the notes of `system` (a lowercase slug such as `wiki`) that reference the document: `{ ref, url?, label? }`, `ref` unique per system. The other systems are left alone; an empty list clears this one. A call that changes nothing neither bumps `updatedAt` nor emits `document.updated`.",
+		})
+		.input(setExternalRefsInput)
+		.output(documentDetailSchema)
+		.handler(async ({ input, context }) =>
+			withMaskedContent(
+				context,
+				await setDocumentExternalRefs(
+					context.db,
+					input.id,
+					input.system,
+					input.refs,
+				),
 			),
 		),
 
