@@ -108,3 +108,41 @@ describe("maskSensitiveDocument: field values and notes (issue #22)", () => {
 		expect("notes" in masked).toBe(false);
 	});
 });
+
+describe("maskSensitiveDocument: external references (issue #34)", () => {
+	const sick = {
+		id: "doc_4",
+		sensitive: true,
+		content: "Diagnosis",
+		externalRefs: [{ system: "wiki", ref: "10-admin/17-sante/diagnostic.md" }],
+	};
+
+	test("WHEN a read key sees a sensitive document with wiki refs THEN externalRefs is empty and masked is true", () => {
+		const masked = maskSensitiveDocument(sick, { scopes: ["read"] });
+		expect(masked.externalRefs).toEqual([]);
+		expect(masked.masked).toBe(true);
+	});
+
+	test("WHEN a key with sensitive or a session sees it THEN the refs are served", () => {
+		for (const caller of [null, { scopes: ["read", "sensitive"] as const }]) {
+			const served = maskSensitiveDocument(sick, caller);
+			expect(served.externalRefs).toEqual(sick.externalRefs);
+			expect(served.masked).toBe(false);
+		}
+	});
+
+	test("WHEN the document is not sensitive THEN a read key sees its refs", () => {
+		const plain = { ...sick, sensitive: false };
+		expect(
+			maskSensitiveDocument(plain, { scopes: ["read"] }).externalRefs,
+		).toEqual(sick.externalRefs);
+	});
+
+	test("a shape without externalRefs does not grow them", () => {
+		const masked = maskSensitiveDocument(
+			{ sensitive: true, content: "x" },
+			{ scopes: ["read"] },
+		);
+		expect("externalRefs" in masked).toBe(false);
+	});
+});

@@ -100,17 +100,45 @@ export function withoutFieldValue(
 	return { ...summary, value: { changed: true } };
 }
 
+/** Length of a list of a summary, `0` when it is missing or not a list. */
+function countOf(value: unknown): number {
+	return Array.isArray(value) ? value.length : 0;
+}
+
+/**
+ * The summary of a `document.external_refs_set` entry without its paths
+ * (issue #34): the system and how many refs were added, removed or updated,
+ * with `masked: true`. Other summaries are returned as they are.
+ */
+export function withoutExternalRefPaths(
+	action: string,
+	summary: ActivitySummary,
+): ActivitySummary {
+	if (action !== "document.external_refs_set") return summary;
+	return {
+		system: summary.system,
+		added: countOf(summary.added),
+		removed: countOf(summary.removed),
+		...("updated" in summary ? { updated: countOf(summary.updated) } : {}),
+		masked: true,
+	};
+}
+
 /**
  * An entry as a caller may read it. Entries written since issue #22 never
  * store the value of a field change on a sensitive document; this also hides
- * the values of older entries from an API key without the `sensitive` scope.
+ * the values of older entries from an API key without the `sensitive` scope,
+ * and the paths of the external references of a sensitive document (#34).
  */
 export function maskSensitiveActivity(
 	entry: ActivityEntry,
 	caller: ScopedCaller,
 ): ActivityEntry {
 	if (!entry.sensitive || mayReadSensitive(caller)) return entry;
-	const summary = withoutFieldValue(entry.action, entry.summary);
+	const summary = withoutExternalRefPaths(
+		entry.action,
+		withoutFieldValue(entry.action, entry.summary),
+	);
 	return summary === entry.summary ? entry : { ...entry, summary };
 }
 
@@ -235,6 +263,13 @@ export function describeActivitySummary(
 	if (refsSet) {
 		for (const item of namedList(summary.updated)) {
 			parts.push(`~${item.name ?? item.id}`);
+		}
+		// Masked for a key without `sensitive` (#34): counts, not paths.
+		for (const key of ["added", "removed", "updated"] as const) {
+			const count = summary[key];
+			if (typeof count === "number" && count > 0) {
+				parts.push(`${count} ${key}`);
+			}
 		}
 	}
 	if ("category" in summary)
