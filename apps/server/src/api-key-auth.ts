@@ -27,7 +27,9 @@ export type ApiKeyVariables = {
  */
 function peerAddress(c: Context): string | null {
 	try {
-		return getConnInfo(c).remote.address ?? null;
+		const address = getConnInfo(c).remote.address;
+		// An IPv4 client on a dual-stack socket reads `::ffff:203.0.113.7`.
+		return address ? address.replace(/^::ffff:/, "") : null;
 	} catch {
 		return null;
 	}
