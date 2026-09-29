@@ -5,6 +5,7 @@ import {
 	dueDateOf,
 	enumeratePeriods,
 	expectedDateOf,
+	learnExpectedMonth,
 	nextPeriodStart,
 	periodEndOf,
 	periodicityFromDayGaps,
@@ -83,6 +84,71 @@ describe("expectedDateOf / dueDateOf", () => {
 		expect(expectedDateOf("weekly", "2024-01-01", 1)).toBe("2024-01-01");
 		expect(expectedDateOf("weekly", "2024-01-01", 5)).toBe("2024-01-05");
 		expect(expectedDateOf("weekly", "2024-01-01", 9)).toBe("2024-01-07");
+	});
+});
+
+describe("expected month (#32)", () => {
+	test("a yearly type expected on 15 July is due on 15 July plus the grace days", () => {
+		expect(expectedDateOf("yearly", "2026-01-01", 15, 7)).toBe("2026-07-15");
+		expect(dueDateOf("yearly", "2026-01-01", 15, 15, 7)).toBe("2026-07-30");
+	});
+
+	test("without an expected day, the expected month ends the wait", () => {
+		expect(expectedDateOf("yearly", "2026-01-01", null, 2)).toBe("2026-02-28");
+		expect(expectedDateOf("yearly", "2024-01-01", 31, 2)).toBe("2024-02-29");
+	});
+
+	test("without an expected month, the last month of the period is used", () => {
+		expect(expectedDateOf("yearly", "2026-01-01", 15)).toBe("2026-12-15");
+		expect(expectedDateOf("yearly", "2026-01-01", 15, null)).toBe("2026-12-15");
+	});
+
+	test("a semiannual or quarterly month counts from the start of the period", () => {
+		expect(expectedDateOf("semiannual", "2026-01-01", 10, 2)).toBe(
+			"2026-02-10",
+		);
+		expect(expectedDateOf("semiannual", "2026-07-01", 10, 2)).toBe(
+			"2026-08-10",
+		);
+		expect(expectedDateOf("quarterly", "2026-04-01", 5, 1)).toBe("2026-04-05");
+		// Past the length of the period, the month is clamped to its last one.
+		expect(expectedDateOf("quarterly", "2026-04-01", 5, 9)).toBe("2026-06-05");
+	});
+
+	test("weekly and monthly types ignore the expected month", () => {
+		expect(expectedDateOf("monthly", "2026-03-01", 5, 7)).toBe("2026-03-05");
+		expect(expectedDateOf("weekly", "2026-09-28", 2, 7)).toBe("2026-09-29");
+	});
+
+	test("the month is learned from the documents arriving inside their period", () => {
+		expect(
+			learnExpectedMonth("yearly", [
+				{ anchor: "2024-07-10", arrival: "2024-07-10" },
+				{ anchor: "2025-07-12", arrival: "2025-07-12" },
+				{ anchor: "2023-08-02", arrival: "2023-08-02" },
+			]),
+		).toBe(7);
+		expect(
+			learnExpectedMonth("semiannual", [
+				{ anchor: "2025-08-20", arrival: "2025-08-20" },
+				{ anchor: "2026-02-18", arrival: "2026-02-18" },
+			]),
+		).toBe(2);
+	});
+
+	test("a document filed for another period teaches nothing", () => {
+		// Tax notice for 2025, received in July 2026: its period is 2025.
+		expect(
+			learnExpectedMonth("yearly", [
+				{ anchor: "2025-01-01", arrival: "2026-07-10" },
+				{ anchor: "2024-01-01", arrival: null },
+			]),
+		).toBeNull();
+		expect(
+			learnExpectedMonth("monthly", [
+				{ anchor: "2026-03-05", arrival: "2026-03-05" },
+			]),
+		).toBeNull();
 	});
 });
 

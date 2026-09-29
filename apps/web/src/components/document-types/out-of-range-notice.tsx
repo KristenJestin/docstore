@@ -50,6 +50,7 @@ export function OutOfRangeNotice({ detail }: OutOfRangeNoticeProps) {
 					startPeriod: periodStart,
 					endPeriod: detail.endPeriod,
 					expectedDay: detail.expectedDay,
+					expectedMonth: detail.expectedMonth,
 					graceDays: detail.graceDays ?? undefined,
 				},
 			});

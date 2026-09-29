@@ -2,7 +2,9 @@ import { z } from "zod";
 import { dateOnlySchema, iconNameSchema } from "./common";
 import { extractionResultSchema } from "./extraction";
 import {
+	hasExpectedMonth,
 	periodicitySchema,
+	periodLengthInMonths,
 	recurrencePeriodSchema,
 	recurrenceRangeSchema,
 	recurrenceStatsSchema,
@@ -85,6 +87,12 @@ export const documentTypeSchema = z.object({
 	startPeriod: z.string().nullable(),
 	endPeriod: z.string().nullable(),
 	expectedDay: z.int().nullable(),
+	/**
+	 * Month of the period the document is expected in (1 = its first month):
+	 * quarterly, semiannual and yearly only. `null` = learned from the documents
+	 * (`learnedExpectedMonth`), else the last month of the period.
+	 */
+	expectedMonth: z.int().nullable(),
 	graceDays: z.int().nullable(),
 	createdAt: z.date(),
 	updatedAt: z.date(),
@@ -159,6 +167,12 @@ export const documentTypeItemSchema = documentTypeSchema.extend({
 	 * explicit `startPeriod` nor a single member.
 	 */
 	range: recurrenceRangeSchema.nullable(),
+	/**
+	 * Month of the period learned from the member documents, used while
+	 * `expectedMonth` is `null` (D32-02). `null` when a month is set, for a
+	 * weekly or monthly type, and when no document tells anything.
+	 */
+	learnedExpectedMonth: z.int().nullable(),
 });
 export type DocumentTypeItem = z.infer<typeof documentTypeItemSchema>;
 
@@ -206,17 +220,37 @@ export const listDocumentTypesInput = z.object({
 export type ListDocumentTypesInput = z.infer<typeof listDocumentTypesInput>;
 
 /** Recurrence block, shared by `create` and `createFromDocument`. */
-export const recurrenceInput = z.object({
-	periodicity: periodicitySchema,
-	/**
-	 * Snapped to the first day of its period. Left empty, the recurrence starts
-	 * at the oldest document of the type, and follows it as older ones arrive.
-	 */
-	startPeriod: dateOnly.nullish(),
-	endPeriod: dateOnly.nullish(),
-	expectedDay: z.int().min(1).max(31).nullish(),
-	graceDays: z.int().min(0).max(365).optional(),
-});
+export const recurrenceInput = z
+	.object({
+		periodicity: periodicitySchema,
+		/**
+		 * Snapped to the first day of its period. Left empty, the recurrence starts
+		 * at the oldest document of the type, and follows it as older ones arrive.
+		 */
+		startPeriod: dateOnly.nullish(),
+		endPeriod: dateOnly.nullish(),
+		expectedDay: z.int().min(1).max(31).nullish(),
+		/**
+		 * Month of the period the document is expected in, 1 = its first month: a
+		 * calendar month for `yearly`, 1 to 6 for `semiannual`, 1 to 3 for
+		 * `quarterly`. Ignored (stored as `null`) for `weekly` and `monthly`.
+		 * Left empty, it is learned from the documents of the type.
+		 */
+		expectedMonth: z.int().min(1).max(12).nullish(),
+		graceDays: z.int().min(0).max(365).optional(),
+	})
+	.superRefine((value, ctx) => {
+		const month = value.expectedMonth;
+		if (month == null || !hasExpectedMonth(value.periodicity)) return;
+		const length = periodLengthInMonths(value.periodicity);
+		if (month > length) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["expectedMonth"],
+				message: `A ${value.periodicity} period has ${length} months: \`expectedMonth\` must be between 1 and ${length}.`,
+			});
+		}
+	});
 export type RecurrenceInput = z.infer<typeof recurrenceInput>;
 
 /**

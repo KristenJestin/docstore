@@ -85,6 +85,8 @@ import {
 	dayGapsBetween,
 	dueDateOf,
 	enumeratePeriods,
+	hasExpectedMonth,
+	learnExpectedMonth,
 	periodicityFromDayGaps,
 	periodKeyOf,
 	periodStartOf,
@@ -129,6 +131,8 @@ export interface DocumentTypeMember {
 	documentId: string;
 	title: string;
 	anchor: string;
+	/** `document_date`: when it arrived, what the expected month is learned from. */
+	arrival: string | null;
 }
 
 export async function requireDocumentType(
@@ -240,6 +244,7 @@ async function loadCandidates(
 			documentId: document.id,
 			title: document.title,
 			anchor: anchorDate,
+			arrival: document.documentDate,
 		})
 		.from(document)
 		.where(
@@ -264,6 +269,7 @@ export async function documentTypeMembers(
 				included: documentTypeOverride.included,
 				title: document.title,
 				anchor: anchorDate,
+				arrival: document.documentDate,
 				deletedAt: document.deletedAt,
 			})
 			.from(documentTypeOverride)
@@ -279,6 +285,7 @@ export async function documentTypeMembers(
 					documentId: override.documentId,
 					title: override.title,
 					anchor: override.anchor,
+					arrival: override.arrival,
 				});
 			}
 		} else {
@@ -376,6 +383,7 @@ function buildTimeline(
 	members: readonly DocumentTypeMember[],
 	range: RecurrenceRange,
 	today: string,
+	expectedMonth: number | null,
 ): RecurrencePeriod[] {
 	// A single document per period: the oldest one wins.
 	const byPeriod = new Map<string, DocumentTypeMember>();
@@ -401,6 +409,7 @@ function buildTimeline(
 			periodStart,
 			row.expectedDay,
 			graceDays,
+			expectedMonth,
 		);
 		const status = member ? "present" : today > dueDate ? "missing" : "pending";
 		return {
@@ -423,6 +432,8 @@ export interface RecurrenceView {
 	members: DocumentTypeMember[];
 	range: RecurrenceRange | null;
 	timeline: RecurrencePeriod[];
+	/** Month learned from the members while the type names none (D32-02). */
+	learnedExpectedMonth: number | null;
 }
 
 export async function recurrenceViewOf(
@@ -433,13 +444,27 @@ export async function recurrenceViewOf(
 	const members = await documentTypeMembers(db, row);
 	const range = effectiveRecurrenceRange(row, members, today);
 	const periodicity = row.periodicity;
+	// D32-02: an expected month typed in wins; otherwise the documents say
+	// which month of the period they arrive in.
+	const learnedExpectedMonth =
+		periodicity && row.expectedMonth === null
+			? learnExpectedMonth(periodicity, members)
+			: null;
 	return {
 		members,
 		range,
 		timeline:
 			periodicity && range
-				? buildTimeline(row, periodicity, members, range, today)
+				? buildTimeline(
+						row,
+						periodicity,
+						members,
+						range,
+						today,
+						row.expectedMonth ?? learnedExpectedMonth,
+					)
 				: [],
+		learnedExpectedMonth,
 	};
 }
 
@@ -600,6 +625,7 @@ function toItem(
 	counts: Awaited<ReturnType<typeof countsFor>>,
 	stats: RecurrenceStats | null,
 	range: RecurrenceRange | null,
+	learnedExpectedMonth: number | null = null,
 ): DocumentTypeItem {
 	return {
 		...row,
@@ -618,6 +644,7 @@ function toItem(
 		documentCount: counts.documents.get(row.id) ?? 0,
 		stats,
 		range,
+		learnedExpectedMonth,
 	};
 }
 
@@ -669,7 +696,14 @@ export async function listDocumentTypes(
 		}
 		const view = await recurrenceViewOf(db, row, today);
 		items.push(
-			toItem(row, labels, counts, statsFromTimeline(view.timeline), view.range),
+			toItem(
+				row,
+				labels,
+				counts,
+				statsFromTimeline(view.timeline),
+				view.range,
+				view.learnedExpectedMonth,
+			),
 		);
 	}
 	return items;
@@ -723,6 +757,7 @@ export async function getDocumentType(
 			counts,
 			row.periodicity ? statsFromTimeline(view.timeline) : null,
 			view.range,
+			view.learnedExpectedMonth,
 		),
 		layouts,
 		timeline: view.timeline,
@@ -790,7 +825,12 @@ function recurrenceColumns(
 	recurrence: RecurrenceInput | null | undefined,
 ): Pick<
 	typeof documentType.$inferInsert,
-	"periodicity" | "startPeriod" | "endPeriod" | "expectedDay" | "graceDays"
+	| "periodicity"
+	| "startPeriod"
+	| "endPeriod"
+	| "expectedDay"
+	| "expectedMonth"
+	| "graceDays"
 > {
 	if (!recurrence) {
 		return {
@@ -798,6 +838,7 @@ function recurrenceColumns(
 			startPeriod: null,
 			endPeriod: null,
 			expectedDay: null,
+			expectedMonth: null,
 			graceDays: null,
 		};
 	}
@@ -817,6 +858,10 @@ function recurrenceColumns(
 		startPeriod,
 		endPeriod,
 		expectedDay: recurrence.expectedDay ?? null,
+		// D32-01: only a period of several months has an expected month.
+		expectedMonth: hasExpectedMonth(recurrence.periodicity)
+			? (recurrence.expectedMonth ?? null)
+			: null,
 		graceDays: recurrence.graceDays ?? DEFAULT_GRACE_DAYS,
 	};
 }
@@ -1210,6 +1255,7 @@ export async function createDocumentTypeFromSuggestion(
 		counts,
 		statsFromTimeline(view.timeline),
 		view.range,
+		view.learnedExpectedMonth,
 	);
 }
 

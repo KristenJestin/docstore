@@ -84,8 +84,14 @@ export const documentType = pgTable(
 		startPeriod: date("start_period"),
 		/** The recurrence stays open as long as the bound is null. */
 		endPeriod: date("end_period"),
-		/** Expected day of arrival; null = last day of the period. */
+		/** Expected day of arrival; null = last day of the expected month. */
 		expectedDay: integer("expected_day"),
+		/**
+		 * Month of the period the document is expected in, 1 = its first month
+		 * (quarterly, semiannual, yearly only). Null = learned from the member
+		 * documents, else the last month of the period (D32-01, D32-02).
+		 */
+		expectedMonth: integer("expected_month"),
 		/** Tolerance in days after the expected date before flagging it missing. */
 		graceDays: integer("grace_days"),
 

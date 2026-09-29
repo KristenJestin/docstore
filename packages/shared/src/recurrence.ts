@@ -217,25 +217,49 @@ export function enumeratePeriods(
 }
 
 /**
+ * Whether a periodicity spans several months, and so has an expected month
+ * (`quarterly`, `semiannual`, `yearly`). D32-01.
+ */
+export function hasExpectedMonth(periodicity: Periodicity): boolean {
+	return periodLengthInMonths(periodicity) > 1;
+}
+
+/**
  * Expected arrival date of the document for a period.
  *
- * `expectedDay` is a day of the month applied to the **last month of the
- * period** (clamped to the number of days in that month); for `weekly` it is an
- * ISO weekday (1 = Monday … 7 = Sunday). Without it, the last day of the period
- * is used. The usual lateness is absorbed by `graceDays`.
+ * `expectedMonth` is the month **of the period** the document arrives in, 1
+ * being its first month: a calendar month for `yearly` (7 = July), 1 to 6 for
+ * `semiannual` (1 = January or July), 1 to 3 for `quarterly`. It is ignored
+ * for `weekly` and `monthly`, and without it the last month of the period is
+ * used (D32-01).
+ *
+ * `expectedDay` is a day of that month (clamped to the number of days in it);
+ * for `weekly` it is an ISO weekday (1 = Monday … 7 = Sunday). Without it, the
+ * last day of the month is used, which is the last day of the period when no
+ * month is expected either. The usual lateness is absorbed by `graceDays`.
  */
 export function expectedDateOf(
 	periodicity: Periodicity,
 	periodStart: string,
 	expectedDay: number | null,
+	expectedMonth: number | null = null,
 ): string {
-	const end = periodEndOf(periodicity, periodStart);
-	if (expectedDay === null) return end;
 	if (periodicity === "weekly") {
+		if (expectedDay === null) return periodEndOf(periodicity, periodStart);
 		return addDays(periodStart, Math.min(Math.max(expectedDay, 1), 7) - 1);
 	}
-	const { year, month } = parseDate(end);
-	return makeDate(year, month, Math.min(expectedDay, daysInMonth(year, month)));
+	const length = periodLengthInMonths(periodicity);
+	const offset =
+		expectedMonth !== null && length > 1
+			? Math.min(Math.max(expectedMonth, 1), length) - 1
+			: length - 1;
+	const { year, month } = parseDate(addMonths(periodStart, offset));
+	const last = daysInMonth(year, month);
+	return makeDate(
+		year,
+		month,
+		expectedDay === null ? last : Math.min(Math.max(expectedDay, 1), last),
+	);
 }
 
 /** Due date of a period: expected date + grace period. */
@@ -244,11 +268,40 @@ export function dueDateOf(
 	periodStart: string,
 	expectedDay: number | null,
 	graceDays: number,
+	expectedMonth: number | null = null,
 ): string {
 	return addDays(
-		expectedDateOf(periodicity, periodStart, expectedDay),
+		expectedDateOf(periodicity, periodStart, expectedDay, expectedMonth),
 		graceDays,
 	);
+}
+
+/**
+ * Month of the period the documents of a recurrence actually arrive in,
+ * learned from them when the type names none (D32-02).
+ *
+ * Each sample is a member: `anchor` is the date deciding its period
+ * (`period_start`, falling back to `document_date`) and `arrival` its
+ * `document_date`. Only the members that arrived inside their own period
+ * count, as a month of that period; the lower median of those months wins, so
+ * one late document does not move the rhythm. `null` for `weekly` and
+ * `monthly`, and when no member tells anything.
+ */
+export function learnExpectedMonth(
+	periodicity: Periodicity,
+	samples: readonly { anchor: string; arrival: string | null }[],
+): number | null {
+	if (!hasExpectedMonth(periodicity)) return null;
+	const months: number[] = [];
+	for (const sample of samples) {
+		if (!sample.arrival) continue;
+		const start = periodStartOf(periodicity, sample.anchor);
+		if (periodStartOf(periodicity, sample.arrival) !== start) continue;
+		months.push(monthsBetween(start, sample.arrival) + 1);
+	}
+	if (months.length === 0) return null;
+	months.sort((a, b) => a - b);
+	return months[Math.floor((months.length - 1) / 2)] ?? null;
 }
 
 /* ------------------------------------------------------------------ */
