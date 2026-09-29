@@ -48,12 +48,20 @@ describe("updateDocumentInput", () => {
 
 describe("listDocumentsInput", () => {
 	test("default values", () => {
+		// No `sort` default here: the service picks `documentDate:desc`, or
+		// `updatedAt:asc` along with `updatedSince` (issue #14).
 		expect(listDocumentsInput.parse({})).toEqual({
 			deleted: "exclude",
 			page: 1,
 			pageSize: 25,
-			sort: "documentDate:desc",
 		});
+	});
+
+	test("updatedSince without a sort parses, leaving the order to the cursor", () => {
+		expect(
+			listDocumentsInput.parse({ updatedSince: "2026-09-29T10:00:00.000Z" })
+				.sort,
+		).toBeUndefined();
 	});
 
 	test("pageSize is capped at 100", () => {

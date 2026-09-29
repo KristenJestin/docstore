@@ -72,6 +72,26 @@ describe("savedSearch", () => {
 		);
 	});
 
+	test("refuses the sync cursor of document.list (issue #14)", async () => {
+		await expectOrpcError(
+			client.savedSearch.create({
+				name: "Sync",
+				// @ts-expect-error: the cursor is not a saved filter.
+				filters: { ...filters, updatedSince: "2026-09-29T10:00:00.000Z" },
+			}),
+			"BAD_REQUEST",
+		);
+		const created = await client.savedSearch.create({ name: "Ok", filters });
+		await expectOrpcError(
+			client.savedSearch.update({
+				id: created.id,
+				// @ts-expect-error: the cursor is not a saved filter.
+				filters: { ...filters, afterId: "doc_x" },
+			}),
+			"BAD_REQUEST",
+		);
+	});
+
 	test("renames, replaces the filters then deletes", async () => {
 		const created = await client.savedSearch.create({
 			name: "Draft",

@@ -847,3 +847,28 @@ describe("document relations kept in the database", () => {
 		expect(rows).toHaveLength(1);
 	});
 });
+
+describe("document.list — the sync cursor order (issue #14)", () => {
+	test("with updatedSince, a sort other than updatedAt:asc is a validation error", async () => {
+		await expectOrpcError(
+			client.document.list({
+				updatedSince: "2026-09-01T00:00:00.000Z",
+				sort: "documentDate:desc",
+			}),
+			"BAD_REQUEST",
+		);
+	});
+
+	test("with updatedSince and no sort, the cursor order applies", async () => {
+		const early = await seedDocument("Early", {
+			updatedAt: new Date("2026-09-02T10:00:00.000Z"),
+		});
+		const late = await seedDocument("Late", {
+			updatedAt: new Date("2026-09-03T10:00:00.000Z"),
+		});
+		const page = await client.document.list({
+			updatedSince: "2026-09-01T00:00:00.000Z",
+		});
+		expect(page.items.map((item) => item.id)).toEqual([early, late]);
+	});
+});

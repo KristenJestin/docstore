@@ -513,6 +513,12 @@ rejection, and reprocessing. It also reaches the documents touched by a
 taxonomy change: a tag, Party or custom field deleted or merged away, a
 category or Dossier deleted.
 
+Renaming a tag, a Party or a category sends no `document.updated` and leaves
+the `updated_at` of its documents alone: the documents point to it by id and
+do not change. An agent that shows those names reads them from the tag, Party
+or category itself (`list_tags`, `get_party`, `list_categories`), not from its
+notes on each document.
+
 One operation sends at most one event per document. An approval that applies a
 patch first is one `document.updated`, not two; a bulk action sends one event
 per document it actually changed, and none for a document it left as it was
@@ -610,13 +616,17 @@ ask what changed since its last visit, and hear about changes as they happen.
 `search_documents` both take an incremental cursor:
 
 - `updatedSince` (ISO 8601 instant): only the documents whose `updated_at` is
-  strictly after it. The order is then always `updatedAt` ascending, then `id`,
-  whatever `sort` says, and trashed documents are included (with `status` and
+  strictly after it. The order is then always `updatedAt` ascending, then `id`:
+  leave `sort` out (or pass `updatedAt:asc`), any other `sort` is refused with a
+  validation error. Trashed documents are included (with `status` and
   `deletedAt`) so that a deletion is visible to the cursor. `deleted: "only"`
   still narrows the result to the trash.
 - `afterId`: the tie-breaker. A bulk action stamps every document it changes
   with the same instant; with `afterId`, the listing resumes after that
   document among those sharing the cursor instant.
+
+The cursor is a position in the change feed, not a filter: saved searches and
+exports refuse `updatedSince` and `afterId`.
 
 `updated_at` moves on every change listed above for `document.updated`, and on
 trash, restore and merge. It is stored at millisecond precision, the precision
