@@ -165,7 +165,7 @@ from `X-Forwarded-For`.
 | ----------- | ------------- |
 | `read`      | Every read: search, documents, files and thumbnails, Party, taxonomy, statistics, `POST /api/export` |
 | `write`     | Every mutation, including creating, listing and revoking share links |
-| `sensitive` | The content of a sensitive document: file bytes, thumbnail, OCR text, OCR layout, custom field values, notes, and `includeSensitive` on the export |
+| `sensitive` | The content of a sensitive document: file bytes, thumbnail, OCR text, OCR layout, custom field values, notes, and `includeSensitive` on the export; the personal identifiers and notes of Parties |
 | `admin`     | API keys, webhooks, upload links, intake sources and settings, reads included; implies every other scope |
 
 A browser session keeps every right: the scopes only narrow what an API key can
@@ -219,6 +219,31 @@ know a document exists and to sync; titles generated from templates cannot
 carry a custom field value. `search_documents` never returns content snippets
 at all, for any document. The study behind this rule is
 `docs/technical/sensitive-field-masking.md` (issue #13, delivered by #22).
+
+### Party identifiers and notes
+
+The same `sensitive` scope protects the personal data of Parties (issue #23):
+a household member's IBAN, phone or email is not for every agent holding a
+`read` key. The decision is `maskParty` in
+`packages/shared/src/party-masking.ts`, called by oRPC and MCP alike; a browser
+session and a key with `sensitive` (or `admin`) see every Party in full.
+
+| Party | Without `sensitive` |
+| ----- | ------------------- |
+| A person, household member or not | Every identifier is withheld (`identifiers: {}`), `notes` is `null`, `masked: true` |
+| A company, public body or association | `siren`, `siret`, `vat` and `domain` stay visible (agents need them to recognise issuers); `iban`, `email`, `phone` and `customerRef` are withheld, and `masked: true` says so. The notes stay visible |
+
+| Surface | Without `sensitive` |
+| ------- | ------------------- |
+| oRPC `party.get`, `party.list`, `party.findByIdentifier` and every write that returns a Party (`create`, `update`, `mergeInto`, `archive`, `unarchive`, the logo procedures); MCP `get_party`, `list_parties`, `find_party_by_identifier`, `create_party`, `update_party`, `merge_parties`, resource `docstore://party/{id}` | The masked view above |
+| `party.findByIdentifier`, MCP `find_party_by_identifier` with `kind: iban` or `email` | `403 FORBIDDEN` (MCP: tool error): the lookup would tell whether an IBAN belongs to someone. With a public kind, only organisations are matched |
+| `party.list` / `list_parties` with a `query` | The query matches names, aliases and the public identifiers of organisations only, never a masked value |
+| `party.duplicates`, MCP `list_duplicate_parties` | A pair sharing the domain of a person is still reported, its `value` replaced by ``[masked: `sensitive` scope required]`` |
+| `activity.list`, MCP `list_activity` | The before and after of the identifiers on a `party.updated` entry become `{ changed: true }` and the summary says `masked: true` (the notes were already logged that way) |
+
+Nothing else carries Party identifiers: a document detail embeds its Parties
+as id, name, type, role and logo only, the export manifest as id, name and
+type, and no webhook payload holds a Party.
 
 ### Administration
 

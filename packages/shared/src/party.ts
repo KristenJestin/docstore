@@ -246,6 +246,13 @@ export const partySchema = z.object({
 	isHouseholdMember: z.boolean(),
 	userId: z.string().nullable(),
 	notes: z.string().nullable(),
+	/**
+	 * True when identifiers or notes were withheld because the API key lacks
+	 * the `sensitive` scope (issue #23): every identifier and the notes of a
+	 * person, the private identifiers (`iban`, `email`, `phone`,
+	 * `customerRef`) of an organisation. Absent or `false` when served in full.
+	 */
+	masked: z.boolean().optional(),
 	archivedAt: z.date().nullable(),
 	createdAt: z.date(),
 	updatedAt: z.date(),

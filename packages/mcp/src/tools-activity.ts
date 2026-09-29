@@ -6,6 +6,7 @@ import {
 	listActivityInput,
 	maskSensitiveActivity,
 } from "@docstore/shared/activity";
+import { maskPartyActivityEntry } from "@docstore/shared/party-masking";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
@@ -126,8 +127,15 @@ export function registerActivityTools(
 			const page = await listActivity(context.db, parsed.data);
 			return {
 				...page,
+				// Field values of sensitive documents (#22) and Party identifiers
+				// (#23) are withheld from a key without `sensitive`.
 				items: page.items.map((entry) =>
-					toJson(maskSensitiveActivity(entry, context.principal)),
+					toJson(
+						maskPartyActivityEntry(
+							maskSensitiveActivity(entry, context.principal),
+							context.principal,
+						),
+					),
 				),
 			};
 		},

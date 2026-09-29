@@ -36,6 +36,7 @@ import {
 	removePartyLogo,
 	uploadPartyLogo,
 } from "../services/party-logo.service";
+import { withMaskedParty } from "../services/sensitive-access.service";
 
 const TAGS = ["Party"];
 
@@ -63,7 +64,13 @@ export const partyRouter = {
 		})
 		.input(listPartiesInput)
 		.output(paginatedSchema(partySchema))
-		.handler(({ input, context }) => listParties(context.db, input)),
+		.handler(async ({ input, context }) => {
+			const page = await listParties(context.db, input, context.apiKey);
+			return {
+				...page,
+				items: page.items.map((item) => withMaskedParty(context, item)),
+			};
+		}),
 
 	findByIdentifier: protectedProcedure
 		.route({
@@ -74,9 +81,15 @@ export const partyRouter = {
 		})
 		.input(findPartyByIdentifierInput)
 		.output(z.array(partySchema))
-		.handler(({ input, context }) =>
-			findPartiesByIdentifier(context.db, input.kind, input.value),
-		),
+		.handler(async ({ input, context }) => {
+			const rows = await findPartiesByIdentifier(
+				context.db,
+				input.kind,
+				input.value,
+				context.apiKey,
+			);
+			return rows.map((row) => withMaskedParty(context, row));
+		}),
 
 	duplicates: protectedProcedure
 		.route({
@@ -87,7 +100,7 @@ export const partyRouter = {
 		})
 		.input(z.object({}))
 		.output(z.array(partyDuplicateSchema))
-		.handler(({ context }) => listPartyDuplicates(context.db)),
+		.handler(({ context }) => listPartyDuplicates(context.db, context.apiKey)),
 
 	get: protectedProcedure
 		.route({
@@ -98,7 +111,9 @@ export const partyRouter = {
 		})
 		.input(idInput)
 		.output(partyDetailSchema)
-		.handler(({ input, context }) => getParty(context.db, input.id)),
+		.handler(async ({ input, context }) =>
+			withMaskedParty(context, await getParty(context.db, input.id)),
+		),
 
 	create: writeProcedure
 		.route({
@@ -110,7 +125,9 @@ export const partyRouter = {
 		})
 		.input(createPartyInput)
 		.output(partySchema)
-		.handler(({ input, context }) => createParty(context.db, input)),
+		.handler(async ({ input, context }) =>
+			withMaskedParty(context, await createParty(context.db, input)),
+		),
 
 	update: writeProcedure
 		.route({
@@ -121,9 +138,9 @@ export const partyRouter = {
 		})
 		.input(updatePartyInput.extend(idInput.shape))
 		.output(partySchema)
-		.handler(({ input, context }) => {
+		.handler(async ({ input, context }) => {
 			const { id, ...patch } = input;
-			return updateParty(context.db, id, patch);
+			return withMaskedParty(context, await updateParty(context.db, id, patch));
 		}),
 
 	mergeInto: writeProcedure
@@ -136,7 +153,10 @@ export const partyRouter = {
 		})
 		.input(mergePartiesInput)
 		.output(mergePartiesResultSchema)
-		.handler(({ input, context }) => mergeParties(context.db, input)),
+		.handler(async ({ input, context }) => {
+			const result = await mergeParties(context.db, input);
+			return { ...result, target: withMaskedParty(context, result.target) };
+		}),
 
 	archive: writeProcedure
 		.route({
@@ -147,7 +167,9 @@ export const partyRouter = {
 		})
 		.input(idInput)
 		.output(partySchema)
-		.handler(({ input, context }) => archiveParty(context.db, input.id)),
+		.handler(async ({ input, context }) =>
+			withMaskedParty(context, await archiveParty(context.db, input.id)),
+		),
 
 	unarchive: writeProcedure
 		.route({
@@ -158,7 +180,9 @@ export const partyRouter = {
 		})
 		.input(idInput)
 		.output(partySchema)
-		.handler(({ input, context }) => unarchiveParty(context.db, input.id)),
+		.handler(async ({ input, context }) =>
+			withMaskedParty(context, await unarchiveParty(context.db, input.id)),
+		),
 
 	delete: writeProcedure
 		.route({
@@ -187,12 +211,15 @@ export const partyRouter = {
 		.output(partySchema)
 		.handler(async ({ input, context }) => {
 			const storage = requireStorage(context);
-			return uploadPartyLogo(context.db, storage, {
-				id: input.id,
-				filename: input.file.name,
-				mime: input.file.type,
-				bytes: new Uint8Array(await input.file.arrayBuffer()),
-			});
+			return withMaskedParty(
+				context,
+				await uploadPartyLogo(context.db, storage, {
+					id: input.id,
+					filename: input.file.name,
+					mime: input.file.type,
+					bytes: new Uint8Array(await input.file.arrayBuffer()),
+				}),
+			);
 		}),
 
 	fetchLogo: writeProcedure
@@ -204,8 +231,11 @@ export const partyRouter = {
 		})
 		.input(z.object({ id: z.string().min(1) }))
 		.output(partySchema)
-		.handler(({ input, context }) =>
-			fetchPartyLogo(context.db, requireStorage(context), input.id),
+		.handler(async ({ input, context }) =>
+			withMaskedParty(
+				context,
+				await fetchPartyLogo(context.db, requireStorage(context), input.id),
+			),
 		),
 
 	removeLogo: writeProcedure
@@ -217,8 +247,11 @@ export const partyRouter = {
 		})
 		.input(idInput)
 		.output(partySchema)
-		.handler(({ input, context }) =>
-			removePartyLogo(context.db, requireStorage(context), input.id),
+		.handler(async ({ input, context }) =>
+			withMaskedParty(
+				context,
+				await removePartyLogo(context.db, requireStorage(context), input.id),
+			),
 		),
 
 	addRelation: writeProcedure
