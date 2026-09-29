@@ -103,7 +103,7 @@ Every mutation requires the `write` scope.
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
-| `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters |
+| `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters; `updatedSince`/`afterId` for incremental sync |
 | `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text |
 | `get_document_text`        | OCR text; hidden if sensitive and the key lacks `sensitive`           |
 | `list_review_queue`        | Documents "to review" with their reasons                              |
@@ -157,6 +157,30 @@ Every mutation requires the `write` scope.
 | `export_documents`         | Previews a ZIP export (count, size, paths); download via `POST /api/export` |
 | `assign_asn`               | Gives the document the next free archive serial number                 |
 | `find_by_asn`              | Finds a document by its ASN, or returns the next free number           |
+
+### Incremental sync
+
+An agent that keeps its own notes about the documents does not re-read the
+whole library on each visit. It stores a cursor and asks `search_documents`
+for what changed after it:
+
+1. Call `search_documents` with `updatedSince` set to the last cursor (any old
+   instant on the first visit). Results come oldest change first, trashed
+   documents included; each item carries `updatedAt` and `deletedAt`.
+2. Handle each item: a non-null `deletedAt` means the document went to the
+   trash (or was absorbed by a merge).
+3. If the page came back full, call again with `updatedSince` and `afterId`
+   set to the `updatedAt` and `id` of the last item. `afterId` matters: a bulk
+   action stamps many documents with the same instant.
+4. Store the `updatedAt` (and `id`) of the last item as the next cursor.
+
+`sort` is ignored while `updatedSince` is set: the cursor needs the
+`updatedAt` order. Every write, whether it comes from MCP, the web app, the
+API, a bulk action or an automation run, moves `updatedAt`, and also sends a
+webhook to the subscribers (`document.updated`, `document.trashed`,
+`document.restored`, `document.deleted`, `document.merged`): see
+[webhooks](ingestion.md#6-webhooks) for the payload and for the edge cases of
+the cursor.
 
 ### What the tools refuse
 
