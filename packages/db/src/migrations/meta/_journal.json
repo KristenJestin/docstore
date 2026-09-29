@@ -218,6 +218,13 @@
 			"when": 1788857425034,
 			"tag": "0030_document-type-generic",
 			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "7",
+			"when": 1790703937343,
+			"tag": "0031_document-updated-at-cursor",
+			"breakpoints": true
 		}
 	]
 }
