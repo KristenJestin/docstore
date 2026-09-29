@@ -30,6 +30,8 @@ import { currentTestDbScope, testDbName } from "./test-db-name";
  *   to millisecond precision, the precision of the sync cursor.
  * - `0033_backfill-merged-tombstones`: documents merged before issue #2 get the
  *   tombstone that redirects their id to the kept document.
+ * - `0035_timestamptz`: every timestamp column becomes `timestamptz`, the
+ *   stored values read as UTC whatever the session time zone (issue #12).
  *
  * The tests run in order on the same database: each one replays the migrations
  * between the previous target and its own.
@@ -59,6 +61,7 @@ const REVOKE_SENSITIVE_TAG = "0019_revoke-sensitive-share-links";
 const UPDATED_AT_CURSOR_TAG = "0031_document-updated-at-cursor";
 const STABLE_IDS_TAG = "0032_stable-document-ids";
 const MERGED_TOMBSTONES_TAG = "0033_backfill-merged-tombstones";
+const TIMESTAMPTZ_TAG = "0035_timestamptz";
 
 type Journal = { entries: { idx: number; tag: string }[] };
 
@@ -740,6 +743,163 @@ describe("0033_backfill-merged-tombstones", () => {
 			]);
 			// Untouched: a trashed document that kept its file (hand-made
 			// relation), a live one, and a relation other than `version_of`.
+		},
+		SETUP_TIMEOUT_MS,
+	);
+});
+
+describe("0035_timestamptz", () => {
+	test(
+		"converts every timestamp column to timestamptz, reading the stored values as UTC",
+		async () => {
+			const tags = migrationTags();
+			const from = tags.indexOf(MERGED_TOMBSTONES_TAG) + 1;
+			const targetIndex = tags.indexOf(TIMESTAMPTZ_TAG);
+			expect(targetIndex).toBeGreaterThan(from - 1);
+
+			for (const tag of tags.slice(from, targetIndex)) {
+				for (const statement of statementsOf(tag)) {
+					await pool.query(statement);
+				}
+			}
+
+			// Legacy rows: UTC wall-clock values, as the application wrote them.
+			await pool.query(`
+				insert into document (id, title, status, created_by_id, created_at, updated_at, deleted_at)
+				values
+					('doc_tz_a', 'Lease', 'active', 'usr_legacy', '2026-01-15T08:00:00', '2026-06-15T12:00:00.123', null),
+					('doc_tz_b', 'Invoice', 'active', 'usr_legacy', '2026-01-15T08:00:00', '2026-06-15T12:00:00.123', '2026-06-16T23:30:00'),
+					('doc_tz_c', 'Payslip', 'active', 'usr_legacy', '2026-01-15T08:00:00', '2026-12-31T23:59:59.999', null)
+			`);
+			await pool.query(`
+				insert into activity_log (id, created_at, kind, action, actor_type, object_type)
+				values ('act_tz', '2026-03-29T01:30:00.456', 'change', 'document.updated', 'user', 'document')
+			`);
+			await pool.query(`
+				insert into api_key (id, name, hashed_key, prefix, scopes, user_id, last_used_at, expires_at)
+				select 'key_tz', 'Agent', 'hash_tz', 'dsk_tz', '{read}', 'usr_legacy',
+					'2026-10-25T01:30:00', '2027-01-01T00:00:00'
+			`);
+
+			// The session running the migration is not in UTC: the values must
+			// still be read as UTC, not as Paris wall-clock times.
+			await pool.query("set time zone 'Europe/Paris'");
+			try {
+				for (const statement of statementsOf(TIMESTAMPTZ_TAG)) {
+					await pool.query(statement);
+				}
+			} finally {
+				await pool.query("set time zone 'UTC'");
+			}
+
+			const leftovers = await pool.query(`
+				select table_name, column_name from information_schema.columns
+				where table_schema = 'public' and data_type = 'timestamp without time zone'
+			`);
+			expect(leftovers.rows).toEqual([]);
+
+			const documents = await pool.query<{
+				id: string;
+				created_at: Date;
+				updated_at: Date;
+				deleted_at: Date | null;
+			}>(
+				"select id, created_at, updated_at, deleted_at from document where id like 'doc_tz_%' order by id",
+			);
+			expect(
+				documents.rows.map((row) => [
+					row.id,
+					row.created_at.toISOString(),
+					row.updated_at.toISOString(),
+					row.deleted_at?.toISOString() ?? null,
+				]),
+			).toEqual([
+				[
+					"doc_tz_a",
+					"2026-01-15T08:00:00.000Z",
+					"2026-06-15T12:00:00.123Z",
+					null,
+				],
+				[
+					"doc_tz_b",
+					"2026-01-15T08:00:00.000Z",
+					"2026-06-15T12:00:00.123Z",
+					"2026-06-16T23:30:00.000Z",
+				],
+				[
+					"doc_tz_c",
+					"2026-01-15T08:00:00.000Z",
+					"2026-12-31T23:59:59.999Z",
+					null,
+				],
+			]);
+
+			const activity = await pool.query<{ at: Date; type: string }>(
+				"select created_at as at, format_type(atttypid, atttypmod) as type from activity_log, pg_attribute where id = 'act_tz' and attrelid = 'activity_log'::regclass and attname = 'created_at'",
+			);
+			expect(activity.rows[0]?.at.toISOString()).toBe(
+				"2026-03-29T01:30:00.456Z",
+			);
+			// The millisecond precision of #15 is kept.
+			expect(activity.rows[0]?.type).toBe("timestamp(3) with time zone");
+
+			const key = await pool.query<{ last_used_at: Date; expires_at: Date }>(
+				"select last_used_at, expires_at from api_key where id = 'key_tz'",
+			);
+			expect(key.rows[0]?.last_used_at.toISOString()).toBe(
+				"2026-10-25T01:30:00.000Z",
+			);
+			expect(key.rows[0]?.expires_at.toISOString()).toBe(
+				"2027-01-01T00:00:00.000Z",
+			);
+
+			// The `(updated_at, id)` keyset of #7 is rebuilt, valid, and still
+			// serves the cursor query.
+			const index = await pool.query<{ valid: boolean; definition: string }>(`
+				select indisvalid as valid, pg_get_indexdef(indexrelid) as definition
+				from pg_index where indexrelid = 'document_updated_at_id_idx'::regclass
+			`);
+			expect(index.rows[0]?.valid).toBe(true);
+			expect(index.rows[0]?.definition).toContain("(updated_at, id)");
+			await pool.query("set enable_seqscan = off");
+			try {
+				const plan = await pool.query<{ "QUERY PLAN": string }>(`
+					explain select id from document
+					where (updated_at, id) > ('2026-06-15T12:00:00.123Z'::timestamptz, 'doc_tz_a')
+					order by updated_at, id
+				`);
+				expect(plan.rows.map((row) => row["QUERY PLAN"]).join("\n")).toContain(
+					"document_updated_at_id_idx",
+				);
+			} finally {
+				await pool.query("reset enable_seqscan");
+			}
+			const after = await pool.query<{ id: string }>(`
+				select id from document
+				where (updated_at, id) > ('2026-06-15T14:00:00.123+02:00'::timestamptz, 'doc_tz_a')
+					and id like 'doc_tz_%'
+				order by updated_at, id
+			`);
+			expect(after.rows.map((row) => row.id)).toEqual(["doc_tz_b", "doc_tz_c"]);
+
+			// The defaults still apply, in any session time zone, and the
+			// document one keeps its millisecond precision.
+			await pool.query("set time zone 'Europe/Paris'");
+			try {
+				await pool.query(`
+					insert into document (id, title, status, created_by_id)
+					values ('doc_tz_fresh', 'Receipt', 'active', 'usr_legacy')
+				`);
+				const fresh = await pool.query<{ drift: string; sub: string }>(`
+					select abs(extract(epoch from (updated_at - now())))::float8 as drift,
+						extract(microseconds from updated_at)::bigint % 1000 as sub
+					from document where id = 'doc_tz_fresh'
+				`);
+				expect(Number(fresh.rows[0]?.drift)).toBeLessThan(1);
+				expect(Number(fresh.rows[0]?.sub)).toBe(0);
+			} finally {
+				await pool.query("set time zone 'UTC'");
+			}
 		},
 		SETUP_TIMEOUT_MS,
 	);

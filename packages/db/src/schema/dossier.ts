@@ -26,9 +26,11 @@ export const dossier = pgTable(
 		name: text("name").notNull(),
 		description: text("description"),
 		status: dossierStatusEnum("status").notNull().default("open"),
-		closedAt: timestamp("closed_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		closedAt: timestamp("closed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -45,7 +47,9 @@ export const documentDossier = pgTable(
 		dossierId: text("dossier_id")
 			.notNull()
 			.references(() => dossier.id, { onDelete: "cascade" }),
-		addedAt: timestamp("added_at").defaultNow().notNull(),
+		addedAt: timestamp("added_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.documentId, table.dossierId] }),

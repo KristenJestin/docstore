@@ -55,9 +55,11 @@ export const rule = pgTable(
 		/** Stops evaluating the following rules when this one matches. */
 		stopOnMatch: boolean("stop_on_match").notNull().default(false),
 		matchCount: integer("match_count").notNull().default(0),
-		lastMatchedAt: timestamp("last_matched_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		lastMatchedAt: timestamp("last_matched_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -94,8 +96,10 @@ export const extractionRule = pgTable(
 		layoutId: text("layout_id")
 			.notNull()
 			.references(() => documentTypeLayout.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -122,7 +126,9 @@ export const ruleRun = pgTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		durationMs: integer("duration_ms").notNull().default(0),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		index("rule_run_rule_id_idx").on(table.ruleId),
