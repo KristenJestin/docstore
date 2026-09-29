@@ -84,7 +84,7 @@ export function registerDocumentTools(
 		{
 			title: "Search documents",
 			description:
-				"French full-text search plus filters: category (subtree included), tags (all required), Party, status, year, date range, sensitive flag. Incremental sync: pass `updatedSince` (the largest `updatedAt` you have seen) to get only what changed after it, oldest change first, trashed documents included (`deletedAt` set). When a page comes back full, call again with `updatedSince` and `afterId` set to the `updatedAt` and `id` of its last item.",
+				"French full-text search plus filters (without the `sensitive` scope, a sensitive document only matches the query on its title): category (subtree included), tags (all required), Party, status, year, date range, sensitive flag. Incremental sync: pass `updatedSince` (the largest `updatedAt` you have seen) to get only what changed after it, oldest change first, trashed documents included (`deletedAt` set). When a page comes back full, call again with `updatedSince` and `afterId` set to the `updatedAt` and `id` of its last item.",
 			inputSchema: {
 				query: z.string().trim().min(1).optional(),
 				categoryId: z.string().min(1).optional(),
@@ -126,25 +126,29 @@ export function registerDocumentTools(
 		},
 		async (input) => {
 			requireRead(context);
-			const page = await searchDocuments(context.db, {
-				query: input.query,
-				categoryId: input.categoryId,
-				tagIds: input.tagIds,
-				partyId: input.partyId,
-				status: input.status,
-				year: input.year,
-				dateFrom: input.dateFrom,
-				dateTo: input.dateTo,
-				sensitive: input.sensitive,
-				updatedSince: input.updatedSince,
-				afterId: input.afterId,
-				// With `updatedSince`, the service widens this to the trash.
-				deleted: "exclude",
-				page: input.page ?? 1,
-				pageSize: input.pageSize ?? 25,
-				// Left undefined, the service picks the default that fits the cursor.
-				sort: input.sort,
-			});
+			const page = await searchDocuments(
+				context.db,
+				{
+					query: input.query,
+					categoryId: input.categoryId,
+					tagIds: input.tagIds,
+					partyId: input.partyId,
+					status: input.status,
+					year: input.year,
+					dateFrom: input.dateFrom,
+					dateTo: input.dateTo,
+					sensitive: input.sensitive,
+					updatedSince: input.updatedSince,
+					afterId: input.afterId,
+					// With `updatedSince`, the service widens this to the trash.
+					deleted: "exclude",
+					page: input.page ?? 1,
+					pageSize: input.pageSize ?? 25,
+					// Left undefined, the service picks the default that fits the cursor.
+					sort: input.sort,
+				},
+				context.principal,
+			);
 			return { ...page, items: page.items.map(toDocumentSummary) };
 		},
 	);
@@ -155,14 +159,17 @@ export function registerDocumentTools(
 		{
 			title: "Document detail",
 			description:
-				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`). Also returns the stable URLs worth citing: `webUrl` (the page) and `fileUrl` (`/d/<id>`, the primary file, readable with the same API key). The id of a document merged as a version returns the kept document, with `redirectedFrom` set to the id asked for; a trashed document is still returned with `deletedAt`; a permanently deleted one is an error.",
+				"Full metadata of a document: dates, category, tags, linked Parties, custom fields, free-text notes, files, and its document type with the selected layout (`computed`, or `forced`/`excluded` by hand). The OCR text is not included (see `get_document_text`). A document flagged as sensitive comes back with `masked: true`, no custom field values and no notes unless the API key has the `sensitive` scope. Also returns the stable URLs worth citing: `webUrl` (the page) and `fileUrl` (`/d/<id>`, the primary file, readable with the same API key). The id of a document merged as a version returns the kept document, with `redirectedFrom` set to the id asked for; a trashed document is still returned with `deletedAt`; a permanently deleted one is an error.",
 			inputSchema: idInput,
 			outputSchema: documentGetJson.shape,
 			text: (output) => describeDocumentGet(output),
 		},
 		async (input) => {
 			requireRead(context);
-			return toDocumentGet(await getDocumentWithUrls(context.db, input.id));
+			return toDocumentGet(
+				await getDocumentWithUrls(context.db, input.id),
+				context.principal,
+			);
 		},
 	);
 
@@ -279,6 +286,7 @@ export function registerDocumentTools(
 			requireWrite(context);
 			return toDocumentDetail(
 				await approveReview(context.db, input.id, input.patch),
+				context.principal,
 			);
 		},
 	);
@@ -308,6 +316,7 @@ export function registerDocumentTools(
 					ref: input.ref,
 					role: input.role,
 				}),
+				context.principal,
 			);
 		},
 	);
@@ -334,6 +343,7 @@ export function registerDocumentTools(
 								setSensitive(ingestion.ctx, documentId, sensitive)
 						: undefined,
 				}),
+				context.principal,
 			);
 		},
 	);
@@ -356,6 +366,7 @@ export function registerDocumentTools(
 			requireWrite(context);
 			return toDocumentDetail(
 				await setDocumentCategory(context.db, input.id, input.categoryId),
+				context.principal,
 			);
 		},
 	);
@@ -378,6 +389,7 @@ export function registerDocumentTools(
 			requireWrite(context);
 			return toDocumentDetail(
 				await setDocumentTags(context.db, input.id, input.tagIds),
+				context.principal,
 			);
 		},
 	);
@@ -406,6 +418,7 @@ export function registerDocumentTools(
 					input.partyId,
 					input.role,
 				),
+				context.principal,
 			);
 		},
 	);
@@ -433,6 +446,7 @@ export function registerDocumentTools(
 					input.partyId,
 					input.role,
 				),
+				context.principal,
 			);
 		},
 	);
@@ -461,6 +475,7 @@ export function registerDocumentTools(
 					input.fieldId,
 					input.value,
 				),
+				context.principal,
 			);
 		},
 	);
@@ -582,5 +597,5 @@ export async function readDocumentResource(
 ): Promise<string> {
 	requireRead(context);
 	const detail = await getDocumentWithUrls(context.db, id);
-	return JSON.stringify(toDocumentGet(detail), null, 2);
+	return JSON.stringify(toDocumentGet(detail, context.principal), null, 2);
 }

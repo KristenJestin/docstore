@@ -7,7 +7,10 @@ import {
 	recordActivity,
 	webhookDocumentSummary,
 } from "@docstore/ingestion";
-import type { ActivitySummary } from "@docstore/shared/activity";
+import {
+	type ActivitySummary,
+	withoutFieldValue,
+} from "@docstore/shared/activity";
 import type {
 	DocumentChangeEvent,
 	WebhookDocument,
@@ -228,6 +231,10 @@ export function documentSnapshot(
  * Writes the activity entries of the batch in one insert, on behalf of the
  * actor of the request. The title and `sensitive` flag of each document are
  * read once, after the change: the entry names the document as it now is.
+ *
+ * On a sensitive document, a field change is stored without its value, only
+ * the fact that the field changed (issue #22): whoever reads the log later,
+ * with whatever rights, cannot learn the amount from it.
  */
 async function flushActivity(db: Db, batch: DocumentEventBatch): Promise<void> {
 	const drafts = batch.activityDrafts();
@@ -263,10 +270,14 @@ async function flushActivity(db: Db, batch: DocumentEventBatch): Promise<void> {
 					? documents.get(draft.objectId)
 					: undefined;
 			if (!found) return draft;
+			const sensitive = draft.sensitive ?? found.sensitive;
 			return {
 				...draft,
 				objectLabel: draft.objectLabel ?? found.title,
-				sensitive: draft.sensitive ?? found.sensitive,
+				sensitive,
+				summary: sensitive
+					? withoutFieldValue(draft.action, draft.summary ?? {})
+					: draft.summary,
 			};
 		}),
 	);
