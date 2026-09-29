@@ -55,7 +55,7 @@ archive, attachment and thumbnail) is stored encrypted, and
 | Intake with `defaults.sensitive` (upload link, mailbox, watched folder) | The file is written straight through the encrypted driver: the plaintext never touches the disk. |
 | Rule action `set_sensitive` | `setSensitive` re-keys the files already stored. |
 | `document.update { sensitive }`, `document.bulk { setSensitive }`, MCP `update_document` | Same hook, injected into the router like `onDeleteFiles`. |
-| Reading (`/files/:id/download`, `/files/:id/thumbnail`, `file.download`, `/api/s/...`, export) | The driver is chosen from `document_file.encrypted`; decryption is transparent. An API key without the `sensitive` scope is refused before the storage is touched (section 4). |
+| Reading (`/files/:id/download`, `/files/:id/thumbnail`, `/d/:docId`, `file.download`, `/api/s/...`, export) | The driver is chosen from `document_file.encrypted`; decryption is transparent. An API key without the `sensitive` scope is refused before the storage is touched (section 4). |
 
 Re-keying happens in place: the storage key does not change, only the bytes
 behind it. `FsStorageDriver.put` writes to a temporary file then renames, so the
@@ -176,8 +176,9 @@ it, `/files`, `/mcp`, the export).
   `read`. Mutations build on `writeProcedure` (`write`) and administration on
   `adminProcedure` (`admin`), so a key with `write` only can write but cannot
   read, and gets `403 FORBIDDEN` on `document.list`.
-- `/files/:id/download`, `/files/:id/thumbnail`, `/api/parties/:id/logo` and
-  `POST /api/export` answer `403` to a key without `read`.
+- `/files/:id/download`, `/files/:id/thumbnail`, `/d/:docId`,
+  `/api/parties/:id/logo` and `POST /api/export` answer `403` to a key without
+  `read`.
 - MCP: every read tool and resource returns an error without `read`; every
   mutation requires `write`.
 
@@ -189,7 +190,7 @@ One helper decides whether a caller may read sensitive content:
 
 | Surface | Without `sensitive`, on a sensitive document |
 | ------- | -------------------------------------------- |
-| `GET /files/:id/download`, `GET /files/:id/thumbnail`, oRPC `file.download`, `file.thumbnail` | `403 FORBIDDEN`, checked before the storage is read: no byte of the file is sent |
+| `GET /files/:id/download`, `GET /files/:id/thumbnail`, `GET /d/:docId`, oRPC `file.download`, `file.thumbnail` | `403 FORBIDDEN`, checked before the storage is read: no byte of the file is sent |
 | oRPC `document.get`, `document.byAsn`, and every write that returns the document (`document.update`, `setTags`, `review.approve`…) | `content` is replaced by ``[sensitive document: `sensitive` scope required]`` and `masked: true` is set |
 | oRPC `document.getFileLayout` | `403 FORBIDDEN` |
 | Dry runs over the OCR layer: `extractionRule.test`, `extractionRule.preview`, `documentType.preview`, `documentType.testLayout`, `rule.test`, MCP `test_rule` | `403 FORBIDDEN` (MCP: tool error) |
@@ -198,6 +199,13 @@ One helper decides whether a caller may read sensitive content:
 
 A refusal is a `403`, not a `404`: the caller already knows the id, and the
 document metadata already says `sensitive: true`.
+
+`GET /d/:docId` (the stable URL of a document, see `docs/mcp.md`) checks the
+caller before it resolves anything: an anonymous request gets `401` and a key
+without `read` gets `403`, so neither learns whether the id was merged, and
+into what. The `302` of a merged id only reaches a reader, who could read the
+same target through `document.get`. The `sensitive` check then runs on the
+document actually served, the kept one.
 
 What stays readable with `read` alone: the metadata of a sensitive document
 (title, dates, category, tags, Parties, custom field values), in search

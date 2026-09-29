@@ -56,8 +56,9 @@ Sensitive documents are also encrypted at rest and can never be shared through a
 public link. See `docs/security.md`.
 
 The same keys also authenticate the HTTP routes `/rpc*`, `/api-reference/*`,
-`/files/:id/download`, `/files/:id/thumbnail`, `/api/parties/:id/logo` and
-`POST /api/export`, through `Authorization: Bearer dsk_…` or `X-API-Key: dsk_…`.
+`/files/:id/download`, `/files/:id/thumbnail`, `/d/:docId`,
+`/api/parties/:id/logo` and `POST /api/export`, through
+`Authorization: Bearer dsk_…` or `X-API-Key: dsk_…`.
 
 ## 3. Connect a client
 
@@ -106,7 +107,7 @@ Every read tool requires the `read` scope, every mutation the `write` scope.
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
 | `search_documents`         | Full-text search (title, OCR text, notes) + category, tag, Party, status, date filters |
-| `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text |
+| `get_document`             | Full detail of a document (Dossiers and document type included), without the OCR text, plus its stable `webUrl` and `fileUrl`; follows a merge (`redirectedFrom`) |
 | `get_document_text`        | OCR text; hidden if sensitive and the key lacks `sensitive`           |
 | `list_review_queue`        | Documents "to review" with their reasons                              |
 | `approve_review`           | Approves a document (optional correction) and sets it back to `active` |
@@ -160,6 +161,48 @@ Every read tool requires the `read` scope, every mutation the `write` scope.
 | `assign_asn`               | Gives the document the next free archive serial number                 |
 | `find_by_asn`              | Finds a document by its ASN, or returns the next free number           |
 
+### Stable document references
+
+A `doc_…` id is what other tools cite (the life wiki references documents by
+id instead of copying their PDFs), so it always leads somewhere:
+
+| Field of `get_document` / `document.get` | Value |
+| ---------------------------------------- | ----- |
+| `webUrl` | `<public URL>/documents/<id>`: the page, for humans |
+| `fileUrl` | `<public URL>/d/<id>`: the primary file, for scripts and agents |
+| `redirectedFrom` | The id that was asked for, when it was merged into this document; `null` otherwise |
+
+Both URLs are built from `PUBLIC_URL` (else `BETTER_AUTH_URL`), like the share
+and upload links.
+
+`GET /d/<docId>` downloads the primary file of the document, without resolving
+a `fil_` id first; `GET /d/<docId>?disposition=inline` views it. The primary
+file is the `original` file (the oldest one if there are several), else the
+oldest file of the document. It takes the same authentication and scopes as
+`/files/:id/download`: `read`, plus `sensitive` for a sensitive document. The
+OpenAPI reference (`/api-reference`) lists it next to the procedures, and
+describes the three fields on `GET /documents/{id}`.
+
+```bash
+curl -L -H "Authorization: Bearer dsk_…" https://docstore.exemple.fr/d/doc_… -o document.pdf
+```
+
+What an id leads to, on every surface (`get_document`, the
+`docstore://document/{id}` resource, `document.get`, `/d/`):
+
+| The document | Answer |
+| ------------ | ------ |
+| Live | Itself |
+| Merged into another one by `document.mergeAsVersion` | The kept document, with `redirectedFrom`; `/d/` answers `302` to `/d/<kept id>` (pass `-L` to `curl`). Still true once the merged document is purged from the trash, and along a chain of merges |
+| In the trash, not merged | Itself, with `deletedAt` set |
+| Restored after a merge | Itself again: restoring drops the redirect (its files stay with the kept document) |
+| Permanently deleted | `410 GONE` (MCP: tool error "… was permanently deleted") |
+| Never existed | `404 NOT_FOUND` |
+
+The redirect is recorded in the `document_tombstone` table, which outlives the
+document row; merges done before it existed are backfilled from their
+`version_of` relation by the `0032_backfill-merged-tombstones` migration.
+
 ### What the tools refuse
 
 An agent gets an explicit tool error in each of these cases:
@@ -207,8 +250,9 @@ server side can push the change: the transport is sessionless and carries no
 
 Resources (JSON):
 
-- `docstore://document/{id}`: detail of a document; `resources/list` exposes
-  the 50 most recent documents;
+- `docstore://document/{id}`: detail of a document, with the same `webUrl`,
+  `fileUrl` and `redirectedFrom` as `get_document` (a merged id reads the kept
+  document); `resources/list` exposes the 50 most recent documents;
 - `docstore://party/{id}`: record of a Party (no enumeration: go through
   `list_parties`).
 
