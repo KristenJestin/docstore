@@ -112,7 +112,9 @@ export const SENSITIVE_PLACEHOLDER =
  * (issue #22): its metadata (title, dates, period, category, tags, Parties,
  * document type), never what it says. The OCR text becomes
  * {@link SENSITIVE_PLACEHOLDER}, the custom field values an empty list and the
- * notes `null`; `masked` says which happened. `fieldValues` and `notes` are
+ * notes `null`; the external references (issue #34) an empty list too, since a
+ * wiki path such as `10-admin/17-sante/…` says what the document is about.
+ * `masked` says which happened. `fieldValues`, `notes` and `externalRefs` are
  * only touched when the shape carries them (`document.trash` returns neither
  * values nor relations).
  *
@@ -125,6 +127,7 @@ export function maskSensitiveDocument<
 		content: string | null;
 		notes?: string | null;
 		fieldValues?: readonly unknown[];
+		externalRefs?: readonly unknown[];
 	},
 >(document: T, caller: ScopedCaller): T & { masked: boolean } {
 	if (!document.sensitive || mayReadSensitive(caller)) {
@@ -135,6 +138,7 @@ export function maskSensitiveDocument<
 		content: document.content === null ? null : SENSITIVE_PLACEHOLDER,
 		...("notes" in document ? { notes: null } : {}),
 		...("fieldValues" in document ? { fieldValues: [] } : {}),
+		...("externalRefs" in document ? { externalRefs: [] } : {}),
 		masked: true,
 	};
 }

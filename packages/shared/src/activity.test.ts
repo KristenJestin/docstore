@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
+	type ActivityEntry,
 	activityVerb,
 	describeActivitySummary,
 	listActivityInput,
+	maskSensitiveActivity,
 } from "./activity";
 
 describe("describeActivitySummary: the Activity page says what changed", () => {
@@ -107,4 +109,55 @@ describe("listActivityInput", () => {
 
 test("activityVerb drops the object and the underscores", () => {
 	expect(activityVerb("document.party_linked")).toBe("party linked");
+});
+
+describe("maskSensitiveActivity: external references of a sensitive document (issue #34)", () => {
+	const entry: ActivityEntry = {
+		id: "act_1",
+		createdAt: new Date("2026-09-29T10:00:00Z"),
+		kind: "change",
+		action: "document.external_refs_set",
+		actor: {
+			type: "api_key",
+			userId: "usr_1",
+			apiKeyId: "key_1",
+			name: "wiki",
+		},
+		objectType: "document",
+		objectId: "doc_1",
+		objectLabel: "Diagnosis",
+		summary: {
+			system: "wiki",
+			added: [{ name: "10-admin/17-sante/diagnostic.md" }],
+			removed: [{ name: "10-admin/17-sante/old.md" }],
+			updated: [{ name: "10-admin/17-sante/kept.md" }],
+		},
+		sensitive: true,
+	};
+
+	test("WHEN a read key lists document.external_refs_set on a sensitive document THEN the paths are hidden", () => {
+		const masked = maskSensitiveActivity(entry, { scopes: ["read"] });
+		expect(JSON.stringify(masked)).not.toContain("17-sante");
+		expect(masked.summary).toEqual({
+			system: "wiki",
+			added: 1,
+			removed: 1,
+			updated: 1,
+			masked: true,
+		});
+		expect(describeActivitySummary(masked)).toBe(
+			"wiki · 1 added · 1 removed · 1 updated · masked",
+		);
+	});
+
+	test("WHEN a key with sensitive or a session lists it THEN the paths are shown", () => {
+		for (const caller of [null, { scopes: ["read", "sensitive"] as const }]) {
+			expect(maskSensitiveActivity(entry, caller)).toBe(entry);
+		}
+	});
+
+	test("WHEN the document is not sensitive THEN a read key sees the paths", () => {
+		const plain = { ...entry, sensitive: false };
+		expect(maskSensitiveActivity(plain, { scopes: ["read"] })).toBe(plain);
+	});
 });

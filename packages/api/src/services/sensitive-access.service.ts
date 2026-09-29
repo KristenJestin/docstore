@@ -52,8 +52,9 @@ export async function assertDocumentSensitiveAccess(
 }
 
 /**
- * Masks what a sensitive document says (OCR text, custom field values, notes)
- * for an oRPC caller that may not read it (`masked: true`, issue #22). Applied
+ * Masks what a sensitive document says (OCR text, custom field values, notes,
+ * external references) for an oRPC caller that may not read it (`masked:
+ * true`, issues #22 and #34). Applied
  * to every procedure that returns a document, reads and writes alike.
  */
 export function withMaskedDocument<
@@ -62,6 +63,7 @@ export function withMaskedDocument<
 		content: string | null;
 		notes?: string | null;
 		fieldValues?: readonly unknown[];
+		externalRefs?: readonly unknown[];
 	},
 >(context: { apiKey?: ScopedCaller }, document: T): T & { masked: boolean } {
 	return maskSensitiveDocument(document, context.apiKey);
