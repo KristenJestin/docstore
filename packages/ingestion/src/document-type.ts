@@ -34,7 +34,11 @@ import {
 	LAYOUT_SIGNATURE_TOKENS,
 	LAYOUT_TRIAL_THRESHOLD,
 } from "@docstore/shared/document-type";
-import { periodKeyOf, periodStartOf } from "@docstore/shared/recurrence";
+import {
+	periodAnchorOf,
+	periodKeyOf,
+	periodStartOf,
+} from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
 import { and, asc, eq, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { computeReviewReasons } from "./analyze";
@@ -591,15 +595,21 @@ export interface ApplyDocumentTypeOutcome {
  * and `{period}` with the key of the period the document falls into.
  *
  * A recurring type also re-anchors `periodStart` on the period itself — the
- * anchor date is `period_start` falling back to `document_date`, exactly as
- * the timeline computes it — so `{period:MMMM yyyy}` reads the month of the
+ * anchor date is `period_start` falling back to `document_date`, moved back
+ * the periods the type's documents arrive after (D39-02), exactly as the
+ * timeline computes it — so `{period:MMMM yyyy}` reads the month of the
  * period even when the document only carries a date.
  */
 export function typeTitleContext(
-	type: Pick<DocumentTypeRow, "name" | "periodicity">,
+	type: Pick<DocumentTypeRow, "name" | "periodicity" | "arrivesAfter">,
 	subject: RuleSubject,
 ): TitleTemplateContext {
-	const anchor = subject.periodStart ?? subject.documentDate ?? null;
+	const anchor = periodAnchorOf(
+		type.periodicity,
+		subject.periodStart ?? null,
+		subject.documentDate ?? null,
+		type.arrivesAfter,
+	);
 	const recurring = type.periodicity && anchor ? type.periodicity : null;
 	return {
 		...titleContextOf(subject),

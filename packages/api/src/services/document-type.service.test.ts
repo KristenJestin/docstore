@@ -24,9 +24,11 @@ import {
 import type { DocumentTypeMember } from "./document-type.service";
 import {
 	createDocumentType,
+	documentTypeForDocument,
 	documentTypeTimeline,
 	effectiveRecurrenceRange,
 	getDocumentType,
+	previewDocumentTypeTitles,
 	requireDocumentType,
 	updateDocumentType,
 } from "./document-type.service";
@@ -418,5 +420,217 @@ describe("yearly recurrence — expected month", () => {
 				recurrence: { periodicity: "quarterly", expectedMonth: 4 },
 			}),
 		).toThrow("between 1 and 3");
+	});
+});
+
+/**
+ * Issue #39: the income tax notice for income year 2025 arrives in July 2026.
+ * D39-01: the type says its documents arrive `arrivesAfter` periods after the
+ * period they cover; D39-02: a document without a period is filed that many
+ * periods before its date; D39-03: the due date and the learned month move by
+ * the same number of periods, and the timeline, stats and reminders follow.
+ */
+describe("income tax notice arriving the following year (#39)", () => {
+	let db: TestDb;
+	let userId: string;
+	let issuerId: string;
+	let categoryId: string;
+
+	beforeAll(async () => {
+		db = await createTestDb();
+	});
+
+	afterAll(async () => {
+		await db.$client.end();
+	});
+
+	beforeEach(async () => {
+		await truncateAll(db);
+		const [user] = await db
+			.insert(userTable)
+			.values({ id: "usr_39", name: "Kris", email: "kris-39@test.local" })
+			.returning({ id: userTable.id });
+		const [issuer] = await db
+			.insert(party)
+			.values({ type: "company", name: "DGFiP" })
+			.returning({ id: party.id });
+		const [notice] = await db
+			.insert(category)
+			.values({ name: "Tax notice", slug: "tax-notice" })
+			.returning({ id: category.id });
+		if (!user || !issuer || !notice) throw new Error("seed failed");
+		userId = user.id;
+		issuerId = issuer.id;
+		categoryId = notice.id;
+	});
+
+	async function seedNotice(documentDate: string, periodStart?: string) {
+		const [row] = await db
+			.insert(document)
+			.values({
+				title: `Notice ${documentDate}`,
+				status: "active",
+				createdById: userId,
+				categoryId,
+				documentDate,
+				periodStart: periodStart ?? null,
+			})
+			.returning({ id: document.id });
+		if (!row) throw new Error("document not inserted");
+		await db
+			.insert(documentParty)
+			.values({ documentId: row.id, partyId: issuerId, role: "issuer" });
+		return row.id;
+	}
+
+	async function seedType(recurrence: Record<string, unknown> = {}) {
+		const created = await createDocumentType(
+			db,
+			createDocumentTypeInput.parse({
+				name: "Avis d'impôt sur le revenu",
+				issuerPartyId: issuerId,
+				categoryId,
+				titleTemplate: "{type} {period}",
+				recurrence: {
+					periodicity: "yearly",
+					graceDays: 15,
+					arrivesAfter: 1,
+					...recurrence,
+				},
+			}),
+		);
+		return requireDocumentType(db, created.id);
+	}
+
+	test("the expected month is learned as July from documents dated 2024-07-08 and 2025-07-08", async () => {
+		await seedNotice("2024-07-08");
+		await seedNotice("2025-07-08");
+		const row = await seedType();
+		expect(row.arrivesAfter).toBe(1);
+
+		const detail = await getDocumentType(db, row.id);
+		expect(detail.arrivesAfter).toBe(1);
+		expect(detail.expectedMonth).toBeNull();
+		expect(detail.learnedExpectedMonth).toBe(7);
+		expect(detail.range).toMatchObject({ start: "2023-01-01" });
+		const timeline = await documentTypeTimeline(db, row, "2026-07-01");
+		expect(timeline.map((entry) => [entry.period, entry.status])).toEqual([
+			["2023", "present"],
+			["2024", "present"],
+			["2025", "pending"],
+			["2026", "pending"],
+		]);
+	});
+
+	test("period 2025 is due in July 2026 plus grace, pending before and missing after", async () => {
+		await seedNotice("2024-07-08");
+		await seedNotice("2025-07-08");
+		const row = await seedType();
+
+		const before = await documentTypeTimeline(db, row, "2026-08-15");
+		expect(before.find((entry) => entry.period === "2025")).toMatchObject({
+			status: "pending",
+			// Last day of July 2026, plus 15 grace days.
+			dueDate: "2026-08-15",
+		});
+
+		const after = await documentTypeTimeline(db, row, "2026-08-16");
+		expect(after.find((entry) => entry.period === "2025")).toMatchObject({
+			status: "missing",
+		});
+		// 2026 is only expected in July 2027.
+		expect(after.at(-1)).toMatchObject({
+			period: "2026",
+			status: "pending",
+			dueDate: "2027-08-15",
+		});
+		expect((await getDocumentType(db, row.id)).stats).toMatchObject({
+			present: 2,
+		});
+	});
+
+	test("a period_gap reminder fires for 2025 once July 2026 and its grace have passed", async () => {
+		await seedNotice("2024-07-08");
+		await seedNotice("2025-07-08");
+		await seedType();
+
+		const early = await generateReminders(db, { today: "2026-08-15" });
+		expect(early.created).toBe(0);
+
+		const late = await generateReminders(db, { today: "2026-08-16" });
+		expect(late.created).toBe(1);
+		const [gap] = await db.select().from(reminder);
+		expect(gap).toMatchObject({
+			kind: "period_gap",
+			period: "2025-01-01",
+			dueDate: "2026-08-15",
+		});
+	});
+
+	test("the 2025 notice received in July 2026 fills period 2025", async () => {
+		await seedNotice("2024-07-08");
+		await seedNotice("2025-07-08");
+		const received = await seedNotice("2026-07-08");
+		const row = await seedType();
+
+		const timeline = await documentTypeTimeline(db, row, "2026-09-29");
+		expect(timeline.find((entry) => entry.period === "2025")).toMatchObject({
+			status: "present",
+			documentId: received,
+		});
+		expect((await documentTypeForDocument(db, received))?.period).toBe("2025");
+		const titles = await previewDocumentTypeTitles(db, {
+			id: row.id,
+			limit: 1,
+		});
+		expect(titles[0]).toMatchObject({
+			documentId: received,
+			title: "Avis d'impôt sur le revenu 2025",
+		});
+	});
+
+	test("a document carrying its own period keeps it", async () => {
+		await seedNotice("2024-07-08", "2023-01-01");
+		await seedNotice("2025-07-08", "2024-01-01");
+		const row = await seedType();
+
+		expect((await getDocumentType(db, row.id)).learnedExpectedMonth).toBe(7);
+		const timeline = await documentTypeTimeline(db, row, "2026-08-16");
+		expect(timeline.map((entry) => [entry.period, entry.status])).toEqual([
+			["2023", "present"],
+			["2024", "present"],
+			["2025", "missing"],
+			["2026", "pending"],
+		]);
+	});
+
+	test("arrivesAfter defaults to 0 and is bounded", async () => {
+		await seedNotice("2025-07-08");
+		const row = await seedType({ arrivesAfter: undefined });
+		expect(row.arrivesAfter).toBe(0);
+		// Without the offset, the same document covers its own year.
+		const timeline = await documentTypeTimeline(db, row, "2026-09-29");
+		expect(timeline[0]).toMatchObject({ period: "2025", status: "present" });
+
+		expect(() =>
+			createDocumentTypeInput.parse({
+				name: "Too late",
+				recurrence: { periodicity: "yearly", arrivesAfter: 4 },
+			}),
+		).toThrow();
+
+		const updated = await updateDocumentType(
+			db,
+			updateDocumentTypeInput.parse({
+				id: row.id,
+				recurrence: { periodicity: "yearly", arrivesAfter: 1 },
+			}),
+		);
+		expect(updated.arrivesAfter).toBe(1);
+		const oneOff = await createDocumentType(
+			db,
+			createDocumentTypeInput.parse({ name: "One-off" }),
+		);
+		expect(oneOff.arrivesAfter).toBe(0);
 	});
 });
