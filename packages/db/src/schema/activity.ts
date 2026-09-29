@@ -34,7 +34,9 @@ export const activityLog = pgTable(
 			.primaryKey()
 			.$defaultFn(() => createId("act_")),
 		/** Set by the writer with millisecond precision, like the `since` filter. */
-		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, precision: 3 })
+			.defaultNow()
+			.notNull(),
 		kind: text("kind").$type<ActivityKind>().notNull(),
 		action: text("action").notNull(),
 		actorType: text("actor_type").$type<ActivityActorType>().notNull(),

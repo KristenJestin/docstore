@@ -95,6 +95,31 @@ export async function dropDatabase(connectionString: string): Promise<void> {
 	});
 }
 
+/**
+ * Drops every database whose name starts with `prefix` (`wt:remove`: the test
+ * databases of a worktree, `docstore_test_<scope>__*`). Compared with `left()`
+ * rather than `like`, where `_` would be a wildcard. Returns the names dropped.
+ */
+export async function dropDatabasesWithPrefix(
+	connectionString: string,
+	prefix: string,
+): Promise<string[]> {
+	if (!prefix) throw new Error("A database prefix is required.");
+	const found = await withAdmin(connectionString, (admin) =>
+		admin.query<{ datname: string }>(
+			"select datname from pg_database where left(datname, length($1)) = $1",
+			[prefix],
+		),
+	);
+	const names = found.rows.map((row) => row.datname);
+	for (const name of names) {
+		const url = new URL(connectionString);
+		url.pathname = `/${name}`;
+		await dropDatabase(url.toString());
+	}
+	return names;
+}
+
 export interface PrepareResult {
 	database: string;
 	created: boolean;
@@ -140,6 +165,14 @@ if (import.meta.main) {
 		// `wt:remove`: the worktree is gone, nothing to migrate afterwards.
 		await dropDatabase(connectionString);
 		console.log(`[db] ${databaseName(connectionString)}: dropped.`);
+	} else if (command === "drop-prefix") {
+		const prefix = process.argv[3] ?? "";
+		const dropped = await dropDatabasesWithPrefix(connectionString, prefix);
+		console.log(
+			dropped.length === 0
+				? `[db] no database starts with ${prefix}.`
+				: `[db] dropped ${dropped.join(", ")}.`,
+		);
 	} else if (command === "reset" || command === "prepare") {
 		if (command === "reset") await dropDatabase(connectionString);
 		const result = await prepareDatabase(connectionString);
@@ -152,7 +185,7 @@ if (import.meta.main) {
 		);
 	} else {
 		console.error(
-			`[db] unknown command "${command}" (prepare | reset | drop).`,
+			`[db] unknown command "${command}" (prepare | reset | drop | drop-prefix).`,
 		);
 		process.exit(1);
 	}

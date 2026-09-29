@@ -35,9 +35,11 @@ export const webhook = pgTable(
 			.default(sql`'{}'::text[]`),
 		enabled: boolean("enabled").notNull().default(true),
 		lastStatus: integer("last_status"),
-		lastCalledAt: timestamp("last_called_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		lastCalledAt: timestamp("last_called_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -63,7 +65,9 @@ export const webhookDelivery = pgTable(
 		statusCode: integer("status_code"),
 		attempt: integer("attempt").notNull().default(1),
 		error: text("error"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		index("webhook_delivery_webhook_id_idx").on(table.webhookId),

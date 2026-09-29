@@ -253,7 +253,13 @@ Listing an object takes the same scope as managing it (issue #11), so a
 | `intakeSource.list`, `intakeSource.get`, `intakeSource.logs`, MCP `list_intake_sources` | `admin` |
 
 A key without that scope gets `403 FORBIDDEN` (MCP: a tool error); a browser
-session is unaffected. `settings.serverInfo` stays on `read`: it returns the
+session is unaffected.
+
+Every MCP tool requires the same scope as its oRPC procedure (issue #24): MCP
+`run_intake_source` and `create_upload_link` require `admin`, like
+`intakeSource.runNow` and `uploadLink.create`, so a `write` key cannot open a
+public upload link. `packages/mcp/src/tool-scopes.test.ts` checks the pairing
+for every tool. `settings.serverInfo` stays on `read`: it returns the
 public origins, the version, the path of the configuration file and a count,
 no secret. Likewise `settings.set` on `auth.allowSignUp`
 requires `admin` (or a browser session): opening sign-up lets someone new into
