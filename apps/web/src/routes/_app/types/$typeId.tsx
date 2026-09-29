@@ -33,7 +33,10 @@ import {
 } from "@/components/document-types/document-type-badges";
 import { DocumentTypeDetection } from "@/components/document-types/document-type-detection";
 import { DocumentTypeFormSheet } from "@/components/document-types/document-type-form-sheet";
-import { expectedMonthLabel } from "@/components/document-types/document-type-labels";
+import {
+	arrivesAfterLabel,
+	expectedMonthLabel,
+} from "@/components/document-types/document-type-labels";
 import { DocumentTypeLayouts } from "@/components/document-types/document-type-layouts";
 import { OutOfRangeNotice } from "@/components/document-types/out-of-range-notice";
 import { formatRecurrenceRange } from "@/components/document-types/period-picker";
@@ -415,6 +418,13 @@ function DocumentTypeDetailPage() {
 											<InfoRow
 												label="Last period"
 												value={detail.endPeriod ?? "Open recurrence"}
+											/>
+											<InfoRow
+												label="Arrives"
+												value={arrivesAfterLabel(
+													detail.periodicity,
+													detail.arrivesAfter,
+												)}
 											/>
 											{hasExpectedMonth(detail.periodicity) ? (
 												<InfoRow

@@ -72,6 +72,28 @@ export function expectedMonthLabel(
 	return names.join(" / ");
 }
 
+const PERIOD_NOUNS: Record<Periodicity, [string, string]> = {
+	weekly: ["week", "weeks"],
+	monthly: ["month", "months"],
+	quarterly: ["quarter", "quarters"],
+	semiannual: ["half-year", "half-years"],
+	yearly: ["year", "years"],
+};
+
+/**
+ * When the documents of a type arrive, relative to the period they cover
+ * (D39-01): "Within the period", "The following year", "2 years later".
+ */
+export function arrivesAfterLabel(
+	periodicity: Periodicity,
+	arrivesAfter: number,
+): string {
+	const [one, many] = PERIOD_NOUNS[periodicity];
+	if (arrivesAfter <= 0) return `Within the ${one}`;
+	if (arrivesAfter === 1) return `The following ${one}`;
+	return `${arrivesAfter} ${many} later`;
+}
+
 /** Status of one period of the timeline. */
 export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
 	present: "Filed",

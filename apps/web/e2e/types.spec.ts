@@ -297,6 +297,57 @@ test.describe("document types", () => {
 		await expect(page.getByText("July", { exact: true })).toBeVisible();
 	});
 
+	test("an income tax notice arriving the following year is due in July of that year", async ({
+		page,
+	}) => {
+		await signUp(page, "E2E Arrives After User");
+
+		const typeName = runName("income tax notice type");
+
+		await page.getByRole("link", { name: "Document types" }).first().click();
+		await page
+			.getByRole("button", { name: "New document type" })
+			.first()
+			.click();
+		const sheet = page.getByRole("dialog");
+		await sheet
+			.getByRole("textbox", { name: "Name", exact: true })
+			.fill(typeName);
+		await sheet.getByRole("switch", { name: "Recurring document" }).click();
+		await sheet.getByRole("combobox", { name: "Periodicity" }).click();
+		await page.getByRole("option", { name: "Yearly" }).click();
+
+		// One closed year, so the timeline does not depend on today.
+		for (const label of ["First period", "Last period"]) {
+			const field = sheet.getByRole("textbox", { name: label, exact: true });
+			await field.fill("2025");
+			await field.press("Enter");
+		}
+
+		// D39-01: the documents arrive the year after the one they cover.
+		const arrives = sheet.getByRole("combobox", { name: "Arrives" });
+		await expect(arrives).toHaveText(/Within the year/);
+		await arrives.click();
+		await page.getByRole("option", { name: "The following year" }).click();
+		await sheet.getByRole("combobox", { name: "Expected month" }).click();
+		await page.getByRole("option", { name: "July" }).click();
+		await sheet.getByRole("spinbutton", { name: "Grace days" }).fill("15");
+		await sheet.getByRole("button", { name: "Create document type" }).click();
+		await expect(sheet).toBeHidden();
+
+		// --- 2025 is due at the end of July 2026 + 15 days ---------------------
+		await page.getByRole("link", { name: typeName }).click();
+		await expect(page.getByRole("heading", { name: typeName })).toBeVisible();
+		const timeline = page.getByTestId("recurrence-timeline");
+		await expect(timeline).toBeVisible({ timeout: 15_000 });
+		await expect(timeline.getByTitle("Due on 2026-08-15")).toBeVisible();
+		await page.getByRole("tab", { name: "Overview" }).click();
+		await expect(page.getByText("Arrives", { exact: true })).toBeVisible();
+		await expect(
+			page.getByText("The following year", { exact: true }),
+		).toBeVisible();
+	});
+
 	test("a recurring type without a first period derives its range", async ({
 		page,
 	}) => {

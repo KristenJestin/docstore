@@ -10,7 +10,9 @@ import type { Periodicity } from "@docstore/shared/recurrence";
 import {
 	DEFAULT_GRACE_DAYS,
 	hasExpectedMonth,
+	MAX_ARRIVES_AFTER,
 	PERIODICITIES,
+	periodAnchorOf,
 	periodKeyOf,
 	periodLengthInMonths,
 } from "@docstore/shared/recurrence";
@@ -58,6 +60,7 @@ import { toastApiError } from "@/lib/api-error";
 import { orpc } from "@/utils/orpc";
 
 import {
+	arrivesAfterLabel,
 	expectedMonthLabel,
 	PERIODICITY_ICONS,
 	PERIODICITY_TITLES,
@@ -85,6 +88,15 @@ function expectedMonthItems(periodicity: Periodicity): Record<string, string> {
 	return items;
 }
 
+/** Options of the "Arrives" select: within the period, then 1 to 3 later. */
+function arrivesAfterItems(periodicity: Periodicity): Record<string, string> {
+	const items: Record<string, string> = {};
+	for (let count = 0; count <= MAX_ARRIVES_AFTER; count++) {
+		items[String(count)] = arrivesAfterLabel(periodicity, count);
+	}
+	return items;
+}
+
 /** `YYYY-MM-DD` of today, in UTC. */
 function todayIso(): string {
 	return new Date().toISOString().slice(0, 10);
@@ -96,7 +108,18 @@ function todayIso(): string {
  * what the field shows is what the documents will get.
  */
 function titleExample(draft: DocumentTypeDraft, locale: ContentLocale): string {
-	const periodStart = toPeriodStart(todayIso(), draft.periodicity);
+	// A document received today covers the period `arrivesAfter` before (D39-02).
+	const periodStart = toPeriodStart(
+		(draft.recurring &&
+			periodAnchorOf(
+				draft.periodicity,
+				null,
+				todayIso(),
+				Number(draft.arrivesAfter),
+			)) ||
+			todayIso(),
+		draft.periodicity,
+	);
 	return renderTitleTemplate(
 		draft.titleTemplate,
 		{
@@ -146,6 +169,8 @@ export interface DocumentTypeDraft {
 	expectedDay: string;
 	/** Month of the period, `""` = learned from the documents (D32-02). */
 	expectedMonth: string;
+	/** Periods after the one they cover the documents arrive in (D39-01). */
+	arrivesAfter: string;
 	graceDays: string;
 }
 
@@ -171,6 +196,7 @@ export function emptyDocumentTypeDraft(): DocumentTypeDraft {
 		endPeriod: null,
 		expectedDay: "",
 		expectedMonth: "",
+		arrivesAfter: "0",
 		graceDays: String(DEFAULT_GRACE_DAYS),
 	};
 }
@@ -197,6 +223,7 @@ function toDraft(type: DocumentTypeDto | DocumentTypeItem): DocumentTypeDraft {
 		expectedDay: type.expectedDay === null ? "" : String(type.expectedDay),
 		expectedMonth:
 			type.expectedMonth === null ? "" : String(type.expectedMonth),
+		arrivesAfter: String(type.arrivesAfter),
 		graceDays: String(type.graceDays ?? DEFAULT_GRACE_DAYS),
 	};
 }
@@ -309,6 +336,7 @@ export function DocumentTypeFormSheet({
 							hasExpectedMonth(draft.periodicity) && draft.expectedMonth
 								? Number(draft.expectedMonth)
 								: null,
+						arrivesAfter: Number(draft.arrivesAfter),
 						graceDays: draft.graceDays.trim()
 							? Number(draft.graceDays)
 							: DEFAULT_GRACE_DAYS,
@@ -628,6 +656,36 @@ export function DocumentTypeFormSheet({
 										/>
 									</FormField>
 								</div>
+
+								<FormField
+									label="Arrives"
+									htmlFor={`${ids}-arrives-after`}
+									hint="When a document covers a period but arrives after it, like a tax notice for last year's income. Its date then counts for the period before."
+								>
+									<Select
+										items={arrivesAfterItems(draft.periodicity)}
+										value={draft.arrivesAfter}
+										onValueChange={(value) =>
+											patch({ arrivesAfter: String(value) })
+										}
+									>
+										<SelectTrigger
+											id={`${ids}-arrives-after`}
+											className="w-full"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{Object.entries(arrivesAfterItems(draft.periodicity)).map(
+												([value, label]) => (
+													<SelectItem key={value} value={value}>
+														{label}
+													</SelectItem>
+												),
+											)}
+										</SelectContent>
+									</Select>
+								</FormField>
 
 								{hasExpectedMonth(draft.periodicity) ? (
 									<FormField
