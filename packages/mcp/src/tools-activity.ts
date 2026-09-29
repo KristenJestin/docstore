@@ -5,6 +5,7 @@ import {
 	activityKindSchema,
 	listActivityInput,
 } from "@docstore/shared/activity";
+import { maskPartyActivityEntry } from "@docstore/shared/party-masking";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
@@ -123,7 +124,13 @@ export function registerActivityTools(
 			});
 			if (!parsed.success) throw new McpToolError(parsed.error.message);
 			const page = await listActivity(context.db, parsed.data);
-			return { ...page, items: page.items.map(toJson) };
+			return {
+				...page,
+				// Party identifiers are withheld from a key without `sensitive` (#23).
+				items: page.items.map((entry) =>
+					toJson(maskPartyActivityEntry(entry, context.principal)),
+				),
+			};
 		},
 	);
 }
