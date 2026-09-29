@@ -25,7 +25,9 @@ import { Pool } from "pg";
  *   the bare host every lookup now normalizes to.
  * - `0019_revoke-sensitive-share-links`: public links left open on sensitive
  *   content are closed.
- * - `0032_backfill-merged-tombstones`: documents merged before issue #2 get the
+ * - `0031_document-updated-at-cursor`: `document.updated_at` is brought down
+ *   to millisecond precision, the precision of the sync cursor.
+ * - `0033_backfill-merged-tombstones`: documents merged before issue #2 get the
  *   tombstone that redirects their id to the kept document.
  *
  * The tests run in order on the same database: each one replays the migrations
@@ -49,7 +51,9 @@ const NORMALIZE_IDENTIFIERS_TAG = "0016_normalize-identifiers";
 const ORPHAN_PRECISION_TAG = "0017_fix-orphan-date-precision";
 const NORMALIZE_DOMAINS_TAG = "0018_normalize-domains";
 const REVOKE_SENSITIVE_TAG = "0019_revoke-sensitive-share-links";
-const MERGED_TOMBSTONES_TAG = "0032_backfill-merged-tombstones";
+const UPDATED_AT_CURSOR_TAG = "0031_document-updated-at-cursor";
+const STABLE_IDS_TAG = "0032_stable-document-ids";
+const MERGED_TOMBSTONES_TAG = "0033_backfill-merged-tombstones";
 
 type Journal = { entries: { idx: number; tag: string }[] };
 
@@ -610,12 +614,66 @@ describe("0019_revoke-sensitive-share-links", () => {
 	);
 });
 
-describe("0032_backfill-merged-tombstones", () => {
+describe("0031_document-updated-at-cursor", () => {
+	test(
+		"brings updated_at down to millisecond precision",
+		async () => {
+			const tags = migrationTags();
+			const from = tags.indexOf(REVOKE_SENSITIVE_TAG) + 1;
+			const targetIndex = tags.indexOf(UPDATED_AT_CURSOR_TAG);
+			expect(targetIndex).toBeGreaterThan(from - 1);
+
+			for (const tag of tags.slice(from, targetIndex)) {
+				for (const statement of statementsOf(tag)) {
+					await pool.query(statement);
+				}
+			}
+
+			await pool.query(`
+				insert into document (id, title, status, created_by_id, updated_at)
+				values
+					('doc_micro', 'Lease', 'active', 'usr_legacy', '2026-06-15T12:00:00.123456'),
+					('doc_milli', 'Invoice', 'active', 'usr_legacy', '2026-06-15T12:00:00.789')
+			`);
+
+			for (const statement of statementsOf(UPDATED_AT_CURSOR_TAG)) {
+				await pool.query(statement);
+			}
+
+			const rows = await pool.query(
+				"select id, to_char(updated_at, 'HH24:MI:SS.US') as at from document where id in ('doc_micro', 'doc_milli') order by id",
+			);
+			expect(rows.rows).toEqual([
+				{ id: "doc_micro", at: "12:00:00.123000" },
+				{ id: "doc_milli", at: "12:00:00.789000" },
+			]);
+
+			// A row inserted afterwards gets the truncated default.
+			await pool.query(`
+				insert into document (id, title, status, created_by_id)
+				values ('doc_fresh', 'Payslip', 'active', 'usr_legacy')
+			`);
+			const fresh = await pool.query(
+				"select extract(microseconds from updated_at)::bigint % 1000 as sub from document where id = 'doc_fresh'",
+			);
+			expect(Number(fresh.rows[0]?.sub)).toBe(0);
+		},
+		SETUP_TIMEOUT_MS,
+	);
+});
+
+describe("0033_backfill-merged-tombstones", () => {
 	test(
 		"redirects the documents merged before the tombstones existed",
 		async () => {
 			const tags = migrationTags();
-			const from = tags.indexOf(REVOKE_SENSITIVE_TAG) + 1;
+			// The table comes from `0032`, right after the cursor of `0031`.
+			expect(tags.slice(tags.indexOf(UPDATED_AT_CURSOR_TAG))).toEqual([
+				UPDATED_AT_CURSOR_TAG,
+				STABLE_IDS_TAG,
+				MERGED_TOMBSTONES_TAG,
+			]);
+			const from = tags.indexOf(UPDATED_AT_CURSOR_TAG) + 1;
 			const targetIndex = tags.indexOf(MERGED_TOMBSTONES_TAG);
 			expect(targetIndex).toBeGreaterThan(from - 1);
 

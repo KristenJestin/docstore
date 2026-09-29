@@ -72,6 +72,10 @@ export const WEBHOOK_EVENT_LABELS: Record<WebhookEvent, string> = {
 	"document.processed": "Document processed",
 	"document.review": "Document sent to review",
 	"document.updated": "Document updated",
+	"document.trashed": "Document moved to the trash",
+	"document.restored": "Document restored from the trash",
+	"document.deleted": "Document deleted permanently",
+	"document.merged": "Document merged into another",
 	"reminder.due": "Reminder due",
 };
 

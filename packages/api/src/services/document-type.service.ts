@@ -26,6 +26,7 @@ import {
 	runExtractionRules,
 	selectLayout,
 	signatureFromText,
+	touchDocuments,
 	typeTitleContext,
 } from "@docstore/ingestion";
 import { evaluateCondition, renderTitleTemplate } from "@docstore/rules";
@@ -103,6 +104,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { categorySubtreeIds } from "./category.service";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 import { generateRemindersForDocument } from "./reminder.service";
 import { likePattern } from "./sql-utils";
 
@@ -944,30 +946,33 @@ export async function updateDocumentType(
 	return row;
 }
 
-export async function deleteDocumentType(
-	db: Db,
-	input: DeleteDocumentTypeInput,
-): Promise<{ id: string; deleted: true; detached: number }> {
-	await requireDocumentType(db, input.id);
+export const deleteDocumentType = emitsDocumentEvents(
+	async function deleteDocumentType(
+		db: Db,
+		input: DeleteDocumentTypeInput,
+	): Promise<{ id: string; deleted: true; detached: number }> {
+		await requireDocumentType(db, input.id);
 
-	const carriers = await db
-		.select({ id: document.id })
-		.from(document)
-		.where(eq(document.documentTypeId, input.id));
+		const carriers = await db
+			.select({ id: document.id })
+			.from(document)
+			.where(eq(document.documentTypeId, input.id));
 
-	if (carriers.length > 0 && !input.detachDocuments) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: `${carriers.length} document(s) still carry this type. Re-run with \`detachDocuments\` to clear them.`,
-		});
-	}
+		if (carriers.length > 0 && !input.detachDocuments) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: `${carriers.length} document(s) still carry this type. Re-run with \`detachDocuments\` to clear them.`,
+			});
+		}
 
-	for (const carrier of carriers) {
-		await clearDocumentType(db, carrier.id);
-	}
-	// Layouts, overrides and reminders go away by cascade.
-	await db.delete(documentType).where(eq(documentType.id, input.id));
-	return { id: input.id, deleted: true as const, detached: carriers.length };
-}
+		for (const carrier of carriers) {
+			await clearDocumentType(db, carrier.id);
+		}
+		documentEvents().updated(...carriers.map((carrier) => carrier.id));
+		// Layouts, overrides and reminders go away by cascade.
+		await db.delete(documentType).where(eq(documentType.id, input.id));
+		return { id: input.id, deleted: true as const, detached: carriers.length };
+	},
+);
 
 export async function toggleDocumentType(
 	db: Db,
@@ -1100,49 +1105,52 @@ export async function ensureGenericForCategory(
 	return getDocumentType(db, created.id);
 }
 
-export async function createDocumentTypeFromDocument(
-	db: Db,
-	input: CreateDocumentTypeFromDocumentInput,
-	options: DocumentTypeServiceOptions = {},
-): Promise<DocumentTypeDetail> {
-	await requireLiveDocument(db, input.documentId);
-	const prepared = await buildSubject(db, input.documentId);
-	if (!prepared) {
-		throw new ORPCError("NOT_FOUND", {
-			message: `Document "${input.documentId}" not found.`,
+export const createDocumentTypeFromDocument = emitsDocumentEvents(
+	async function createDocumentTypeFromDocument(
+		db: Db,
+		input: CreateDocumentTypeFromDocumentInput,
+		options: DocumentTypeServiceOptions = {},
+	): Promise<DocumentTypeDetail> {
+		await requireLiveDocument(db, input.documentId);
+		const prepared = await buildSubject(db, input.documentId);
+		if (!prepared) {
+			throw new ORPCError("NOT_FOUND", {
+				message: `Document "${input.documentId}" not found.`,
+			});
+		}
+
+		const issuer = prepared.subject.parties.find(
+			(item) => item.role === "issuer",
+		);
+		const subject = prepared.subject.parties.find(
+			(item) => item.role === "subject",
+		);
+		const name =
+			input.name ??
+			(issuer && prepared.subject.categoryName
+				? suggestedDocumentTypeName(issuer.name, prepared.subject.categoryName)
+				: prepared.document.title);
+
+		const created = await createDocumentType(db, {
+			name,
+			categoryId: prepared.document.categoryId,
+			issuerPartyId: issuer?.partyId ?? null,
+			subjectPartyId: subject?.partyId ?? null,
+			tagIds: prepared.subject.tags,
+			sensitiveDefault: prepared.document.sensitive,
+			paperOriginal: false,
+			recurrence: input.recurrence ?? null,
 		});
-	}
 
-	const issuer = prepared.subject.parties.find(
-		(item) => item.role === "issuer",
-	);
-	const subject = prepared.subject.parties.find(
-		(item) => item.role === "subject",
-	);
-	const name =
-		input.name ??
-		(issuer && prepared.subject.categoryName
-			? suggestedDocumentTypeName(issuer.name, prepared.subject.categoryName)
-			: prepared.document.title);
+		await applyDocumentTypeToDocument(db, input.documentId, created.id, {
+			source: "manual",
+			...(options.ingestion ? { ingestion: options.ingestion } : {}),
+		});
+		documentEvents().updated(input.documentId);
 
-	const created = await createDocumentType(db, {
-		name,
-		categoryId: prepared.document.categoryId,
-		issuerPartyId: issuer?.partyId ?? null,
-		subjectPartyId: subject?.partyId ?? null,
-		tagIds: prepared.subject.tags,
-		sensitiveDefault: prepared.document.sensitive,
-		paperOriginal: false,
-		recurrence: input.recurrence ?? null,
-	});
-
-	await applyDocumentTypeToDocument(db, input.documentId, created.id, {
-		source: "manual",
-		...(options.ingestion ? { ingestion: options.ingestion } : {}),
-	});
-
-	return getDocumentType(db, created.id);
-}
+		return getDocumentType(db, created.id);
+	},
+);
 
 /**
  * Creates the recurring type behind a suggestion (or behind a
@@ -1310,42 +1318,47 @@ export async function suggestDocumentTypes(
 /* Overrides and membership                                             */
 /* ------------------------------------------------------------------ */
 
-export async function setDocumentOverride(
-	db: Db,
-	input: SetDocumentTypeOverrideInput,
-): Promise<DocumentTypeDetail> {
-	await requireDocumentType(db, input.documentTypeId);
-	await requireLiveDocument(db, input.documentId);
+export const setDocumentOverride = emitsDocumentEvents(
+	async function setDocumentOverride(
+		db: Db,
+		input: SetDocumentTypeOverrideInput,
+	): Promise<DocumentTypeDetail> {
+		await requireDocumentType(db, input.documentTypeId);
+		await requireLiveDocument(db, input.documentId);
+		// Forcing or excluding a document changes the type it carries.
+		await touchDocuments(db, [input.documentId]);
+		documentEvents().updated(input.documentId);
 
-	if (input.included === null) {
+		if (input.included === null) {
+			await db
+				.delete(documentTypeOverride)
+				.where(
+					and(
+						eq(documentTypeOverride.documentTypeId, input.documentTypeId),
+						eq(documentTypeOverride.documentId, input.documentId),
+					),
+				);
+			return getDocumentType(db, input.documentTypeId);
+		}
+
 		await db
-			.delete(documentTypeOverride)
-			.where(
-				and(
-					eq(documentTypeOverride.documentTypeId, input.documentTypeId),
-					eq(documentTypeOverride.documentId, input.documentId),
-				),
-			);
+			.insert(documentTypeOverride)
+			.values({
+				documentTypeId: input.documentTypeId,
+				documentId: input.documentId,
+				included: input.included,
+			})
+			.onConflictDoUpdate({
+				target: [
+					documentTypeOverride.documentId,
+					documentTypeOverride.documentTypeId,
+				],
+				set: { included: input.included },
+			});
+
 		return getDocumentType(db, input.documentTypeId);
-	}
-
-	await db
-		.insert(documentTypeOverride)
-		.values({
-			documentTypeId: input.documentTypeId,
-			documentId: input.documentId,
-			included: input.included,
-		})
-		.onConflictDoUpdate({
-			target: [
-				documentTypeOverride.documentId,
-				documentTypeOverride.documentTypeId,
-			],
-			set: { included: input.included },
-		});
-
-	return getDocumentType(db, input.documentTypeId);
-}
+	},
+);
 
 /** Ids of a category and of all its ancestors, the category itself included. */
 async function categoryAncestorIds(
@@ -1517,95 +1530,98 @@ export async function documentTypeForDocument(
 /* Apply, detect, preview                                               */
 /* ------------------------------------------------------------------ */
 
-export async function applyDocumentType(
-	db: Db,
-	input: ApplyDocumentTypeInput,
-	options: DocumentTypeServiceOptions = {},
-): Promise<ApplyDocumentTypeResult> {
-	const type = await requireDocumentType(db, input.documentTypeId);
-	// A disabled type is out of the automatic flow: applying it by hand stays
-	// possible, but only on purpose.
-	if (!type.enabled && !input.force) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: `The document type "${type.name}" is disabled. Re-run with \`force\` to apply it anyway.`,
-		});
-	}
-	if (input.layoutId) {
-		const layout = await requireLayout(db, input.layoutId);
-		if (layout.documentTypeId !== input.documentTypeId) {
+export const applyDocumentType = emitsDocumentEvents(
+	async function applyDocumentType(
+		db: Db,
+		input: ApplyDocumentTypeInput,
+		options: DocumentTypeServiceOptions = {},
+	): Promise<ApplyDocumentTypeResult> {
+		const type = await requireDocumentType(db, input.documentTypeId);
+		// A disabled type is out of the automatic flow: applying it by hand stays
+		// possible, but only on purpose.
+		if (!type.enabled && !input.force) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "This layout does not belong to the document type.",
+				message: `The document type "${type.name}" is disabled. Re-run with \`force\` to apply it anyway.`,
 			});
 		}
-	}
-
-	const ids = [...new Set(input.documentIds)];
-	// A trashed document is a caller mistake, not a per-item failure: it is
-	// refused up front. A missing id stays reported document by document.
-	const trashed = await db
-		.select({ id: document.id })
-		.from(document)
-		.where(and(inArray(document.id, ids), isNotNull(document.deletedAt)));
-	if (trashed.length > 0) {
-		throw new ORPCError("CONFLICT", {
-			message: `Document is in the trash; restore it first. (${trashed
-				.map((row) => row.id)
-				.join(", ")})`,
-		});
-	}
-	const results: ApplyDocumentTypeResultItem[] = [];
-	for (const documentId of ids) {
-		try {
-			const before = await db
-				.select({ validUntil: document.validUntil })
-				.from(document)
-				.where(eq(document.id, documentId))
-				.limit(1);
-			const outcome = await applyDocumentTypeToDocument(
-				db,
-				documentId,
-				input.documentTypeId,
-				{
-					source: "manual",
-					...(input.layoutId ? { layoutId: input.layoutId } : {}),
-					...(options.ingestion ? { ingestion: options.ingestion } : {}),
-				},
-			);
-			// The type's extraction rules can set `validUntil` (`set_valid_until`):
-			// the expiry reminders are regenerated synchronously when it moved.
-			const after = await db
-				.select({ validUntil: document.validUntil })
-				.from(document)
-				.where(eq(document.id, documentId))
-				.limit(1);
-			if (before[0]?.validUntil !== after[0]?.validUntil) {
-				await generateRemindersForDocument(db, documentId);
+		if (input.layoutId) {
+			const layout = await requireLayout(db, input.layoutId);
+			if (layout.documentTypeId !== input.documentTypeId) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "This layout does not belong to the document type.",
+				});
 			}
-			results.push({
-				documentId,
-				applied: true,
-				layoutId: outcome.layoutId,
-				layoutReason: outcome.layoutReason,
-				fieldsWritten: outcome.fieldsWritten,
-				error: null,
-			});
-		} catch (error) {
-			results.push({
-				documentId,
-				applied: false,
-				layoutId: null,
-				layoutReason: "none",
-				fieldsWritten: 0,
-				error: error instanceof Error ? error.message : String(error),
+		}
+
+		const ids = [...new Set(input.documentIds)];
+		// A trashed document is a caller mistake, not a per-item failure: it is
+		// refused up front. A missing id stays reported document by document.
+		const trashed = await db
+			.select({ id: document.id })
+			.from(document)
+			.where(and(inArray(document.id, ids), isNotNull(document.deletedAt)));
+		if (trashed.length > 0) {
+			throw new ORPCError("CONFLICT", {
+				message: `Document is in the trash; restore it first. (${trashed
+					.map((row) => row.id)
+					.join(", ")})`,
 			});
 		}
-	}
+		const results: ApplyDocumentTypeResultItem[] = [];
+		for (const documentId of ids) {
+			try {
+				const before = await db
+					.select({ validUntil: document.validUntil })
+					.from(document)
+					.where(eq(document.id, documentId))
+					.limit(1);
+				const outcome = await applyDocumentTypeToDocument(
+					db,
+					documentId,
+					input.documentTypeId,
+					{
+						source: "manual",
+						...(input.layoutId ? { layoutId: input.layoutId } : {}),
+						...(options.ingestion ? { ingestion: options.ingestion } : {}),
+					},
+				);
+				// The type's extraction rules can set `validUntil` (`set_valid_until`):
+				// the expiry reminders are regenerated synchronously when it moved.
+				const after = await db
+					.select({ validUntil: document.validUntil })
+					.from(document)
+					.where(eq(document.id, documentId))
+					.limit(1);
+				if (before[0]?.validUntil !== after[0]?.validUntil) {
+					await generateRemindersForDocument(db, documentId);
+				}
+				documentEvents().updated(documentId);
+				results.push({
+					documentId,
+					applied: true,
+					layoutId: outcome.layoutId,
+					layoutReason: outcome.layoutReason,
+					fieldsWritten: outcome.fieldsWritten,
+					error: null,
+				});
+			} catch (error) {
+				results.push({
+					documentId,
+					applied: false,
+					layoutId: null,
+					layoutReason: "none",
+					fieldsWritten: 0,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
 
-	return {
-		applied: results.filter((item) => item.applied).length,
-		results,
-	};
-}
+		return {
+			applied: results.filter((item) => item.applied).length,
+			results,
+		};
+	},
+);
 
 export async function detectDocumentType(
 	db: Db,
@@ -1838,6 +1854,7 @@ async function writeTitles(
 			.update(document)
 			.set({ title: outcome.title })
 			.where(eq(document.id, outcome.documentId));
+		documentEvents().updated(outcome.documentId);
 		updated += 1;
 	}
 	return { updated, skipped };
@@ -1847,60 +1864,66 @@ async function writeTitles(
  * Rewrites the titles of the members of a type from its template. A title
  * someone typed by hand is kept unless `overwriteManual` says otherwise.
  */
-export async function regenerateDocumentTypeTitles(
-	db: Db,
-	input: RegenerateDocumentTypeTitlesInput,
-): Promise<RegenerateTitlesResult> {
-	const row = await requireDocumentType(db, input.id);
-	requireTitleTemplate(row);
+export const regenerateDocumentTypeTitles = emitsDocumentEvents(
+	async function regenerateDocumentTypeTitles(
+		db: Db,
+		input: RegenerateDocumentTypeTitlesInput,
+	): Promise<RegenerateTitlesResult> {
+		const row = await requireDocumentType(db, input.id);
+		requireTitleTemplate(row);
 
-	const members = await membersNewestFirst(db, row);
-	const outcomes: (TitleOutcome | null)[] = [];
-	for (const member of members) {
-		outcomes.push(await titleOutcomeFor(db, member.documentId, row));
-	}
-	return writeTitles(db, outcomes, input.overwriteManual);
-}
+		const members = await membersNewestFirst(db, row);
+		const outcomes: (TitleOutcome | null)[] = [];
+		for (const member of members) {
+			outcomes.push(await titleOutcomeFor(db, member.documentId, row));
+		}
+		return writeTitles(db, outcomes, input.overwriteManual);
+	},
+);
 
 /**
  * Same rewrite for an arbitrary selection: every document uses the template of
  * the type **it** carries. A document without a type, or whose type has no
  * template, is skipped.
  */
-export async function regenerateTitlesForDocuments(
-	db: Db,
-	documentIds: string[],
-	options: { overwriteManual?: boolean } = {},
-): Promise<RegenerateTitlesResult> {
-	const ids = [...new Set(documentIds)];
-	if (ids.length === 0) return { updated: 0, skipped: 0 };
+export const regenerateTitlesForDocuments = emitsDocumentEvents(
+	async function regenerateTitlesForDocuments(
+		db: Db,
+		documentIds: string[],
+		options: { overwriteManual?: boolean } = {},
+	): Promise<RegenerateTitlesResult> {
+		const ids = [...new Set(documentIds)];
+		if (ids.length === 0) return { updated: 0, skipped: 0 };
 
-	const rows = await db
-		.select({ id: document.id, documentTypeId: document.documentTypeId })
-		.from(document)
-		.where(inArray(document.id, ids));
+		const rows = await db
+			.select({ id: document.id, documentTypeId: document.documentTypeId })
+			.from(document)
+			.where(inArray(document.id, ids));
 
-	const typeIds = [
-		...new Set(
-			rows.map((row) => row.documentTypeId).filter((id) => id !== null),
-		),
-	];
-	const types =
-		typeIds.length > 0
-			? await db
-					.select()
-					.from(documentType)
-					.where(inArray(documentType.id, typeIds))
-			: [];
-	const byId = new Map(types.map((row) => [row.id, row]));
+		const typeIds = [
+			...new Set(
+				rows.map((row) => row.documentTypeId).filter((id) => id !== null),
+			),
+		];
+		const types =
+			typeIds.length > 0
+				? await db
+						.select()
+						.from(documentType)
+						.where(inArray(documentType.id, typeIds))
+				: [];
+		const byId = new Map(types.map((row) => [row.id, row]));
 
-	const outcomes: (TitleOutcome | null)[] = [];
-	for (const row of rows) {
-		const type = row.documentTypeId ? byId.get(row.documentTypeId) : undefined;
-		outcomes.push(type ? await titleOutcomeFor(db, row.id, type) : null);
-	}
-	return writeTitles(db, outcomes, options.overwriteManual ?? false);
-}
+		const outcomes: (TitleOutcome | null)[] = [];
+		for (const row of rows) {
+			const type = row.documentTypeId
+				? byId.get(row.documentTypeId)
+				: undefined;
+			outcomes.push(type ? await titleOutcomeFor(db, row.id, type) : null);
+		}
+		return writeTitles(db, outcomes, options.overwriteManual ?? false);
+	},
+);
 
 /* ------------------------------------------------------------------ */
 /* Layouts                                                              */

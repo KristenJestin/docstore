@@ -1,7 +1,10 @@
 import type { Db } from "@docstore/db";
 import { document } from "@docstore/db/schema/document";
 import { documentDossier, dossier } from "@docstore/db/schema/dossier";
-import { revokeDossierShareLinksForSensitive } from "@docstore/ingestion";
+import {
+	revokeDossierShareLinksForSensitive,
+	touchDocuments,
+} from "@docstore/ingestion";
 import type {
 	AddDossierDocumentsInput,
 	CreateDossierInput,
@@ -15,6 +18,7 @@ import type {
 import { ORPCError } from "@orpc/server";
 import type { SQL } from "drizzle-orm";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 import { likePattern } from "./sql-utils";
 
 /**
@@ -177,92 +181,113 @@ export function reopenDossier(db: Db, id: string): Promise<DossierWithCount> {
 	return setStatus(db, id, "open");
 }
 
-export async function deleteDossier(
+export const deleteDossier = emitsDocumentEvents(async function deleteDossier(
 	db: Db,
 	id: string,
 ): Promise<{ id: string; deleted: true }> {
 	await requireDossier(db, id);
-	// `document_dossier` goes away by cascade; the documents remain.
-	await db.delete(dossier).where(eq(dossier.id, id));
+	// `document_dossier` goes away by cascade; the documents remain, one
+	// Dossier lighter.
+	const members = await db
+		.select({ documentId: documentDossier.documentId })
+		.from(documentDossier)
+		.where(eq(documentDossier.dossierId, id));
+	const memberIds = members.map((row) => row.documentId);
+	await db.transaction(async (tx) => {
+		await tx.delete(dossier).where(eq(dossier.id, id));
+		await touchDocuments(tx, memberIds);
+	});
+	documentEvents().updated(...memberIds);
 	return { id, deleted: true as const };
-}
+});
 
-export async function addDossierDocuments(
-	db: Db,
-	input: AddDossierDocumentsInput,
-): Promise<DossierWithCount> {
-	await requireDossier(db, input.id);
+export const addDossierDocuments = emitsDocumentEvents(
+	async function addDossierDocuments(
+		db: Db,
+		input: AddDossierDocumentsInput,
+	): Promise<DossierWithCount> {
+		await requireDossier(db, input.id);
 
-	const ids = [...new Set(input.documentIds)];
-	const found = await db
-		.select({
-			id: document.id,
-			deletedAt: document.deletedAt,
-			sensitive: document.sensitive,
-		})
-		.from(document)
-		.where(inArray(document.id, ids));
-	const known = new Map(found.map((row) => [row.id, row.deletedAt]));
-	const missing = ids.filter((id) => !known.has(id));
-	if (missing.length > 0) {
-		throw new ORPCError("NOT_FOUND", {
-			message: `Document not found: ${missing.join(", ")}.`,
-		});
-	}
-	// A Dossier collects live documents: filing something from the trash would
-	// silently hide it from the very list it was added to.
-	const trashed = ids.filter((id) => known.get(id) !== null);
-	if (trashed.length > 0) {
-		throw new ORPCError("CONFLICT", {
-			message: `Document is in the trash; restore it first. (${trashed.join(", ")})`,
-		});
-	}
+		const ids = [...new Set(input.documentIds)];
+		const found = await db
+			.select({
+				id: document.id,
+				deletedAt: document.deletedAt,
+				sensitive: document.sensitive,
+			})
+			.from(document)
+			.where(inArray(document.id, ids));
+		const known = new Map(found.map((row) => [row.id, row.deletedAt]));
+		const missing = ids.filter((id) => !known.has(id));
+		if (missing.length > 0) {
+			throw new ORPCError("NOT_FOUND", {
+				message: `Document not found: ${missing.join(", ")}.`,
+			});
+		}
+		// A Dossier collects live documents: filing something from the trash would
+		// silently hide it from the very list it was added to.
+		const trashed = ids.filter((id) => known.get(id) !== null);
+		if (trashed.length > 0) {
+			throw new ORPCError("CONFLICT", {
+				message: `Document is in the trash; restore it first. (${trashed.join(", ")})`,
+			});
+		}
 
-	await db
-		.insert(documentDossier)
-		.values(ids.map((documentId) => ({ documentId, dossierId: input.id })))
-		.onConflictDoNothing();
+		const added = await db
+			.insert(documentDossier)
+			.values(ids.map((documentId) => ({ documentId, dossierId: input.id })))
+			.onConflictDoNothing()
+			.returning({ documentId: documentDossier.documentId });
+		// Only the documents that were not filed there yet changed.
+		const addedIds = added.map((row) => row.documentId);
+		await touchDocuments(db, addedIds);
+		documentEvents().updated(...addedIds);
 
-	// A sensitive document walking into the dossier closes every public window
-	// already open on it — `shareLink.create` refuses a dossier holding one, and
-	// this is the same rule applied from the other side (SPEC §2).
-	if (found.some((row) => row.sensitive)) {
-		await revokeDossierShareLinksForSensitive(db, input.id);
-	}
+		// A sensitive document walking into the dossier closes every public window
+		// already open on it — `shareLink.create` refuses a dossier holding one, and
+		// this is the same rule applied from the other side (SPEC §2).
+		if (found.some((row) => row.sensitive)) {
+			await revokeDossierShareLinksForSensitive(db, input.id);
+		}
 
-	return getDossier(db, input.id);
-}
+		return getDossier(db, input.id);
+	},
+);
 
-export async function removeDossierDocument(
-	db: Db,
-	input: RemoveDossierDocumentInput,
-): Promise<DossierWithCount> {
-	await requireDossier(db, input.id);
-	// Filing is symmetric: a trashed document cannot be added, so it cannot be
-	// pulled out either — it comes back with the document when it is restored.
-	const [target] = await db
-		.select({ deletedAt: document.deletedAt })
-		.from(document)
-		.where(eq(document.id, input.documentId))
-		.limit(1);
-	if (target?.deletedAt) {
-		throw new ORPCError("CONFLICT", {
-			message: "Document is in the trash; restore it first.",
-		});
-	}
-	const deleted = await db
-		.delete(documentDossier)
-		.where(
-			and(
-				eq(documentDossier.dossierId, input.id),
-				eq(documentDossier.documentId, input.documentId),
-			),
-		)
-		.returning({ documentId: documentDossier.documentId });
-	if (!deleted[0]) {
-		throw new ORPCError("NOT_FOUND", {
-			message: "This document does not belong to the Dossier.",
-		});
-	}
-	return getDossier(db, input.id);
-}
+export const removeDossierDocument = emitsDocumentEvents(
+	async function removeDossierDocument(
+		db: Db,
+		input: RemoveDossierDocumentInput,
+	): Promise<DossierWithCount> {
+		await requireDossier(db, input.id);
+		// Filing is symmetric: a trashed document cannot be added, so it cannot be
+		// pulled out either — it comes back with the document when it is restored.
+		const [target] = await db
+			.select({ deletedAt: document.deletedAt })
+			.from(document)
+			.where(eq(document.id, input.documentId))
+			.limit(1);
+		if (target?.deletedAt) {
+			throw new ORPCError("CONFLICT", {
+				message: "Document is in the trash; restore it first.",
+			});
+		}
+		const deleted = await db
+			.delete(documentDossier)
+			.where(
+				and(
+					eq(documentDossier.dossierId, input.id),
+					eq(documentDossier.documentId, input.documentId),
+				),
+			)
+			.returning({ documentId: documentDossier.documentId });
+		if (!deleted[0]) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "This document does not belong to the Dossier.",
+			});
+		}
+		await touchDocuments(db, [input.documentId]);
+		documentEvents().updated(input.documentId);
+		return getDossier(db, input.id);
+	},
+);

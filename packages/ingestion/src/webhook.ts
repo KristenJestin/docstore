@@ -5,6 +5,7 @@ import { webhook, webhookDelivery } from "@docstore/db/schema/webhook";
 import type {
 	DeliverableEvent,
 	WebhookDocument,
+	WebhookDocumentEvent,
 	WebhookEvent,
 } from "@docstore/shared/webhook";
 import {
@@ -65,6 +66,8 @@ export async function webhookDocumentSummary(
 		sensitive: row.sensitive,
 		reviewReasons: row.reviewReasons.map((reason) => reason.code),
 		createdAt: row.createdAt.toISOString(),
+		updatedAt: row.updatedAt.toISOString(),
+		deletedAt: row.deletedAt?.toISOString() ?? null,
 	};
 }
 
@@ -104,15 +107,31 @@ export async function emitEvent(
 	}
 }
 
-/** Document variant: builds the summary then emits. */
+/**
+ * Document variant: builds the summary then emits.
+ *
+ * `snapshot` replaces the summary read from the database, for a document that
+ * is no longer there (`document.deleted`); `extra` is merged into the body
+ * (`keptDocumentId` of `document.merged`).
+ */
 export async function emitDocumentEvent(
 	ctx: IngestionContext,
 	event: WebhookEvent,
 	documentId: string,
+	options: {
+		snapshot?: WebhookDocument;
+		extra?: Omit<WebhookDocumentEvent, "event" | "document">;
+	} = {},
 ): Promise<number> {
-	const summary = await webhookDocumentSummary(ctx.db, documentId);
+	const summary =
+		options.snapshot ?? (await webhookDocumentSummary(ctx.db, documentId));
 	if (!summary) return 0;
-	return emitEvent(ctx, event, { event, document: summary });
+	const body: WebhookDocumentEvent = {
+		event,
+		document: summary,
+		...options.extra,
+	};
+	return emitEvent(ctx, event, body);
 }
 
 /** `webhook { url }` rule action: delivery to an ad hoc URL. */

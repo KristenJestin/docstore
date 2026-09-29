@@ -4,6 +4,7 @@ import {
 	customField,
 	documentFieldValue,
 } from "@docstore/db/schema/custom-field";
+import { touchDocuments } from "@docstore/ingestion";
 import { slugify } from "@docstore/shared/common";
 import type {
 	CreateCustomFieldInput,
@@ -21,6 +22,7 @@ import {
 } from "@docstore/shared/custom-field";
 import { ORPCError } from "@orpc/server";
 import { and, asc, count, eq, inArray, ne, sql } from "drizzle-orm";
+import { documentEvents, emitsDocumentEvents } from "./document-events";
 
 /** Values entered per field, in one round trip (list screen). */
 async function valueCounts(db: Db): Promise<Map<string, number>> {
@@ -242,15 +244,27 @@ export async function updateCustomField(
 	return { ...row, valueCount };
 }
 
-export async function deleteCustomField(
-	db: Db,
-	id: string,
-): Promise<{ id: string; deleted: true }> {
-	await requireCustomField(db, id);
-	// `document_field_value` is deleted by cascade.
-	await db.delete(customField).where(eq(customField.id, id));
-	return { id, deleted: true };
-}
+export const deleteCustomField = emitsDocumentEvents(
+	async function deleteCustomField(
+		db: Db,
+		id: string,
+	): Promise<{ id: string; deleted: true }> {
+		await requireCustomField(db, id);
+		// `document_field_value` is deleted by cascade: the documents holding a
+		// value lose it, which is a change of theirs.
+		const holders = await db
+			.select({ documentId: documentFieldValue.documentId })
+			.from(documentFieldValue)
+			.where(eq(documentFieldValue.fieldId, id));
+		const holderIds = holders.map((row) => row.documentId);
+		await db.transaction(async (tx) => {
+			await tx.delete(customField).where(eq(customField.id, id));
+			await touchDocuments(tx, holderIds);
+		});
+		documentEvents().updated(...holderIds);
+		return { id, deleted: true };
+	},
+);
 
 export async function reorderCustomFields(
 	db: Db,

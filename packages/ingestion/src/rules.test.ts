@@ -449,6 +449,53 @@ describe("purgeRuleRuns", () => {
 	});
 });
 
+describe("applyOperations — sync cursor (issue #3)", () => {
+	const LONG_AGO = new Date("2020-01-01T00:00:00.000Z");
+
+	async function seedPastDocument(): Promise<string> {
+		const rows = await db
+			.insert(document)
+			.values({
+				title: "Payslip",
+				status: "active",
+				createdById: userId,
+				updatedAt: LONG_AGO,
+			})
+			.returning({ id: document.id });
+		return rows[0]?.id ?? "";
+	}
+
+	async function updatedAtOf(documentId: string): Promise<number> {
+		const [row] = await db
+			.select({ updatedAt: document.updatedAt })
+			.from(document)
+			.where(eq(document.id, documentId));
+		return row?.updatedAt.getTime() ?? 0;
+	}
+
+	test("a value written into another table still bumps updated_at", async () => {
+		const fieldId = await insertMoneyField("Net pay", "net-pay-sync");
+		const documentId = await seedPastDocument();
+
+		const outcome = await applyOperations(db, documentId, [
+			{ type: "set_field", fieldId, value: 1200, confidence: 0.9 },
+		]);
+		expect(outcome.applied).toHaveLength(1);
+		expect(await updatedAtOf(documentId)).toBeGreaterThan(LONG_AGO.getTime());
+	});
+
+	test("an operation that wrote nothing leaves updated_at alone", async () => {
+		const fieldId = await insertMoneyField("Net pay", "net-pay-refused");
+		const documentId = await seedPastDocument();
+
+		const outcome = await applyOperations(db, documentId, [
+			{ type: "set_field", fieldId, value: -12, confidence: 0.9 },
+		]);
+		expect(outcome.applied).toEqual([]);
+		expect(await updatedAtOf(documentId)).toBe(LONG_AGO.getTime());
+	});
+});
+
 describe("applyOperations — custom field constraints", () => {
 	async function seedField(
 		options: Record<string, unknown>,

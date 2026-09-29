@@ -1,6 +1,6 @@
 {
-	"id": "7572b558-8145-4f9d-9cb7-c59bb83e5738",
-	"prevId": "943fb574-219d-4d04-ba48-f05ed785a518",
+	"id": "6b694fb9-3a33-4e5c-a630-54f50c4233a7",
+	"prevId": "7572b558-8145-4f9d-9cb7-c59bb83e5738",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -83,28 +83,28 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"api_key_user_id_user_id_fk": {
 					"name": "api_key_user_id_user_id_fk",
 					"tableFrom": "api_key",
-					"tableTo": "user",
 					"columnsFrom": ["user_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"api_key_hashed_key_unique": {
 					"name": "api_key_hashed_key_unique",
-					"nullsNotDistinct": false,
-					"columns": ["hashed_key"]
+					"columns": ["hashed_key"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -219,9 +219,9 @@
 						}
 					],
 					"isUnique": true,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"account_userId_idx": {
 					"name": "account_userId_idx",
@@ -234,20 +234,20 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"account_user_id_user_id_fk": {
 					"name": "account_user_id_user_id_fk",
 					"tableFrom": "account",
-					"tableTo": "user",
 					"columnsFrom": ["user_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -322,28 +322,28 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"session_user_id_user_id_fk": {
 					"name": "session_user_id_user_id_fk",
 					"tableFrom": "session",
-					"tableTo": "user",
 					"columnsFrom": ["user_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"session_token_unique": {
 					"name": "session_token_unique",
-					"nullsNotDistinct": false,
-					"columns": ["token"]
+					"columns": ["token"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -406,8 +406,8 @@
 			"uniqueConstraints": {
 				"user_email_unique": {
 					"name": "user_email_unique",
-					"nullsNotDistinct": false,
-					"columns": ["email"]
+					"columns": ["email"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -469,9 +469,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -555,17 +555,17 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"category_parent_slug_uidx": {
 					"name": "category_parent_slug_uidx",
 					"columns": [
 						{
 							"expression": "coalesce(\"parent_id\", '')",
-							"asc": true,
 							"isExpression": true,
+							"asc": true,
 							"nulls": "last"
 						},
 						{
@@ -576,20 +576,20 @@
 						}
 					],
 					"isUnique": true,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"category_parent_id_category_id_fk": {
 					"name": "category_parent_id_category_id_fk",
 					"tableFrom": "category",
-					"tableTo": "category",
 					"columnsFrom": ["parent_id"],
+					"tableTo": "category",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -675,9 +675,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -685,8 +685,8 @@
 			"uniqueConstraints": {
 				"custom_field_slug_unique": {
 					"name": "custom_field_slug_unique",
-					"nullsNotDistinct": false,
-					"columns": ["slug"]
+					"columns": ["slug"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -755,29 +755,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_field_value_document_id_document_id_fk": {
 					"name": "document_field_value_document_id_document_id_fk",
 					"tableFrom": "document_field_value",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"document_field_value_field_id_custom_field_id_fk": {
 					"name": "document_field_value_field_id_custom_field_id_fk",
 					"tableFrom": "document_field_value",
-					"tableTo": "custom_field",
 					"columnsFrom": ["field_id"],
+					"tableTo": "custom_field",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {
@@ -1008,8 +1008,8 @@
 					"primaryKey": false,
 					"notNull": false,
 					"generated": {
-						"as": "to_tsvector('french', coalesce(title, '') || ' ' || coalesce(content, '') || ' ' || coalesce(notes, ''))",
-						"type": "stored"
+						"type": "stored",
+						"as": "to_tsvector('french', coalesce(title, '') || ' ' || coalesce(content, '') || ' ' || coalesce(notes, ''))"
 					}
 				},
 				"created_by_id": {
@@ -1051,9 +1051,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_document_date_idx": {
 					"name": "document_document_date_idx",
@@ -1066,9 +1066,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_deleted_at_idx": {
 					"name": "document_deleted_at_idx",
@@ -1081,9 +1081,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_category_id_idx": {
 					"name": "document_category_id_idx",
@@ -1096,9 +1096,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_document_type_id_idx": {
 					"name": "document_document_type_id_idx",
@@ -1111,9 +1111,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_updated_at_id_idx": {
 					"name": "document_updated_at_id_idx",
@@ -1132,9 +1132,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_search_vector_idx": {
 					"name": "document_search_vector_idx",
@@ -1147,55 +1147,55 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "gin",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_category_id_category_id_fk": {
 					"name": "document_category_id_category_id_fk",
 					"tableFrom": "document",
-					"tableTo": "category",
 					"columnsFrom": ["category_id"],
+					"tableTo": "category",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				},
 				"document_document_type_id_document_type_id_fk": {
 					"name": "document_document_type_id_document_type_id_fk",
 					"tableFrom": "document",
-					"tableTo": "document_type",
 					"columnsFrom": ["document_type_id"],
+					"tableTo": "document_type",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				},
 				"document_layout_id_document_type_layout_id_fk": {
 					"name": "document_layout_id_document_type_layout_id_fk",
 					"tableFrom": "document",
-					"tableTo": "document_type_layout",
 					"columnsFrom": ["layout_id"],
+					"tableTo": "document_type_layout",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				},
 				"document_created_by_id_user_id_fk": {
 					"name": "document_created_by_id_user_id_fk",
 					"tableFrom": "document",
-					"tableTo": "user",
 					"columnsFrom": ["created_by_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "restrict",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "restrict"
 				}
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"document_asn_unique": {
 					"name": "document_asn_unique",
-					"nullsNotDistinct": false,
-					"columns": ["asn"]
+					"columns": ["asn"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -1300,9 +1300,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_file_sha256_original_uidx": {
 					"name": "document_file_sha256_original_uidx",
@@ -1315,29 +1315,29 @@
 						}
 					],
 					"isUnique": true,
-					"where": "\"document_file\".\"kind\" = 'original'",
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"where": "\"document_file\".\"kind\" = 'original'",
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_file_document_id_document_id_fk": {
 					"name": "document_file_document_id_document_id_fk",
 					"tableFrom": "document_file",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"document_file_storage_key_unique": {
 					"name": "document_file_storage_key_unique",
-					"nullsNotDistinct": false,
-					"columns": ["storage_key"]
+					"columns": ["storage_key"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -1407,29 +1407,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_party_document_id_document_id_fk": {
 					"name": "document_party_document_id_document_id_fk",
 					"tableFrom": "document_party",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"document_party_party_id_party_id_fk": {
 					"name": "document_party_party_id_party_id_fk",
 					"tableFrom": "document_party",
-					"tableTo": "party",
 					"columnsFrom": ["party_id"],
+					"tableTo": "party",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {
@@ -1486,9 +1486,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -1684,9 +1684,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_type_category_id_idx": {
 					"name": "document_type_category_id_idx",
@@ -1699,9 +1699,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_type_issuer_party_id_idx": {
 					"name": "document_type_issuer_party_id_idx",
@@ -1714,9 +1714,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_type_periodicity_idx": {
 					"name": "document_type_periodicity_idx",
@@ -1729,9 +1729,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_type_generic_category_idx": {
 					"name": "document_type_generic_category_idx",
@@ -1744,39 +1744,39 @@
 						}
 					],
 					"isUnique": true,
-					"where": "\"document_type\".\"generic\"",
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"where": "\"document_type\".\"generic\"",
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_type_category_id_category_id_fk": {
 					"name": "document_type_category_id_category_id_fk",
 					"tableFrom": "document_type",
-					"tableTo": "category",
 					"columnsFrom": ["category_id"],
+					"tableTo": "category",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				},
 				"document_type_issuer_party_id_party_id_fk": {
 					"name": "document_type_issuer_party_id_party_id_fk",
 					"tableFrom": "document_type",
-					"tableTo": "party",
 					"columnsFrom": ["issuer_party_id"],
+					"tableTo": "party",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				},
 				"document_type_subject_party_id_party_id_fk": {
 					"name": "document_type_subject_party_id_party_id_fk",
 					"tableFrom": "document_type",
-					"tableTo": "party",
 					"columnsFrom": ["subject_party_id"],
+					"tableTo": "party",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -1866,20 +1866,20 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_type_layout_document_type_id_document_type_id_fk": {
 					"name": "document_type_layout_document_type_id_document_type_id_fk",
 					"tableFrom": "document_type_layout",
-					"tableTo": "document_type",
 					"columnsFrom": ["document_type_id"],
+					"tableTo": "document_type",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -1930,29 +1930,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_type_override_document_id_document_id_fk": {
 					"name": "document_type_override_document_id_document_id_fk",
 					"tableFrom": "document_type_override",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"document_type_override_document_type_id_document_type_id_fk": {
 					"name": "document_type_override_document_type_id_document_type_id_fk",
 					"tableFrom": "document_type_override",
-					"tableTo": "document_type",
 					"columnsFrom": ["document_type_id"],
+					"tableTo": "document_type",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {
@@ -2002,29 +2002,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_dossier_document_id_document_id_fk": {
 					"name": "document_dossier_document_id_document_id_fk",
 					"tableFrom": "document_dossier",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"document_dossier_dossier_id_dossier_id_fk": {
 					"name": "document_dossier_dossier_id_dossier_id_fk",
 					"tableFrom": "document_dossier",
-					"tableTo": "dossier",
 					"columnsFrom": ["dossier_id"],
+					"tableTo": "dossier",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {
@@ -2101,9 +2101,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -2142,20 +2142,20 @@
 				"duplicate_ignore_document_id_document_id_fk": {
 					"name": "duplicate_ignore_document_id_document_id_fk",
 					"tableFrom": "duplicate_ignore",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"duplicate_ignore_other_document_id_document_id_fk": {
 					"name": "duplicate_ignore_other_document_id_document_id_fk",
 					"tableFrom": "duplicate_ignore",
-					"tableTo": "document",
 					"columnsFrom": ["other_document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {
@@ -2235,9 +2235,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"intake_log_created_at_idx": {
 					"name": "intake_log_created_at_idx",
@@ -2250,29 +2250,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"intake_log_source_id_intake_source_id_fk": {
 					"name": "intake_log_source_id_intake_source_id_fk",
 					"tableFrom": "intake_log",
-					"tableTo": "intake_source",
 					"columnsFrom": ["source_id"],
+					"tableTo": "intake_source",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"intake_log_document_id_document_id_fk": {
 					"name": "intake_log_document_id_document_id_fk",
 					"tableFrom": "intake_log",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -2376,9 +2376,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -2386,8 +2386,8 @@
 			"uniqueConstraints": {
 				"intake_source_managed_key_unique": {
 					"name": "intake_source_managed_key_unique",
-					"nullsNotDistinct": false,
-					"columns": ["managed_key"]
+					"columns": ["managed_key"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -2481,28 +2481,28 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"upload_link_created_by_id_user_id_fk": {
 					"name": "upload_link_created_by_id_user_id_fk",
 					"tableFrom": "upload_link",
-					"tableTo": "user",
 					"columnsFrom": ["created_by_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"upload_link_token_unique": {
 					"name": "upload_link_token_unique",
-					"nullsNotDistinct": false,
-					"columns": ["token"]
+					"columns": ["token"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -2604,9 +2604,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"party_identifiers_gin_idx": {
 					"name": "party_identifiers_gin_idx",
@@ -2619,9 +2619,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "gin",
-					"with": {}
+					"concurrently": false
 				},
 				"party_userId_idx": {
 					"name": "party_userId_idx",
@@ -2634,20 +2634,20 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"party_user_id_user_id_fk": {
 					"name": "party_user_id_user_id_fk",
 					"tableFrom": "party",
-					"tableTo": "user",
 					"columnsFrom": ["user_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "set null",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "set null"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -2717,9 +2717,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"party_relation_to_idx": {
 					"name": "party_relation_to_idx",
@@ -2732,29 +2732,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"party_relation_from_party_id_party_id_fk": {
 					"name": "party_relation_from_party_id_party_id_fk",
 					"tableFrom": "party_relation",
-					"tableTo": "party",
 					"columnsFrom": ["from_party_id"],
+					"tableTo": "party",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"party_relation_to_party_id_party_id_fk": {
 					"name": "party_relation_to_party_id_party_id_fk",
 					"tableFrom": "party_relation",
-					"tableTo": "party",
 					"columnsFrom": ["to_party_id"],
+					"tableTo": "party",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -2824,9 +2824,9 @@
 						}
 					],
 					"isUnique": true,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_relation_from_idx": {
 					"name": "document_relation_from_idx",
@@ -2839,9 +2839,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"document_relation_to_idx": {
 					"name": "document_relation_to_idx",
@@ -2854,29 +2854,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_relation_from_document_id_document_id_fk": {
 					"name": "document_relation_from_document_id_document_id_fk",
 					"tableFrom": "document_relation",
-					"tableTo": "document",
 					"columnsFrom": ["from_document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"document_relation_to_document_id_document_id_fk": {
 					"name": "document_relation_to_document_id_document_id_fk",
 					"tableFrom": "document_relation",
-					"tableTo": "document",
 					"columnsFrom": ["to_document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -2978,20 +2978,20 @@
 						},
 						{
 							"expression": "coalesce(\"document_id\", '')",
-							"asc": true,
 							"isExpression": true,
+							"asc": true,
 							"nulls": "last"
 						},
 						{
 							"expression": "coalesce(\"document_type_id\", '')",
-							"asc": true,
 							"isExpression": true,
+							"asc": true,
 							"nulls": "last"
 						},
 						{
 							"expression": "coalesce(\"period\", '1970-01-01'::date)",
-							"asc": true,
 							"isExpression": true,
+							"asc": true,
 							"nulls": "last"
 						},
 						{
@@ -3002,9 +3002,9 @@
 						}
 					],
 					"isUnique": true,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"reminder_status_due_date_idx": {
 					"name": "reminder_status_due_date_idx",
@@ -3023,9 +3023,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"reminder_document_id_idx": {
 					"name": "reminder_document_id_idx",
@@ -3038,9 +3038,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"reminder_document_type_id_idx": {
 					"name": "reminder_document_type_id_idx",
@@ -3053,29 +3053,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"reminder_document_id_document_id_fk": {
 					"name": "reminder_document_id_document_id_fk",
 					"tableFrom": "reminder",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"reminder_document_type_id_document_type_id_fk": {
 					"name": "reminder_document_type_id_document_type_id_fk",
 					"tableFrom": "reminder",
-					"tableTo": "document_type",
 					"columnsFrom": ["document_type_id"],
+					"tableTo": "document_type",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -3159,20 +3159,20 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"extraction_rule_layout_id_document_type_layout_id_fk": {
 					"name": "extraction_rule_layout_id_document_type_layout_id_fk",
 					"tableFrom": "extraction_rule",
-					"tableTo": "document_type_layout",
 					"columnsFrom": ["layout_id"],
+					"tableTo": "document_type_layout",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -3290,9 +3290,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -3364,9 +3364,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"rule_run_document_id_idx": {
 					"name": "rule_run_document_id_idx",
@@ -3379,9 +3379,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"rule_run_created_at_idx": {
 					"name": "rule_run_created_at_idx",
@@ -3394,29 +3394,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"rule_run_rule_id_rule_id_fk": {
 					"name": "rule_run_rule_id_rule_id_fk",
 					"tableFrom": "rule_run",
-					"tableTo": "rule",
 					"columnsFrom": ["rule_id"],
+					"tableTo": "rule",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"rule_run_document_id_document_id_fk": {
 					"name": "rule_run_document_id_document_id_fk",
 					"tableFrom": "rule_run",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -3474,9 +3474,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -3617,9 +3617,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"share_link_dossier_id_idx": {
 					"name": "share_link_dossier_id_idx",
@@ -3632,46 +3632,46 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"share_link_document_id_document_id_fk": {
 					"name": "share_link_document_id_document_id_fk",
 					"tableFrom": "share_link",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"share_link_dossier_id_dossier_id_fk": {
 					"name": "share_link_dossier_id_dossier_id_fk",
 					"tableFrom": "share_link",
-					"tableTo": "dossier",
 					"columnsFrom": ["dossier_id"],
+					"tableTo": "dossier",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"share_link_created_by_id_user_id_fk": {
 					"name": "share_link_created_by_id_user_id_fk",
 					"tableFrom": "share_link",
-					"tableTo": "user",
 					"columnsFrom": ["created_by_id"],
+					"tableTo": "user",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"share_link_token_unique": {
 					"name": "share_link_token_unique",
-					"nullsNotDistinct": false,
-					"columns": ["token"]
+					"columns": ["token"],
+					"nullsNotDistinct": false
 				}
 			},
 			"policies": {},
@@ -3739,29 +3739,29 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"document_tag_document_id_document_id_fk": {
 					"name": "document_tag_document_id_document_id_fk",
 					"tableFrom": "document_tag",
-					"tableTo": "document",
 					"columnsFrom": ["document_id"],
+					"tableTo": "document",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				},
 				"document_tag_tag_id_tag_id_fk": {
 					"name": "document_tag_tag_id_tag_id_fk",
 					"tableFrom": "document_tag",
-					"tableTo": "tag",
 					"columnsFrom": ["tag_id"],
+					"tableTo": "tag",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {
@@ -3811,15 +3811,15 @@
 					"columns": [
 						{
 							"expression": "lower(\"name\")",
-							"asc": true,
 							"isExpression": true,
+							"asc": true,
 							"nulls": "last"
 						}
 					],
 					"isUnique": true,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -3910,9 +3910,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {},
@@ -3989,9 +3989,9 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				},
 				"webhook_delivery_created_at_idx": {
 					"name": "webhook_delivery_created_at_idx",
@@ -4004,20 +4004,20 @@
 						}
 					],
 					"isUnique": false,
-					"concurrently": false,
+					"with": {},
 					"method": "btree",
-					"with": {}
+					"concurrently": false
 				}
 			},
 			"foreignKeys": {
 				"webhook_delivery_webhook_id_webhook_id_fk": {
 					"name": "webhook_delivery_webhook_id_webhook_id_fk",
 					"tableFrom": "webhook_delivery",
-					"tableTo": "webhook",
 					"columnsFrom": ["webhook_id"],
+					"tableTo": "webhook",
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
-					"onUpdate": "no action"
+					"onUpdate": "no action",
+					"onDelete": "cascade"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -4151,10 +4151,10 @@
 		}
 	},
 	"schemas": {},
+	"views": {},
 	"sequences": {},
 	"roles": {},
 	"policies": {},
-	"views": {},
 	"_meta": {
 		"columns": {},
 		"schemas": {},
