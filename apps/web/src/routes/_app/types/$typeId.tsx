@@ -1,4 +1,5 @@
 import type { DocumentListItem } from "@docstore/shared/document";
+import { hasExpectedMonth } from "@docstore/shared/recurrence";
 import { Badge } from "@docstore/ui/components/badge";
 import {
 	Breadcrumb,
@@ -32,6 +33,7 @@ import {
 } from "@/components/document-types/document-type-badges";
 import { DocumentTypeDetection } from "@/components/document-types/document-type-detection";
 import { DocumentTypeFormSheet } from "@/components/document-types/document-type-form-sheet";
+import { expectedMonthLabel } from "@/components/document-types/document-type-labels";
 import { DocumentTypeLayouts } from "@/components/document-types/document-type-layouts";
 import { OutOfRangeNotice } from "@/components/document-types/out-of-range-notice";
 import { formatRecurrenceRange } from "@/components/document-types/period-picker";
@@ -414,6 +416,24 @@ function DocumentTypeDetailPage() {
 												label="Last period"
 												value={detail.endPeriod ?? "Open recurrence"}
 											/>
+											{hasExpectedMonth(detail.periodicity) ? (
+												<InfoRow
+													label="Expected month"
+													value={
+														detail.expectedMonth !== null
+															? expectedMonthLabel(
+																	detail.periodicity,
+																	detail.expectedMonth,
+																)
+															: detail.learnedExpectedMonth !== null
+																? `${expectedMonthLabel(
+																		detail.periodicity,
+																		detail.learnedExpectedMonth,
+																	)} (from the documents)`
+																: "End of period"
+													}
+												/>
+											) : null}
 											<InfoRow
 												label="Expected day"
 												value={

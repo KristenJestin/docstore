@@ -9,8 +9,10 @@ import { DEFAULT_RECURRING_TITLE_TEMPLATE } from "@docstore/shared/document-type
 import type { Periodicity } from "@docstore/shared/recurrence";
 import {
 	DEFAULT_GRACE_DAYS,
+	hasExpectedMonth,
 	PERIODICITIES,
 	periodKeyOf,
+	periodLengthInMonths,
 } from "@docstore/shared/recurrence";
 import type { RuleCondition } from "@docstore/shared/rule";
 import { Button } from "@docstore/ui/components/button";
@@ -56,6 +58,7 @@ import { toastApiError } from "@/lib/api-error";
 import { orpc } from "@/utils/orpc";
 
 import {
+	expectedMonthLabel,
 	PERIODICITY_ICONS,
 	PERIODICITY_TITLES,
 	TYPE_TITLE_PLACEHOLDERS,
@@ -67,6 +70,20 @@ const PERIODICITY_ITEMS = iconLabelItems(
 	PERIODICITY_TITLES,
 	PERIODICITY_ICONS,
 );
+
+/** Value of the expected month select when the month is left to the documents. */
+const LEARNED_MONTH = "learned";
+
+/** Options of the expected month select: learned, then each month of the period. */
+function expectedMonthItems(periodicity: Periodicity): Record<string, string> {
+	const items: Record<string, string> = {
+		[LEARNED_MONTH]: "From the documents",
+	};
+	for (let month = 1; month <= periodLengthInMonths(periodicity); month++) {
+		items[String(month)] = expectedMonthLabel(periodicity, month);
+	}
+	return items;
+}
 
 /** `YYYY-MM-DD` of today, in UTC. */
 function todayIso(): string {
@@ -127,6 +144,8 @@ export interface DocumentTypeDraft {
 	startPeriod: string | null;
 	endPeriod: string | null;
 	expectedDay: string;
+	/** Month of the period, `""` = learned from the documents (D32-02). */
+	expectedMonth: string;
 	graceDays: string;
 }
 
@@ -151,6 +170,7 @@ export function emptyDocumentTypeDraft(): DocumentTypeDraft {
 		startPeriod: null,
 		endPeriod: null,
 		expectedDay: "",
+		expectedMonth: "",
 		graceDays: String(DEFAULT_GRACE_DAYS),
 	};
 }
@@ -175,6 +195,8 @@ function toDraft(type: DocumentTypeDto | DocumentTypeItem): DocumentTypeDraft {
 		startPeriod: type.startPeriod,
 		endPeriod: type.endPeriod,
 		expectedDay: type.expectedDay === null ? "" : String(type.expectedDay),
+		expectedMonth:
+			type.expectedMonth === null ? "" : String(type.expectedMonth),
 		graceDays: String(type.graceDays ?? DEFAULT_GRACE_DAYS),
 	};
 }
@@ -243,10 +265,17 @@ export function DocumentTypeFormSheet({
 	const setPeriodicity = (periodicity: Periodicity) => {
 		const snap = (value: string | null) =>
 			value === null ? null : toPeriodStart(value, periodicity);
+		// A month past the length of the new period means nothing any more.
+		const month = Number(draft.expectedMonth);
 		patch({
 			periodicity,
 			startPeriod: snap(draft.startPeriod),
 			endPeriod: snap(draft.endPeriod),
+			expectedMonth:
+				hasExpectedMonth(periodicity) &&
+				month <= periodLengthInMonths(periodicity)
+					? draft.expectedMonth
+					: "",
 		});
 	};
 
@@ -276,6 +305,10 @@ export function DocumentTypeFormSheet({
 						expectedDay: draft.expectedDay.trim()
 							? Number(draft.expectedDay)
 							: null,
+						expectedMonth:
+							hasExpectedMonth(draft.periodicity) && draft.expectedMonth
+								? Number(draft.expectedMonth)
+								: null,
 						graceDays: draft.graceDays.trim()
 							? Number(draft.graceDays)
 							: DEFAULT_GRACE_DAYS,
@@ -596,6 +629,45 @@ export function DocumentTypeFormSheet({
 									</FormField>
 								</div>
 
+								{hasExpectedMonth(draft.periodicity) ? (
+									<FormField
+										label="Expected month"
+										htmlFor={`${ids}-expected-month`}
+										hint={
+											draft.periodicity === "yearly"
+												? "Month the document usually arrives in. Left to the documents, it follows the month they arrive in, else December."
+												: "Month of the period the document usually arrives in. Left to the documents, it follows the month they arrive in, else the last one."
+										}
+									>
+										<Select
+											items={expectedMonthItems(draft.periodicity)}
+											value={draft.expectedMonth || LEARNED_MONTH}
+											onValueChange={(value) =>
+												patch({
+													expectedMonth:
+														value === LEARNED_MONTH ? "" : String(value),
+												})
+											}
+										>
+											<SelectTrigger
+												id={`${ids}-expected-month`}
+												className="w-full"
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{Object.entries(
+													expectedMonthItems(draft.periodicity),
+												).map(([value, label]) => (
+													<SelectItem key={value} value={value}>
+														{label}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</FormField>
+								) : null}
+
 								<div className="grid grid-cols-2 gap-3">
 									<FormField
 										label="Expected day"
@@ -603,7 +675,9 @@ export function DocumentTypeFormSheet({
 										hint={
 											draft.periodicity === "weekly"
 												? "Day of the week, 1 = Monday."
-												: "Day of the last month of the period."
+												: hasExpectedMonth(draft.periodicity)
+													? "Day of the expected month."
+													: "Day of the month."
 										}
 									>
 										<Input

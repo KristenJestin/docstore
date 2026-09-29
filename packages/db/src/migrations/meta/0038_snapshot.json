@@ -1,6 +1,6 @@
 {
-	"id": "25306504-9162-462c-8d5d-f62de2c3ca03",
-	"prevId": "edf7bdba-3dce-4239-9fe4-519ce223d32d",
+	"id": "56a62973-3e11-42df-b2b6-7bd297c5a9dd",
+	"prevId": "25306504-9162-462c-8d5d-f62de2c3ca03",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -3253,6 +3253,12 @@
 					"primaryKey": false,
 					"notNull": false
 				},
+				"field_id": {
+					"name": "field_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"due_date": {
 					"name": "due_date",
 					"type": "date",
@@ -3318,6 +3324,12 @@
 						},
 						{
 							"expression": "coalesce(\"document_type_id\", '')",
+							"asc": true,
+							"isExpression": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "coalesce(\"field_id\", '')",
 							"asc": true,
 							"isExpression": true,
 							"nulls": "last"
@@ -3390,6 +3402,21 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"reminder_field_id_idx": {
+					"name": "reminder_field_id_idx",
+					"columns": [
+						{
+							"expression": "field_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -3407,6 +3434,15 @@
 					"tableFrom": "reminder",
 					"tableTo": "document_type",
 					"columnsFrom": ["document_type_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"reminder_field_id_custom_field_id_fk": {
+					"name": "reminder_field_id_custom_field_id_fk",
+					"tableFrom": "reminder",
+					"tableTo": "custom_field",
+					"columnsFrom": ["field_id"],
 					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
@@ -4471,7 +4507,7 @@
 		"public.reminder_kind": {
 			"name": "reminder_kind",
 			"schema": "public",
-			"values": ["expiry", "period_gap", "review_pending"]
+			"values": ["expiry", "field_date", "period_gap", "review_pending"]
 		},
 		"public.reminder_status": {
 			"name": "reminder_status",

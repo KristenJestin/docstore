@@ -1,0 +1,1 @@
+ALTER TABLE "document_type" ADD COLUMN "expected_month" integer;

@@ -38,6 +38,40 @@ export const PERIODICITY_ICONS: Record<Periodicity, LucideIcon> = {
 	yearly: CalendarFoldIcon,
 };
 
+const MONTH_NAMES = [
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December",
+] as const;
+
+/**
+ * Calendar months an expected month of the period (1 = its first month) falls
+ * in: "July" for a yearly type, "February / August" for a semiannual one,
+ * "Feb / May / Aug / Nov" for a quarterly one (D32-01).
+ */
+export function expectedMonthLabel(
+	periodicity: Periodicity,
+	month: number,
+): string {
+	const length =
+		periodicity === "quarterly" ? 3 : periodicity === "semiannual" ? 6 : 12;
+	const names: string[] = [];
+	for (let index = month - 1; index < 12; index += length) {
+		const name = MONTH_NAMES[index];
+		if (name) names.push(length === 3 ? name.slice(0, 3) : name);
+	}
+	return names.join(" / ");
+}
+
 /** Status of one period of the timeline. */
 export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
 	present: "Filed",
