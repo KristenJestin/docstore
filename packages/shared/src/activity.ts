@@ -111,3 +111,121 @@ export function activityVerb(action: string): string {
 	const verb = action.slice(action.indexOf(".") + 1);
 	return verb.replaceAll("_", " ");
 }
+
+/* ------------------------------------------------------------------ */
+/* Readable summaries (Activity page, document page)                   */
+/* ------------------------------------------------------------------ */
+
+type Named = { id?: string; name?: string; role?: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** A value of a summary as a short string: names over ids, `none` for null. */
+function show(value: unknown): string {
+	if (value === null || value === undefined || value === "") return "none";
+	if (Array.isArray(value)) return value.map(show).join(", ") || "none";
+	if (isRecord(value)) {
+		if (typeof value.name === "string") return value.name;
+		// A custom field value: `{ kind: "money", amount: 12 }` reads `12`.
+		const inner = Object.entries(value).filter(([key]) => key !== "kind");
+		if (inner.length === 1) return show(inner[0]?.[1]);
+		return inner.map(([key, item]) => `${key} ${show(item)}`).join(" ");
+	}
+	return String(value);
+}
+
+function isChange(
+	value: unknown,
+): value is { before?: unknown; after?: unknown } {
+	return isRecord(value) && ("before" in value || "after" in value);
+}
+
+function describeChange(label: string, change: unknown): string {
+	if (isRecord(change) && change.changed === true) return `${label} changed`;
+	if (!isChange(change)) return `${label} ${show(change)}`;
+	if (!("before" in change)) return `${label} → ${show(change.after)}`;
+	return `${label}: ${show(change.before)} → ${show(change.after)}`;
+}
+
+function namedList(value: unknown): Named[] {
+	return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+/** Keys of a search summary that are paging or plumbing, not filters. */
+const SEARCH_NOISE = new Set(["page", "sort", "deleted", "total", "query"]);
+
+/**
+ * One line describing an entry's summary: "+energy −home", "title: Scan →
+ * Invoice", "\"électricité\" · year 2026 · 3 results"… Empty when there is
+ * nothing to add to the action itself.
+ */
+export function describeActivitySummary(
+	entry: Pick<ActivityEntry, "action" | "summary">,
+): string {
+	const summary = entry.summary;
+	const parts: string[] = [];
+
+	if (entry.action === "search.performed") {
+		if (typeof summary.query === "string") parts.push(`"${summary.query}"`);
+		for (const [key, value] of Object.entries(summary)) {
+			if (SEARCH_NOISE.has(key)) continue;
+			parts.push(`${key} ${show(value)}`);
+		}
+		if (typeof summary.total === "number") {
+			parts.push(`${summary.total} result${summary.total === 1 ? "" : "s"}`);
+		}
+		return parts.join(" · ");
+	}
+
+	if (isRecord(summary.fields)) {
+		for (const [field, change] of Object.entries(summary.fields)) {
+			parts.push(describeChange(field, change));
+		}
+	}
+	const added = namedList(summary.added);
+	const removed = namedList(summary.removed);
+	for (const item of added) {
+		parts.push(`+${item.name ?? item.id}${item.role ? ` (${item.role})` : ""}`);
+	}
+	for (const item of removed) {
+		parts.push(`−${item.name ?? item.id}${item.role ? ` (${item.role})` : ""}`);
+	}
+	if ("category" in summary)
+		parts.push(describeChange("category", summary.category));
+	if (isRecord(summary.field)) {
+		parts.push(describeChange(show(summary.field), summary.value));
+	}
+	if (isRecord(summary.dossier)) parts.push(`dossier ${show(summary.dossier)}`);
+	if (isRecord(summary.source) && typeof summary.source.name === "string") {
+		parts.push(`from ${summary.source.name}`);
+	}
+	if (typeof summary.kind === "string" && "fromDocumentId" in summary) {
+		parts.push(summary.kind.replaceAll("_", " "));
+	}
+	if (Array.isArray(summary.rules)) {
+		parts.push(
+			`rules ${namedList(summary.rules)
+				.map((rule) => rule.name)
+				.join(", ")}`,
+		);
+	}
+	if (typeof summary.asn === "number") parts.push(`ASN ${summary.asn}`);
+	if (typeof summary.filename === "string") parts.push(summary.filename);
+	if (summary.masked === true) parts.push("masked");
+	if (Array.isArray(summary.documentIds)) {
+		const count = summary.documentIds.length;
+		parts.push(`${count} document${count === 1 ? "" : "s"}`);
+	}
+	if (
+		typeof summary.documents === "number" &&
+		!Array.isArray(summary.documentIds)
+	) {
+		parts.push(
+			`${summary.documents} document${summary.documents === 1 ? "" : "s"}`,
+		);
+	}
+	if (typeof summary.via === "string") parts.push(`via ${summary.via}`);
+	return parts.join(" · ");
+}

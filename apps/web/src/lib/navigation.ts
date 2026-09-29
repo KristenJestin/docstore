@@ -1,6 +1,7 @@
 import type { LinkProps } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
+	ActivityIcon,
 	BellIcon,
 	FileTextIcon,
 	FolderIcon,
@@ -107,6 +108,13 @@ export const NAV_ITEMS: NavItem[] = [
 		section: "organisation",
 		hotkey: "g m",
 		counter: "reminders",
+	},
+	{
+		to: "/activity",
+		label: "Activity",
+		icon: ActivityIcon,
+		section: "organisation",
+		hotkey: "g l",
 	},
 ];
 

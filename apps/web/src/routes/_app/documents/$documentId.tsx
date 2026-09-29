@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { DocumentActivityCard } from "@/components/activity/document-activity-card";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateText } from "@/components/date-text";
 import { DocumentStatusBadge } from "@/components/documents/document-badges";
@@ -303,8 +304,12 @@ function DocumentDetailPage() {
 				 * working. `contents` keeps the grid layout untouched.
 				 */}
 				<fieldset disabled={trashed} className="contents">
-					<div className="xl:col-span-5">
+					<div className="flex flex-col gap-6 xl:col-span-5">
 						<DocumentMetaPanel document={detail} />
+						<DocumentActivityCard
+							documentId={detail.id}
+							version={detail.updatedAt}
+						/>
 					</div>
 				</fieldset>
 			</div>
