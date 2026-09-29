@@ -86,6 +86,18 @@ export function requireRead(context: McpContext): void {
 	}
 }
 
+/**
+ * Administration data (intake sources) requires the `admin` scope, like
+ * `adminProcedure` on oRPC (issue #11).
+ */
+export function requireAdmin(context: McpContext): void {
+	if (!hasScope(context.principal.scopes, "admin")) {
+		throw new McpToolError(
+			"Refused: this API key does not have the `admin` scope.",
+		);
+	}
+}
+
 /** Same decision as oRPC and `/files` (`mayReadSensitive`, D-01 of #1). */
 export function canReadSensitive(context: McpContext): boolean {
 	return mayReadSensitive(context.principal);

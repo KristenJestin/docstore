@@ -60,7 +60,6 @@ const listDefaults: ListDocumentsInput = {
 	deleted: "exclude",
 	page: 1,
 	pageSize: 25,
-	sort: "documentDate:desc",
 };
 
 async function updatedAtIn(target: Db, id: string): Promise<Date> {

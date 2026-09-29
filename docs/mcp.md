@@ -32,8 +32,8 @@ Available procedures:
 | `apiKey.revoke`     | Revoke: the key stays visible but no longer authenticates |
 | `apiKey.delete`     | Delete permanently                                       |
 
-`apiKey.create`, `revoke` and `delete` require the `admin` scope when the caller
-is itself an API key (a browser session keeps every right): a `write` key
+`apiKey.list`, `create`, `revoke` and `delete` require the `admin` scope when
+the caller is itself an API key (a browser session keeps every right): a `write` key
 therefore cannot mint itself an `admin` key.
 
 ## 2. Scopes
@@ -43,7 +43,7 @@ therefore cannot mint itself an `admin` key.
 | `read`      | Every read tool and resource: search, documents, Party, taxonomy, statistics |
 | `write`     | Every mutation (edit, link, upload, rules)                         |
 | `sensitive` | Content of documents marked "sensitive": OCR text, and on HTTP the file bytes, thumbnail and OCR layout |
-| `admin`     | API key administration; implies every other scope                  |
+| `admin`     | API key administration, `list_intake_sources`; implies every other scope |
 
 A `sensitive` document returns ``[sensitive document: `sensitive` scope required]``
 instead of its text when the key does not carry `sensitive`; `search_documents`
@@ -103,6 +103,9 @@ curl -s -X POST http://127.0.0.1:3000/mcp \
 ## 4. Tools
 
 Every read tool requires the `read` scope, every mutation the `write` scope.
+Two lists take the scope that manages what they list (issue #11):
+`list_share_links` requires `write` (it returns working public URLs) and
+`list_intake_sources` requires `admin`.
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
@@ -220,8 +223,8 @@ for what changed after it:
    action stamps many documents with the same instant.
 4. Store the `updatedAt` (and `id`) of the last item as the next cursor.
 
-`sort` is ignored while `updatedSince` is set: the cursor needs the
-`updatedAt` order. Every write, whether it comes from MCP, the web app, the
+Leave `sort` out while `updatedSince` is set (or set it to `updatedAt:asc`):
+the cursor needs the `updatedAt` order, and any other `sort` is refused. Every write, whether it comes from MCP, the web app, the
 API, a bulk action or an automation run, moves `updatedAt`, and also sends a
 webhook to the subscribers (`document.updated`, `document.trashed`,
 `document.restored`, `document.deleted`, `document.merged`): see

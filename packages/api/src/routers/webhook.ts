@@ -8,7 +8,7 @@ import {
 	webhookSchema,
 } from "@docstore/shared/webhook";
 import { z } from "zod";
-import { adminProcedure, protectedProcedure } from "../index";
+import { adminProcedure } from "../index";
 import {
 	createWebhook,
 	deleteWebhook,
@@ -87,7 +87,8 @@ export const webhookRouter = {
 			testWebhook(context.db, context.ingestion, input.id),
 		),
 
-	deliveries: protectedProcedure
+	// Administration data: same scope as managing the webhook (issue #11).
+	deliveries: adminProcedure
 		.route({
 			method: "GET",
 			path: "/webhooks/{id}/deliveries",
