@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { listDocumentsInput } from "./document";
+import { documentListFiltersSchema, noSyncCursorFields } from "./document";
 
 /**
  * Tree export (SPEC §8 iteration 7): a ZIP of the original files, renamed with
@@ -28,9 +28,13 @@ export const EXPORT_MAX_DOCUMENTS = 2000;
  * `strict`: an unknown key is a typo (`categoryID`, `tag`), and silently
  * ignoring it hands back an archive built on filters the caller never asked
  * for — the most expensive kind of silent success.
+ *
+ * The sync cursor of `document.list` is refused with its own message (#14):
+ * an export takes a selection, not a position in the change feed.
  */
-export const exportFiltersSchema = listDocumentsInput
+export const exportFiltersSchema = documentListFiltersSchema
 	.omit({ page: true, pageSize: true })
+	.extend(noSyncCursorFields)
 	.strict();
 export type ExportFilters = z.infer<typeof exportFiltersSchema>;
 

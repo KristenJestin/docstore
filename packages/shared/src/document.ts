@@ -216,6 +216,9 @@ export function isBlockingReviewReason(reason: {
 export const documentSortSchema = z.enum(DOCUMENT_SORTS);
 export type DocumentSort = z.infer<typeof documentSortSchema>;
 
+/** Order of `document.list` when none is given and there is no sync cursor. */
+export const DEFAULT_DOCUMENT_SORT = "documentDate:desc" satisfies DocumentSort;
+
 /** The Postgres `date` columns are handled as `YYYY-MM-DD`. */
 const dateOnly = dateOnlySchema;
 
@@ -276,7 +279,13 @@ export const DOCUMENT_DELETED_SCOPES = ["exclude", "only", "include"] as const;
 export const documentDeletedScopeSchema = z.enum(DOCUMENT_DELETED_SCOPES);
 export type DocumentDeletedScope = z.infer<typeof documentDeletedScopeSchema>;
 
-export const listDocumentsInput = z.object({
+/**
+ * The `document.list` filters that describe a selection: what a saved search
+ * stores and what an export takes. The sync cursor (`updatedSince`,
+ * `afterId`) is not part of it: it is a position in a feed, not a filter
+ * (#14).
+ */
+export const documentListFiltersSchema = z.object({
 	/**
 	 * French full-text search (`websearch_to_tsquery`) over the title, the OCR
 	 * text and the notes.
@@ -315,6 +324,16 @@ export const listDocumentsInput = z.object({
 	 * change the sync cursor must see.
 	 */
 	deleted: documentDeletedScopeSchema.default("exclude"),
+	page: z.int().min(1).default(1),
+	pageSize: z.int().min(1).max(100).default(25),
+	sort: documentSortSchema.default(DEFAULT_DOCUMENT_SORT),
+});
+export type DocumentListFilters = z.infer<typeof documentListFiltersSchema>;
+
+/** Order the sync cursor walks through, the only one it accepts (#14). */
+export const SYNC_CURSOR_SORT = "updatedAt:asc" satisfies DocumentSort;
+
+export const listDocumentsInput = documentListFiltersSchema.extend({
 	/**
 	 * Incremental sync: only the documents changed strictly after this instant
 	 * (ISO 8601). The order then is always `updatedAt` ascending, then `id`, so
@@ -327,11 +346,33 @@ export const listDocumentsInput = z.object({
 	 * the `id` of the last item read along with its `updatedAt`.
 	 */
 	afterId: z.string().min(1).optional(),
-	page: z.int().min(1).default(1),
-	pageSize: z.int().min(1).max(100).default(25),
-	sort: documentSortSchema.default("documentDate:desc"),
+	/**
+	 * Default `documentDate:desc`, or `updatedAt:asc` with `updatedSince`.
+	 * With `updatedSince`, any other order is refused (#14): the `updatedAt`
+	 * of the last item read would no longer be the next cursor.
+	 */
+	sort: documentSortSchema.optional(),
 });
 export type ListDocumentsInput = z.infer<typeof listDocumentsInput>;
+
+/**
+ * Fields added to a filters schema that must refuse the sync cursor (saved
+ * searches, exports) with a message that says why, instead of dropping it.
+ */
+export const noSyncCursorFields = {
+	updatedSince: z
+		.never({
+			error:
+				"`updatedSince` is a sync cursor of `document.list`, not a filter: it cannot be saved or exported.",
+		})
+		.optional(),
+	afterId: z
+		.never({
+			error:
+				"`afterId` is a sync cursor of `document.list`, not a filter: it cannot be saved or exported.",
+		})
+		.optional(),
+};
 
 /** Simplified hOCR: a word with its bbox and confidence, in page pixels. */
 export const ocrWordSchema = z.object({

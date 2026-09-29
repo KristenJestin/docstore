@@ -1,4 +1,7 @@
-import type { ListDocumentsInput } from "@docstore/shared/document";
+import type {
+	DocumentSort,
+	ListDocumentsInput,
+} from "@docstore/shared/document";
 import {
 	documentSortSchema,
 	documentStatusSchema,
@@ -65,11 +68,15 @@ export function hasActiveFilters(search: DocumentSearch): boolean {
 	);
 }
 
-/** Maps the URL filters to a `document.list` input. */
+/**
+ * Maps the URL filters to a `document.list` input. The screen never uses the
+ * sync cursor, so the order is always explicit: the saved searches and exports
+ * built from this input need one.
+ */
 export function toListDocumentsInput(
 	search: DocumentSearch,
 	overrides?: Partial<ListDocumentsInput>,
-): ListDocumentsInput {
+): ListDocumentsInput & { sort: DocumentSort } {
 	return {
 		query: search.q,
 		categoryId: search.categoryId,

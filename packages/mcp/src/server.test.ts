@@ -2103,3 +2103,29 @@ describe("Party identifiers behind the `sensitive` scope (issue #23)", () => {
 		);
 	});
 });
+
+describe("search_documents and the sync cursor order (issue #14)", () => {
+	test("WHEN updatedSince comes with another sort THEN the tool refuses", async () => {
+		const client = await connect(["read"]);
+		const refused = await client.callTool({
+			name: "search_documents",
+			arguments: {
+				updatedSince: "2000-01-01T00:00:00.000Z",
+				sort: "title:asc",
+			},
+		});
+		expect(isToolError(refused)).toBe(true);
+		expect(textOf(refused)).toContain("updatedAt:asc");
+
+		for (const args of [
+			{ updatedSince: "2000-01-01T00:00:00.000Z" },
+			{ updatedSince: "2000-01-01T00:00:00.000Z", sort: "updatedAt:asc" },
+		]) {
+			const accepted = await client.callTool({
+				name: "search_documents",
+				arguments: args,
+			});
+			expect(isToolError(accepted)).toBe(false);
+		}
+	});
+});

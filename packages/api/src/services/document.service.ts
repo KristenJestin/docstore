@@ -57,8 +57,10 @@ import type {
 	UpdateDocumentInput,
 } from "@docstore/shared/document";
 import {
+	DEFAULT_DOCUMENT_SORT,
 	DOCUMENT_STATUSES,
 	MANUAL_DOCUMENT_FIELDS,
+	SYNC_CURSOR_SORT,
 } from "@docstore/shared/document";
 import type { DocumentTypeSummary } from "@docstore/shared/document-type";
 import type { Paginated } from "@docstore/shared/pagination";
@@ -374,6 +376,18 @@ function listConditions(input: ListDocumentsInput): SQL[] {
 	if (input.afterId && !input.updatedSince) {
 		throw new ORPCError("BAD_REQUEST", {
 			message: "`afterId` only makes sense along with `updatedSince`.",
+		});
+	}
+	// The cursor dictates the order (#14): under any other one, "the
+	// `updatedAt` of the last item read" is a wrong next cursor, so it is
+	// refused rather than silently replaced.
+	if (
+		input.updatedSince &&
+		input.sort !== undefined &&
+		input.sort !== SYNC_CURSOR_SORT
+	) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: `With \`updatedSince\`, the only accepted sort is \`${SYNC_CURSOR_SORT}\` (got \`${input.sort}\`).`,
 		});
 	}
 	// A sync must see the documents leaving for the trash: `exclude`, the
@@ -702,10 +716,9 @@ export async function listDocuments(
 		.where(where);
 	const total = totalRows[0]?.value ?? 0;
 
-	// The cursor dictates the order: any other one would make "the `updatedAt`
-	// of the last item read" a wrong next cursor.
+	// The cursor dictates the order (`listConditions` refuses any other one).
 	const orderBy = input.updatedSince
-		? orderByClause("updatedAt:asc")
+		? orderByClause(SYNC_CURSOR_SORT)
 		: input.query
 			? [
 					desc(
@@ -714,7 +727,7 @@ export async function listDocuments(
 					sql`${document.documentDate} desc nulls last`,
 					asc(document.id),
 				]
-			: orderByClause(input.sort);
+			: orderByClause(input.sort ?? DEFAULT_DOCUMENT_SORT);
 
 	const rows = await db
 		.select(documentListColumns)
