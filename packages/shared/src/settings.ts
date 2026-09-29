@@ -26,6 +26,7 @@ export const SETTING_KEYS = [
 	"asn.autoAssign",
 	"content.locale",
 	"intake.archives",
+	"auth.allowSignUp",
 ] as const;
 export const settingKeySchema = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof settingKeySchema>;
@@ -122,6 +123,15 @@ export const SETTING_DEFINITIONS: Record<SettingKey, SettingDefinition> = {
 		description:
 			"What a ZIP dropped on any intake door becomes: the files it holds, the archive itself, or both linked together.",
 	},
+	// D16-01: off by default. The first account of an installation is always
+	// allowed whatever this says (see `signUpStatusSchema`).
+	"auth.allowSignUp": {
+		schema: z.boolean(),
+		defaultValue: false,
+		label: "Allow sign-up",
+		description:
+			"Lets someone create an account from the sign-up page. Turn it on for a new household member, then off again once they have joined.",
+	},
 };
 
 export type { ArchiveMode } from "./archive";
@@ -158,6 +168,7 @@ export const settingsSchema = z.object({
 	"asn.autoAssign": asnAutoAssignSchema,
 	"content.locale": contentLocaleSchema,
 	"intake.archives": archiveModeSchema,
+	"auth.allowSignUp": z.boolean(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -166,6 +177,40 @@ export const setSettingInput = z.object({
 	value: z.unknown(),
 });
 export type SetSettingInput = z.infer<typeof setSettingInput>;
+
+/* ------------------------------------------------------------------ */
+/* Sign-up                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Whether the sign-up page may create an account (issue #16).
+ *
+ * - `first-user`: no account exists yet, the installation is being set up;
+ *   sign-up is always open then, whatever the setting says.
+ * - `allowed`: a signed-in member turned "Allow sign-up" on.
+ * - `closed`: at least one account exists and the setting is off (the default).
+ */
+export const SIGN_UP_STATES = ["first-user", "allowed", "closed"] as const;
+export const signUpStateSchema = z.enum(SIGN_UP_STATES);
+export type SignUpState = z.infer<typeof signUpStateSchema>;
+
+export const signUpStatusSchema = z.object({
+	open: z.boolean(),
+	state: signUpStateSchema,
+});
+export type SignUpStatus = z.infer<typeof signUpStatusSchema>;
+
+/**
+ * Error code of the refused sign-up request (`POST /api/auth/sign-up/email`),
+ * read by the sign-up form to say why.
+ */
+export const SIGN_UP_CLOSED_CODE = "SIGN_UP_CLOSED";
+
+/**
+ * Setting keys an API key may only change with the `admin` scope: opening
+ * sign-up lets a stranger in, which is not a `write` on the library.
+ */
+export const ADMIN_SETTING_KEYS: readonly SettingKey[] = ["auth.allowSignUp"];
 
 /* ------------------------------------------------------------------ */
 /* Server information                                                   */

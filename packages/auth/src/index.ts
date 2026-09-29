@@ -1,11 +1,18 @@
-import { createDb } from "@docstore/db";
+import { createDb, type Db } from "@docstore/db";
 import * as schema from "@docstore/db/schema/auth";
 import { env } from "@docstore/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
+import { assertSignUpOpen } from "./sign-up";
 
-export function createAuth() {
-	const db = createDb();
+export interface CreateAuthOptions {
+	/** Database to use instead of `DATABASE_URL` (tests inject theirs). */
+	db?: Db;
+}
+
+export function createAuth(options: CreateAuthOptions = {}) {
+	const db = options.db ?? createDb();
 
 	return betterAuth({
 		database: drizzleAdapter(db, {
@@ -35,6 +42,27 @@ export function createAuth() {
 				sameSite: "none",
 				secure: true,
 				httpOnly: true,
+			},
+		},
+		// D16-02: sign-up is refused on the server while it is closed (see
+		// `sign-up.ts`). The `before` hook answers `SIGN_UP_CLOSED` before the
+		// endpoint looks anything up, so a refused request does not reveal
+		// whether an address already has an account; the user-creation hook is
+		// the backstop for any other path that would create a user.
+		hooks: {
+			before: createAuthMiddleware(async (ctx) => {
+				if (ctx.path.startsWith("/sign-up")) {
+					await assertSignUpOpen(db);
+				}
+			}),
+		},
+		databaseHooks: {
+			user: {
+				create: {
+					before: async () => {
+						await assertSignUpOpen(db);
+					},
+				},
 			},
 		},
 		plugins: [],

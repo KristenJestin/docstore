@@ -207,7 +207,9 @@ all, for any document.
 ### Administration
 
 `apiKey.create` / `revoke` / `delete` require `admin`, so a `write` key cannot
-mint itself a stronger one.
+mint itself a stronger one. Likewise `settings.set` on `auth.allowSignUp`
+requires `admin` (or a browser session): opening sign-up lets someone new into
+the whole library.
 
 Only the sha256 of the secret is stored; the plaintext (`dsk_` + 40 characters)
 is returned once, at creation.
@@ -220,6 +222,18 @@ Three groups of routes accept unauthenticated requests, all rate limited per IP:
 - `GET /api/s/:token`, `POST /api/s/:token/unlock`,
   `GET /api/s/:token/files/:fileId/…`: share links;
 - `GET /health`.
+
+Two more answer without a session, by nature:
+
+- `POST /api/auth/sign-up/email` (Better Auth). It creates an account only
+  while the installation has none (first run) or while a member has turned
+  "Allow sign-up" on in Settings (`auth.allowSignUp`, off by default).
+  Otherwise the server refuses it with `403 SIGN_UP_CLOSED`, before looking
+  the address up, so a refusal does not reveal whether an account exists. The
+  same check guards any other path that would create a user
+  (`packages/auth/src/sign-up.ts`).
+- `settings.signUpStatus` (`/rpc`): tells the `/signup` page whether sign-up is
+  open, and nothing else.
 
 Everything else demands a Better Auth session cookie or an API key. The reverse
 proxy routes these paths to the Hono server through the `@api` matcher of
