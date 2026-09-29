@@ -1,7 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { scopeFor, testDbPrefix } from "@docstore/db/test-db-name";
+import dotenv from "dotenv";
 import {
 	databaseNameFor,
 	git,
@@ -51,6 +58,21 @@ function runOrDie(
 		console.error(`[wt] ${label} failed.`);
 		process.exit(result.status ?? 1);
 	}
+}
+
+/**
+ * Server environment used to find the databases of a worktree being removed:
+ * its own `.env` (read before the folder goes), else the main checkout's, else
+ * `.env.example`, which is what `add` falls back to.
+ */
+function serverEnvFor(root: string, target: string): Record<string, string> {
+	for (const dir of [target, root]) {
+		if (existsSync(join(dir, "apps", "server", ".env"))) {
+			return loadServerEnv(dir);
+		}
+	}
+	const example = join(root, "apps", "server", ".env.example");
+	return existsSync(example) ? dotenv.parse(readFileSync(example)) : {};
 }
 
 function branchExists(root: string, branch: string): boolean {
@@ -137,6 +159,11 @@ function remove(branch: string, confirmed: boolean): void {
 		process.exit(1);
 	}
 
+	const env = serverEnvFor(root, target);
+	// `dev-db.ts` of the checkout running this script, which knows every
+	// command used below; the main one when that checkout is the one removed.
+	const toolRoot = resolve(REPO_ROOT) === resolve(target) ? root : REPO_ROOT;
+
 	if (existsSync(target)) {
 		const result = spawnSync("git", ["worktree", "remove", "--force", target], {
 			cwd: root,
@@ -153,12 +180,11 @@ function remove(branch: string, confirmed: boolean): void {
 		console.log(`[wt] ${target} was already gone.`);
 	}
 
-	const env = loadServerEnv(root);
 	const baseDatabaseUrl = env.DATABASE_URL;
 	if (!baseDatabaseUrl) {
 		console.log("[wt] no DATABASE_URL: database left untouched.");
 	} else {
-		runDevDb(root, withDatabase(baseDatabaseUrl, database), ["drop"]);
+		runDevDb(toolRoot, env, withDatabase(baseDatabaseUrl, database), ["drop"]);
 		console.log(`[wt] dropped database ${database}`);
 	}
 
@@ -169,17 +195,25 @@ function remove(branch: string, confirmed: boolean): void {
 		console.log("[wt] no DATABASE_URL_TEST: test databases left untouched.");
 		return;
 	}
-	runDevDb(root, testDatabaseUrl, ["drop-prefix", testDbPrefix(scope)]);
+	runDevDb(toolRoot, env, testDatabaseUrl, [
+		"drop-prefix",
+		testDbPrefix(scope),
+	]);
 }
 
 /** `packages/db/src/dev-db.ts <args>` against `databaseUrl`; exits on failure. */
-function runDevDb(root: string, databaseUrl: string, args: string[]): void {
+function runDevDb(
+	root: string,
+	serverEnv: Record<string, string>,
+	databaseUrl: string,
+	args: string[],
+): void {
 	const result = spawnSync(
 		"bun",
 		["run", join("packages", "db", "src", "dev-db.ts"), ...args],
 		{
 			cwd: root,
-			env: { ...process.env, DATABASE_URL: databaseUrl },
+			env: { ...serverEnv, ...process.env, DATABASE_URL: databaseUrl },
 			stdio: "inherit",
 		},
 	);
