@@ -71,7 +71,7 @@ function RemindersPage() {
 			<PageHeader
 				kicker="Follow-up"
 				title="Reminders"
-				description="Documents about to expire and periods still missing from a recurring type. They are recomputed, never entered by hand."
+				description="Documents about to expire, dates of the fields marked “remind me” and periods still missing from a recurring type. They are recomputed, never entered by hand."
 				actions={
 					<Button
 						variant="outline"
