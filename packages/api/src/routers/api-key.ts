@@ -6,7 +6,7 @@ import {
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
-import { adminProcedure, protectedProcedure } from "../index";
+import { adminProcedure } from "../index";
 import {
 	createApiKey,
 	deleteApiKey,
@@ -28,7 +28,8 @@ function ownerId(context: Context): string {
 }
 
 export const apiKeyRouter = {
-	list: protectedProcedure
+	// Administration data: same scope as managing the keys (issue #11).
+	list: adminProcedure
 		.route({
 			method: "GET",
 			path: "/api-keys",

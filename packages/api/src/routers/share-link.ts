@@ -6,7 +6,7 @@ import {
 } from "@docstore/shared/share-link";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { protectedProcedure, writeProcedure } from "../index";
+import { writeProcedure } from "../index";
 import {
 	createShareLink,
 	deleteShareLink,
@@ -25,7 +25,8 @@ const idInput = z.object({ id: z.string().min(1) });
  * `write` operation, and the service refuses anything marked `sensitive`.
  */
 export const shareLinkRouter = {
-	list: protectedProcedure
+	// Listing returns working public URLs: same scope as creating one (issue #11).
+	list: writeProcedure
 		.route({
 			method: "GET",
 			path: "/share-links",

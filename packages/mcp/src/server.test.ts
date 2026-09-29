@@ -1027,7 +1027,7 @@ describe("intake tools", () => {
 			stats: { imported: 4, duplicates: 1, errors: 0 },
 		});
 
-		const client = await connect(["read"]);
+		const client = await connect(["admin"]);
 		const result = await client.callTool({
 			name: "list_intake_sources",
 			arguments: {},
@@ -1821,6 +1821,51 @@ describe("reprocess_document and the trash", () => {
 		});
 		expect(isToolError(refused)).toBe(true);
 		expect(textOf(refused)).toContain("trash");
+	});
+});
+
+describe("Docstore SHALL require the scope that manages an object to list it (issue #11)", () => {
+	test("WHEN a read-only key calls list_share_links THEN the tool refuses", async () => {
+		const seeded = await seedDocument();
+		const writer = await connect(["read", "write"]);
+		await writer.callTool({
+			name: "create_share_link",
+			arguments: { documentId: seeded.id },
+		});
+
+		const reader = await connect(["read"]);
+		const refused = await reader.callTool({
+			name: "list_share_links",
+			arguments: {},
+		});
+		expect(isToolError(refused)).toBe(true);
+		expect(textOf(refused)).toContain("`write` scope");
+		expect(textOf(refused)).not.toContain("/s/");
+
+		const listed = await writer.callTool({
+			name: "list_share_links",
+			arguments: {},
+		});
+		expect(structured<{ links: unknown[] }>(listed).links).toHaveLength(1);
+	});
+
+	test("WHEN a read-only or write key calls list_intake_sources THEN the tool refuses", async () => {
+		for (const scopes of [["read"], ["read", "write"]] as const) {
+			const client = await connect([...scopes]);
+			const refused = await client.callTool({
+				name: "list_intake_sources",
+				arguments: {},
+			});
+			expect(isToolError(refused)).toBe(true);
+			expect(textOf(refused)).toContain("`admin` scope");
+		}
+
+		const admin = await connect(["admin"]);
+		const allowed = await admin.callTool({
+			name: "list_intake_sources",
+			arguments: {},
+		});
+		expect(isToolError(allowed)).toBe(false);
 	});
 });
 

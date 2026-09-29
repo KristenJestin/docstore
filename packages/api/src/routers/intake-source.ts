@@ -11,7 +11,7 @@ import {
 } from "@docstore/shared/intake";
 import { paginatedSchema } from "@docstore/shared/pagination";
 import { z } from "zod";
-import { adminProcedure, protectedProcedure } from "../index";
+import { adminProcedure } from "../index";
 import {
 	createIntakeSource,
 	deleteIntakeSource,
@@ -32,10 +32,11 @@ const idInput = z.object({ id: z.string().min(1) });
  * Intake channels (SPEC §5).
  *
  * Administration: a source carries connection credentials and a server path, it
- * is not ordinary business data — hence `adminProcedure` on every write.
+ * is not ordinary business data, hence `adminProcedure` on every procedure,
+ * reads included (issue #11).
  */
 export const intakeSourceRouter = {
-	list: protectedProcedure
+	list: adminProcedure
 		.route({
 			method: "GET",
 			path: "/intake-sources",
@@ -46,7 +47,7 @@ export const intakeSourceRouter = {
 		.output(z.array(intakeSourceSchema))
 		.handler(({ context }) => listIntakeSources(context.db)),
 
-	get: protectedProcedure
+	get: adminProcedure
 		.route({
 			method: "GET",
 			path: "/intake-sources/{id}",
@@ -128,7 +129,7 @@ export const intakeSourceRouter = {
 			testIntakeSource(context.db, context.ingestion, input),
 		),
 
-	logs: protectedProcedure
+	logs: adminProcedure
 		.route({
 			method: "GET",
 			path: "/intake-sources/{id}/logs",
