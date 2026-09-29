@@ -18,8 +18,9 @@
 	# Everything that belongs to the Hono/oRPC server.
 	# `/api*` covers `/api/auth/*`, `/api-reference`, the public routes
 	# (`/api/u/*`, `/api/s/*`) and `/api/export`. The bare `/u/*` and `/s/*`
-	# paths are SPA pages and stay on the front-end.
-	@api path /rpc* /api* /files* /health /mcp*
+	# paths are SPA pages and stay on the front-end. `/d/*` (stable document
+	# URLs) keeps its slash: `/d*` would also catch `/documents` and `/dossiers`.
+	@api path /rpc* /api* /files* /d/* /health /mcp*
 	handle @api {
 		reverse_proxy api:3000
 	}
