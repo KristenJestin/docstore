@@ -428,11 +428,14 @@ describe("documentType — missing periods", () => {
 			"2025-H1",
 			"2025-H2",
 		]);
+		// Both documents arrived in the second month of their half: without an
+		// expected month, that is the month each half is expected in (D32-02).
+		expect(detail.learnedExpectedMonth).toBe(2);
 		expect(detail.timeline.map((entry) => entry.dueDate)).toEqual([
-			"2024-06-30",
-			"2024-12-31",
-			"2025-06-30",
-			"2025-12-31",
+			"2024-02-29",
+			"2024-08-31",
+			"2025-02-28",
+			"2025-08-31",
 		]);
 		expect(detail.stats?.missing).toEqual(["2024-H2", "2025-H1"]);
 		expect(detail.stats?.present).toBe(2);

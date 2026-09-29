@@ -20,7 +20,7 @@ template, the page layouts and their extraction rules.
 | Paper original | `paper_original` | hands out an archive number (see "Archive numbers") |
 | Title | `title_template` | rewrites the title **while it still is the one derived from the filename** (see §3) |
 | Detection | `detection`, `detection_confidence` | see §5 |
-| Recurrence | `periodicity`, `start_period`, `end_period`, `expected_day`, `grace_days` | see §2 |
+| Recurrence | `periodicity`, `start_period`, `end_period`, `expected_month`, `expected_day`, `grace_days` | see §2 |
 | Order | `priority`, `enabled` | detection order (ascending) |
 
 The assignment itself is stored on the document: `document_type_id`,
@@ -71,11 +71,31 @@ Filling in the recurrence block turns the type into what a Series used to be.
   member documents and follows it as older ones are filed.
 - `end_period` is optional: an open recurrence keeps looking for the next
   period.
-- `expected_day` is the expected day of arrival: a day of the month, or an ISO
-  weekday (1 = Monday) for `weekly`. Without it, the last day of the period is
-  used.
+- `expected_month` is the month **of the period** the document arrives in, 1
+  being its first month, for the periodicities that span several months: a
+  calendar month for `yearly` (7 = July), 1 to 6 for `semiannual` (2 =
+  February or August), 1 to 3 for `quarterly`. It is stored as `null` for
+  `weekly` and `monthly`, and a value past the length of the period is
+  refused.
+- Left empty, the expected month is **learned from the documents** of the
+  type: every member whose `document_date` falls inside its own period gives
+  the month of the period it arrived in, and the lower median of those months
+  wins. A member filed for another period (a 2025 tax notice received in July
+  2026) teaches nothing. `documentType.get()` and `list()` report it as
+  `learnedExpectedMonth` while `expectedMonth` is `null`.
+- With neither, the last month of the period is used, which is what every type
+  did before `0037_yearly-expected-month`: the migration adds the column empty,
+  so an existing type follows its documents from then on, and keeps December
+  (or the last month of its half or quarter) when it has none.
+- `expected_day` is the expected day of arrival: a day of the expected month
+  (clamped to its length), or an ISO weekday (1 = Monday) for `weekly`.
+  Without it, the last day of the expected month is used.
 - `grace_days` (15 by default) absorbs the usual lateness before a period is
   declared missing.
+
+A yearly type expected on 15 July with 15 grace days is due on 30 July: its
+current year is `pending` until then, `missing` from 31 July, and its
+`period_gap` reminder is created on the first `reminder.generate` after that.
 
 Period keys read as `2026-W09`, `2026-03`, `2026-Q1`, `2026-H1`, `2026`.
 
@@ -92,7 +112,8 @@ Members are never stored. They are recomputed from:
 The period of a document is its `period_start`, falling back to its
 `document_date`. One document per period: the oldest wins. A period is
 `present`, `missing` (its due date, expected date + `grace_days`, has passed)
-or `pending`.
+or `pending`. The expected date is `expected_day` of the expected month of the
+period (see above).
 
 ### Effective range
 
