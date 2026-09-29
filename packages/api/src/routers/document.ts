@@ -7,6 +7,7 @@ import {
 	documentDetailSchema,
 	documentDuplicateSchema,
 	documentFileLayoutSchema,
+	documentGetResultSchema,
 	documentListItemSchema,
 	documentPartyRoleSchema,
 	documentSchema,
@@ -42,7 +43,6 @@ import {
 	bulkDocuments,
 	clearDocumentFieldValue,
 	deleteDocumentPermanently,
-	getDocument,
 	getDocumentByAsn,
 	getDocumentFileLayout,
 	getDocumentStats,
@@ -63,6 +63,7 @@ import {
 	unignoreDuplicate,
 	updateDocument,
 } from "../services/document.service";
+import { getDocumentWithUrls } from "../services/document-resolution.service";
 import { deleteStorageObjects } from "../services/file.service";
 import { addRelation, removeRelation } from "../services/relation.service";
 import { requeueDocument } from "../services/review.service";
@@ -263,11 +264,22 @@ export const documentRouter = {
 			path: "/documents/{id}",
 			tags: TAGS,
 			summary: "Document detail (files + linked Parties)",
+			description:
+				"Also returns the stable URLs of the document: `webUrl` (its page in the web app) and `fileUrl` (`GET /d/{docId}`, its primary file). The id of a document merged as a version leads to the kept document, named in `redirectedFrom`; a document in the trash is still returned, with `deletedAt`; a permanently deleted one answers `410 GONE`.",
 		})
 		.input(idInput)
-		.output(documentDetailSchema)
+		.output(documentGetResultSchema)
+		.errors({
+			GONE: {
+				status: 410,
+				message: "The document was permanently deleted.",
+			},
+		})
 		.handler(async ({ input, context }) =>
-			withMaskedContent(context, await getDocument(context.db, input.id)),
+			withMaskedContent(
+				context,
+				await getDocumentWithUrls(context.db, input.id),
+			),
 		),
 
 	update: writeProcedure

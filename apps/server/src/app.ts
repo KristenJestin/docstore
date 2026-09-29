@@ -13,7 +13,7 @@ import { logger } from "hono/logger";
 import { apiKeyAuth, apiKeyPrincipal } from "./api-key-auth";
 import type { AuthInstance } from "./auth-instance";
 import { registerExportRoutes } from "./export";
-import { registerFileRoutes } from "./files";
+import { registerFileRoutes, stableDocumentUrlSpec } from "./files";
 import { buildHealthReport } from "./health";
 import { registerMcpRoutes } from "./mcp";
 import { registerShareLinkRoutes } from "./share-link";
@@ -38,6 +38,8 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
 		new OpenAPIReferencePlugin({
 			schemaConverters: [new ZodToJsonSchemaConverter()],
+			// Hono routes documented next to the procedures (issue #2).
+			specGenerateOptions: { paths: stableDocumentUrlSpec },
 		}),
 	],
 	interceptors: [

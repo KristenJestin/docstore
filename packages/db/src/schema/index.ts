@@ -3,6 +3,7 @@ export * from "./auth";
 export * from "./category";
 export * from "./custom-field";
 export * from "./document";
+export * from "./document-tombstone";
 export * from "./document-type";
 export * from "./dossier";
 export * from "./duplicate-ignore";

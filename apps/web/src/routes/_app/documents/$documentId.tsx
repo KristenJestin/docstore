@@ -64,6 +64,19 @@ function DocumentDetailPage() {
 	const remove = useMutation(orpc.document.deletePermanently.mutationOptions());
 	const reprocess = useMutation(orpc.document.reprocess.mutationOptions());
 
+	// A merged document leads to the one it was merged into (issue #2): the
+	// address bar follows, so every action below targets the kept document.
+	const mergedInto = document.data?.redirectedFrom ? document.data.id : null;
+	useEffect(() => {
+		if (!mergedInto) return;
+		toast.info("This document was merged into the one shown here.");
+		navigate({
+			to: "/documents/$documentId",
+			params: { documentId: mergedInto },
+			replace: true,
+		});
+	}, [mergedInto, navigate]);
+
 	if (document.isLoading) {
 		return (
 			<div className="flex flex-col gap-4 px-6 py-8 lg:px-8">

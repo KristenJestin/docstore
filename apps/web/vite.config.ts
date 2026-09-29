@@ -39,6 +39,9 @@ export default defineConfig({
 			// /api-reference. `/u/*` and `/s/*` are SPA pages and stay here.
 			"/api": api,
 			"/files": api,
+			// Stable document URLs (`/d/<docId>`). The trailing slash keeps
+			// `/documents` and `/dossiers` on the SPA.
+			"/d/": api,
 			"/health": api,
 			"/mcp": api,
 		},

@@ -126,7 +126,7 @@ flowchart TD
         config["config"]
     end
 
-    web -->|"/rpc, /api, /files"| server
+    web -->|"/rpc, /api, /files, /d"| server
     web --> ui
     web --> sharedPkg
     server --> api
@@ -192,7 +192,7 @@ portless:
   storage    …/docstore-v2/.data/storage
 ```
 
-The Vite dev server proxies `/rpc`, `/api`, `/files`, `/health`, `/mcp`,
+The Vite dev server proxies `/rpc`, `/api`, `/files`, `/d/`, `/health`, `/mcp`,
 `/api-reference` and `/parties/*/logo` to the Hono server, using the same route
 list as `docker/Caddyfile`. The browser then only ever talks to one host, like
 in production: no CORS, no cross-port cookies, and share links open the address

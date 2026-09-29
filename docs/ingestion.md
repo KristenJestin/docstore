@@ -544,6 +544,13 @@ document: `id`, `title`, `status`, `source`, `sourceRef`, `documentDate`,
 cursor from the event alone. `document.deleted` carries the last state read
 before the row went away; `keptDocumentId` is only set on `document.merged`.
 
+The events agree with the stable document ids (see
+[mcp.md](mcp.md#stable-document-references)): after `document.merged`, the
+absorbed id leads to `keptDocumentId` (and ids merged into it earlier follow
+along); after `document.restored` of a merged document, its id answers for
+itself again; after `document.deleted`, its id answers `410 GONE`, unless it
+had been merged, in which case it keeps leading to the kept document.
+
 Every delivery is a JSON `POST` carrying:
 
 - `X-Docstore-Event`: name of the event;

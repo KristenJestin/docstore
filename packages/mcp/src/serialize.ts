@@ -1,5 +1,6 @@
 import type {
 	DocumentDetail,
+	DocumentGetResult,
 	DocumentListItem,
 } from "@docstore/shared/document";
 import type { Party, PartyDetail } from "@docstore/shared/party";
@@ -197,6 +198,29 @@ export const documentDetailJson = documentSummaryJson.extend({
 });
 export type DocumentDetailJson = z.infer<typeof documentDetailJson>;
 
+/**
+ * `get_document` and the `docstore://document/{id}` resource: the detail plus
+ * the stable URLs a citation keeps (issue #2).
+ */
+export const documentGetJson = documentDetailJson.extend({
+	/** Page of the document in the web app, for humans. */
+	webUrl: z.string(),
+	/** Primary file (`GET /d/<id>`), with the same API key. */
+	fileUrl: z.string(),
+	/** The id asked for, when it was merged into this document. */
+	redirectedFrom: z.string().nullable(),
+});
+export type DocumentGetJson = z.infer<typeof documentGetJson>;
+
+export function toDocumentGet(result: DocumentGetResult): DocumentGetJson {
+	return {
+		...toDocumentDetail(result),
+		webUrl: result.webUrl,
+		fileUrl: result.fileUrl,
+		redirectedFrom: result.redirectedFrom,
+	};
+}
+
 export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 	return {
 		...toDocumentSummary({
@@ -364,6 +388,16 @@ export function describeDocument(item: DocumentSummaryJson): string {
 	if (item.deletedAt) parts.push("in the trash");
 	if (item.sensitive) parts.push("sensitive");
 	return parts.join(" · ");
+}
+
+/** Detail line, then the redirect and the stable URLs of `get_document`. */
+export function describeDocumentGet(item: DocumentGetJson): string {
+	const lines = [describeDocumentDetail(item)];
+	if (item.redirectedFrom) {
+		lines.push(`${item.redirectedFrom} was merged into ${item.id}`);
+	}
+	lines.push(`page: ${item.webUrl}`, `file: ${item.fileUrl}`);
+	return lines.join("\n");
 }
 
 /** Same line, plus the document type the document belongs to. */

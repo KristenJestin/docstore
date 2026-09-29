@@ -69,6 +69,14 @@ export const DOCUMENT_SOURCES = [
  */
 export const ASN_SOURCES = ["manual", "auto"] as const;
 
+/**
+ * Why a document id no longer answers for a live document of its own
+ * (issue #2): absorbed by `mergeAsVersion`, or permanently deleted.
+ */
+export const DOCUMENT_TOMBSTONE_REASONS = ["merged", "deleted"] as const;
+export type DocumentTombstoneReason =
+	(typeof DOCUMENT_TOMBSTONE_REASONS)[number];
+
 export const DOCUMENT_SORTS = [
 	"documentDate:desc",
 	"documentDate:asc",
@@ -550,6 +558,26 @@ export const documentDetailSchema = documentSchema.extend({
 	documentType: documentTypeMembershipSchema.nullable(),
 });
 export type DocumentDetail = z.infer<typeof documentDetailSchema>;
+
+/**
+ * `document.get` (and MCP `get_document`): the detail plus the stable URLs a
+ * citation can keep (issue #2), both built from the public base URL.
+ */
+export const documentGetResultSchema = documentDetailSchema.extend({
+	/** Page of the document in the web app: `<public URL>/documents/<id>`. */
+	webUrl: z.string(),
+	/**
+	 * Primary file of the document (the original, else the oldest file):
+	 * `<public URL>/d/<id>`, `?disposition=inline` to view it.
+	 */
+	fileUrl: z.string(),
+	/**
+	 * The id that was asked for when it was merged into this document, `null`
+	 * when the document answered for itself.
+	 */
+	redirectedFrom: z.string().nullable(),
+});
+export type DocumentGetResult = z.infer<typeof documentGetResultSchema>;
 
 export const setDocumentCategoryInput = z.object({
 	id: z.string().min(1),
