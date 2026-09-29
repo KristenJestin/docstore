@@ -3,6 +3,7 @@ import {
 	listActivityInput,
 } from "@docstore/shared/activity";
 import { paginatedSchema } from "@docstore/shared/pagination";
+import { maskPartyActivityEntry } from "@docstore/shared/party-masking";
 import { protectedProcedure } from "../index";
 import { listActivity } from "../services/activity.service";
 
@@ -20,5 +21,14 @@ export const activityRouter = {
 		})
 		.input(listActivityInput)
 		.output(paginatedSchema(activityEntrySchema))
-		.handler(({ input, context }) => listActivity(context.db, input)),
+		.handler(async ({ input, context }) => {
+			const page = await listActivity(context.db, input);
+			return {
+				...page,
+				// Party identifiers are withheld from a key without `sensitive` (#23).
+				items: page.items.map((entry) =>
+					maskPartyActivityEntry(entry, context.apiKey),
+				),
+			};
+		}),
 };
