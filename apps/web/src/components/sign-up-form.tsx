@@ -1,12 +1,19 @@
-import { Button } from "@docstore/ui/components/button";
+import {
+	SIGN_UP_CLOSED_CODE,
+	type SignUpState,
+} from "@docstore/shared/settings";
+import { Button, buttonVariants } from "@docstore/ui/components/button";
 import { Input } from "@docstore/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useId } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
+import { redirectSearch, safeRedirect } from "@/lib/auth-redirect";
+import { orpc } from "@/utils/orpc";
 
 import { AuthCard } from "./auth-card";
 import { FormField } from "./form-field";
@@ -18,14 +25,34 @@ const signUpSchema = z.object({
 	password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
-export default function SignUpForm({
-	onSwitchToSignIn,
-}: {
-	onSwitchToSignIn: () => void;
-}) {
+/** What the card says above the form, by reason sign-up is open. */
+const OPEN_DESCRIPTIONS: Record<Exclude<SignUpState, "closed">, string> = {
+	"first-user": "Create the first account of this installation.",
+	allowed: "One account per household member.",
+};
+
+/**
+ * `/signup` (issue #16). The server says whether an account can be created
+ * (`settings.signUpStatus`) and refuses the request itself when it cannot
+ * (D16-02); the page only explains it.
+ */
+export default function SignUpForm({ redirect }: { redirect?: string }) {
 	const navigate = useNavigate();
 	const { isPending } = authClient.useSession();
 	const fieldId = useId();
+	const status = useQuery(
+		orpc.settings.signUpStatus.queryOptions({ input: {} }),
+	);
+
+	const signInLink = (
+		<Link
+			to="/login"
+			search={redirectSearch(redirect)}
+			className={buttonVariants({ variant: "link" })}
+		>
+			Already have an account? Sign in
+		</Link>
+	);
 
 	const form = useForm({
 		defaultValues: { name: "", email: "", password: "" },
@@ -35,10 +62,16 @@ export default function SignUpForm({
 				{ email: value.email, password: value.password, name: value.name },
 				{
 					onSuccess: () => {
-						navigate({ to: "/" });
+						navigate({ href: safeRedirect(redirect) });
 						toast.success("Account created.");
 					},
-					onError: () => {
+					onError: ({ error }) => {
+						if (error.code === SIGN_UP_CLOSED_CODE) {
+							// Closed while the page was open: show the closed card.
+							void status.refetch();
+							toast.error("Sign-up is closed.");
+							return;
+						}
 						toast.error("Account creation failed. Try another email address.");
 					},
 				},
@@ -46,20 +79,30 @@ export default function SignUpForm({
 		},
 	});
 
-	if (isPending) {
+	if (isPending || status.isPending) {
 		return <Loader />;
+	}
+
+	// An unreachable status reads as closed: the server decides either way.
+	const state = status.data?.state ?? "closed";
+
+	if (state === "closed") {
+		return (
+			<AuthCard kicker="Sign up" title="Sign-up is closed" footer={signInLink}>
+				<p className="text-muted-foreground text-sm">
+					This household already has its accounts. Ask a member to turn on
+					“Allow sign-up” in Settings, then come back to this page.
+				</p>
+			</AuthCard>
+		);
 	}
 
 	return (
 		<AuthCard
 			kicker="Sign up"
 			title="Create account"
-			description="One account per household member."
-			footer={
-				<Button variant="link" onClick={onSwitchToSignIn}>
-					Already have an account? Sign in
-				</Button>
-			}
+			description={OPEN_DESCRIPTIONS[state]}
+			footer={signInLink}
 		>
 			<form
 				className="flex flex-col gap-4"

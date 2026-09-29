@@ -56,6 +56,7 @@ const SETTING_LABELS: Record<SettingKey, string> = {
 	"asn.autoAssign": "Automatic ASN",
 	"content.locale": "Content language",
 	"intake.archives": "Archives",
+	"auth.allowSignUp": "Allow sign-up",
 };
 
 /** Wording of the content languages, in the language they stand for. */
@@ -318,6 +319,28 @@ export function GeneralSettings() {
 									))}
 								</SelectContent>
 							</Select>
+						}
+					/>
+				</div>
+			</SettingsPanel>
+
+			<SettingsPanel
+				title="Accounts"
+				description="Who can create an account on this installation. Every account sees the whole library."
+			>
+				<div className="divide-y divide-border">
+					<SettingsRow
+						label="Allow sign-up"
+						htmlFor={`${fieldId}-allow-sign-up`}
+						description="Lets someone create an account from the sign-up page. Turn it on for a new household member, then off again once they have joined."
+						control={
+							<Switch
+								id={`${fieldId}-allow-sign-up`}
+								checked={data["auth.allowSignUp"]}
+								onCheckedChange={(checked) =>
+									void save("auth.allowSignUp", checked)
+								}
+							/>
 						}
 					/>
 				</div>
