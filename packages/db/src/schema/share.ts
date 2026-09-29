@@ -43,7 +43,7 @@ export const shareLink = pgTable(
 		dossierId: text("dossier_id").references(() => dossier.id, {
 			onDelete: "cascade",
 		}),
-		expiresAt: timestamp("expires_at"),
+		expiresAt: timestamp("expires_at", { withTimezone: true }),
 		/** Argon2id hash produced by `Bun.password`; `null` = no password. */
 		passwordHash: text("password_hash"),
 		/** `null` = unlimited. */
@@ -54,9 +54,11 @@ export const shareLink = pgTable(
 		createdById: text("created_by_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 		/** Non-null = revoked: the link answers 410 for good. */
-		revokedAt: timestamp("revoked_at"),
+		revokedAt: timestamp("revoked_at", { withTimezone: true }),
 		/**
 		 * Why it was revoked: by hand, or automatically because the document (or
 		 * one of the dossier's documents) became sensitive.

@@ -101,7 +101,9 @@ export const document = pgTable(
 		 * corrected it. The confirmation is recorded here instead, and the
 		 * assignment keeps saying who produced it.
 		 */
-		categoryConfirmedAt: timestamp("category_confirmed_at"),
+		categoryConfirmedAt: timestamp("category_confirmed_at", {
+			withTimezone: true,
+		}),
 		/** Document type carried by the document (SPEC §9). */
 		documentTypeId: text("document_type_id").references(() => documentType.id, {
 			onDelete: "set null",
@@ -175,19 +177,21 @@ export const document = pgTable(
 		createdById: text("created_by_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "restrict" }),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 		/**
 		 * Cursor of the incremental sync (`document.list` with `updatedSince`).
 		 * Kept at millisecond precision, the precision of a JavaScript `Date`: a
 		 * client hands back the value it read, and a microsecond default would
 		 * make that value compare lower than the row it came from.
 		 */
-		updatedAt: timestamp("updated_at")
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.default(sql`date_trunc('milliseconds', now())`)
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 		/** Trash: non-null = soft-deleted. */
-		deletedAt: timestamp("deleted_at"),
+		deletedAt: timestamp("deleted_at", { withTimezone: true }),
 	},
 	(table) => [
 		index("document_status_idx").on(table.status),
@@ -221,7 +225,9 @@ export const documentFile = pgTable(
 		ocrLayout: jsonb("ocr_layout").$type<OcrLayout>(),
 		encrypted: boolean("encrypted").notNull().default(false),
 		thumbnailKey: text("thumbnail_key"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		index("document_file_document_id_idx").on(table.documentId),
@@ -246,8 +252,10 @@ export const documentParty = pgTable(
 		confidence: real("confidence"),
 		source: assignmentSourceEnum("source").notNull().default("manual"),
 		/** When a human approved this link in Review (SPEC §4). */
-		confirmedAt: timestamp("confirmed_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
+		confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
 	},
 	(table) => [
 		primaryKey({

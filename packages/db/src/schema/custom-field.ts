@@ -40,8 +40,10 @@ export const customField = pgTable(
 			.notNull()
 			.default(sql`'{}'::text[]`),
 		sortOrder: integer("sort_order").notNull().default(0),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at")
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
@@ -67,8 +69,8 @@ export const documentFieldValue = pgTable(
 		 * `rule`-sourced, so a later run of the same extraction still refreshes
 		 * it; the confirmation is dropped along with the old value.
 		 */
-		confirmedAt: timestamp("confirmed_at"),
-		updatedAt: timestamp("updated_at")
+		confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),

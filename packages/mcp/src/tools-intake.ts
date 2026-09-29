@@ -8,12 +8,7 @@ import { intakeDefaultsSchema } from "@docstore/shared/intake";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import {
-	defineTool,
-	requireAdmin,
-	requireIngestion,
-	requireWrite,
-} from "./context";
+import { defineTool, requireAdmin, requireIngestion } from "./context";
 
 /**
  * "Ingestion" tools (iteration 6): view the channels, trigger one, and build an
@@ -84,7 +79,7 @@ export function registerIntakeTools(
 		{
 			title: "Trigger a poll",
 			description:
-				"Queues an immediate poll of the given source (folder scan or mailbox connection). Processing is asynchronous: read `list_intake_sources` again to see the result.",
+				"Queues an immediate poll of the given source (folder scan or mailbox connection). Processing is asynchronous: read `list_intake_sources` again to see the result. Requires the `admin` scope.",
 			inputSchema: { id: z.string().trim().min(1) },
 			outputSchema: {
 				id: z.string(),
@@ -97,7 +92,8 @@ export function registerIntakeTools(
 					: `Poll of source ${output.id} was not queued.`,
 		},
 		async (input) => {
-			requireWrite(context);
+			// Same scope as `intakeSource.runNow` (issue #24).
+			requireAdmin(context);
 			const ingestion = requireIngestion(context);
 			return runIntakeSourceNow(context.db, ingestion, input.id);
 		},
@@ -109,7 +105,7 @@ export function registerIntakeTools(
 		{
 			title: "Create an upload link",
 			description:
-				"Creates a public URL on which a third party uploads files without an account. Set an expiry and a maximum number of uses when the link is meant for a single send.",
+				"Creates a public URL on which a third party uploads files without an account. Set an expiry and a maximum number of uses when the link is meant for a single send. Requires the `admin` scope.",
 			inputSchema: {
 				name: z.string().trim().min(1).max(150),
 				message: z
@@ -137,7 +133,9 @@ export function registerIntakeTools(
 			text: (output) => `Upload link created: ${output.url}`,
 		},
 		async (input) => {
-			requireWrite(context);
+			// Same scope as `uploadLink.create`: the link is a working public URL
+			// that writes into the archive (issue #24).
+			requireAdmin(context);
 			const created = await createUploadLink(
 				context.db,
 				context.principal.userId,

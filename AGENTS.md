@@ -79,7 +79,7 @@ A worktree is a fully isolated environment: its own URL, database, storage
 folder and API port. `bun run wt <branch>` creates it
 (`../docstore-v2.worktrees/<branch>`, copies `apps/server/.env`, runs
 `bun install`); `bun run wt:remove <branch> --yes` deletes it and drops its
-database.
+database and test databases.
 
 An agent working in a worktree runs `bun run dev` from that worktree. It gets
 `https://<branch>.docstore.localhost` and the `docstore_wt_<slug>` database. It
@@ -115,16 +115,25 @@ database.
 
 - Unit tests: `*.test.ts` next to the code, `bun:test`. Run `bun test` in a
   package, or `bun run test` at the root to go through Turbo (it also runs
-  the tests of `scripts/`).
-- API integration tests use one test database per package. `createTestDb()`
-  derives the name from `TEST_DB_SUFFIX`, or from the current package name
-  (`docstore_test_api`, `docstore_test_server`…), and creates it on the fly
-  through a maintenance connection on `postgres` before migrating. Only the
-  database name changes: host and credentials come from `DATABASE_URL_TEST`.
-  Tables are truncated between tests.
-- That isolation is what makes `bunx turbo run test --filter='!web'` work in
-  parallel: with a shared database, concurrent `truncate … cascade` statements
-  blocked each other.
+  the tests of `scripts/` as the root task `test:scripts`). Flags reach Turbo:
+  `bun run test -- --concurrency=1 --continue`.
+- API integration tests use one test database per checkout and per package
+  (`packages/db/src/test-db-name.ts`). `createTestDb()` names it
+  `docstore_test_<pkg>` on the main checkout and
+  `docstore_test_<branch>__<pkg>` in a worktree (`fix/10-x` gives
+  `docstore_test_fix_10_x__api`); `TEST_DB_SUFFIX`, when set, replaces the
+  branch part. The database is created on the fly through a maintenance
+  connection on `postgres` before migrating. Only the database name changes:
+  host and credentials come from `DATABASE_URL_TEST`. Tables are truncated
+  between tests.
+- That isolation is what makes `bun run test` safe at the default Turbo
+  concurrency, and in several worktrees at once on the shared dev Postgres:
+  with a shared database, concurrent `truncate … cascade` statements blocked
+  each other. `bun run wt:remove <branch> --yes` drops the worktree's test
+  databases along with its dev database.
+- `apps/server/.env.example` works as is for the tests (its placeholder
+  secrets pass the validation), and `bun run wt` falls back to it when the
+  main checkout has no `.env`.
 - E2E: Playwright in `apps/web/e2e/`, critical paths only. Every run carries a
   unique prefix (`e2e-<runId>-`, helpers `runName` / `runSlug` in
   `e2e/helpers/cleanup.ts`): `globalSetup` creates an admin API key and

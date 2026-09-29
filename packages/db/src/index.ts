@@ -11,9 +11,21 @@ import * as schema from "./schema";
  * worktree scripts and the test helpers all target another database than the
  * one the environment names, and they used to have to rebuild the whole
  * `drizzle(pool, { schema })` call by hand to get it.
+ *
+ * `max` caps the `pg` pool (10 by default): the test helpers keep it small so
+ * several test runs fit within the connection limit of a shared Postgres.
  */
-export function createDb(connectionString?: string) {
-	return drizzle(connectionString ?? env.DATABASE_URL, { schema });
+export function createDb(
+	connectionString?: string,
+	options: { max?: number } = {},
+) {
+	return drizzle({
+		connection: {
+			connectionString: connectionString ?? env.DATABASE_URL,
+			...(options.max ? { max: options.max } : {}),
+		},
+		schema,
+	});
 }
 
 /**

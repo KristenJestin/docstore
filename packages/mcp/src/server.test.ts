@@ -1045,18 +1045,18 @@ describe("intake tools", () => {
 		expect(JSON.stringify(result)).not.toContain("chiffré");
 	});
 
-	test("run_intake_source requires the write scope", async () => {
-		const client = await connect(["read"]);
+	test("run_intake_source requires the admin scope", async () => {
+		const client = await connect(["read", "write"]);
 		const result = await client.callTool({
 			name: "run_intake_source",
 			arguments: { id: "src_inconnu" },
 		});
 		expect(isToolError(result)).toBe(true);
-		expect(textOf(result)).toContain("write");
+		expect(textOf(result)).toContain("`admin` scope");
 	});
 
 	test("create_upload_link returns a public URL", async () => {
-		const client = await connect(["read", "write"]);
+		const client = await connect(["admin"]);
 		const result = await client.callTool({
 			name: "create_upload_link",
 			arguments: { name: "Dépôt du comptable", maxUses: 2 },
@@ -1070,13 +1070,14 @@ describe("intake tools", () => {
 		expect(output.maxUses).toBe(2);
 	});
 
-	test("create_upload_link refuses a key without write", async () => {
-		const client = await connect(["read"]);
+	test("create_upload_link refuses a key without admin", async () => {
+		const client = await connect(["read", "write"]);
 		const result = await client.callTool({
 			name: "create_upload_link",
 			arguments: { name: "Dépôt" },
 		});
 		expect(isToolError(result)).toBe(true);
+		expect(textOf(result)).toContain("`admin` scope");
 	});
 });
 
@@ -1501,7 +1502,7 @@ describe("expiry guards over MCP", () => {
 	});
 
 	test("create_upload_link refuses an expiry in the past", async () => {
-		const client = await connect(["read", "write"]);
+		const client = await connect(["admin"]);
 		const refused = await client.callTool({
 			name: "create_upload_link",
 			arguments: {
@@ -1510,6 +1511,7 @@ describe("expiry guards over MCP", () => {
 			},
 		});
 		expect(isToolError(refused)).toBe(true);
+		expect(textOf(refused)).not.toContain("scope");
 	});
 });
 
