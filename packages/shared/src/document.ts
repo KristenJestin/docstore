@@ -547,7 +547,8 @@ export const documentSchema = z.object({
 	/**
 	 * True when the document is sensitive and the API key lacks the `sensitive`
 	 * scope: `content` is the sensitive placeholder, and the detail carries no
-	 * `fieldValues` and no `notes` (issue #22). `false` when served in full.
+	 * `fieldValues`, no `notes` (issue #22) and no `externalRefs` (issue #34).
+	 * `false` when served in full.
 	 */
 	masked: z.boolean().optional(),
 	/** Free-text notes typed by a human, in light Markdown. */
@@ -616,7 +617,8 @@ export const documentDetailSchema = documentSchema.extend({
 	dossiers: z.array(dossierSummarySchema),
 	/**
 	 * Notes of external systems that reference the document (the life wiki),
-	 * ordered by system then ref.
+	 * ordered by system then ref. Empty on a sensitive document for an API key
+	 * without the `sensitive` scope (issue #34).
 	 */
 	externalRefs: z.array(documentExternalRefSchema),
 	/** Document type carried by the document, `null` when it has none. */
