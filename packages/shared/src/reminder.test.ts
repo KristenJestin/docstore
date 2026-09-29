@@ -105,3 +105,42 @@ describe("reminderMessage — purity", () => {
 		);
 	});
 });
+
+describe("reminderMessage — date field", () => {
+	const fieldDate: ReminderMessageContext = {
+		kind: "field_date",
+		documentTitle: "Dishwasher invoice",
+		fieldName: "Warranty end",
+		dueDate: "2027-05-31",
+		daysBefore: 30,
+	};
+
+	test("names the document, the field and the date, which is the due date pushed back by the lead time", () => {
+		expect(reminderMessage(fieldDate, "en-GB")).toBe(
+			'"Dishwasher invoice": Warranty end on 30 Jun 2027 (reminder at D-30).',
+		);
+		expect(reminderMessage(fieldDate, "fr-FR")).toBe(
+			"« Dishwasher invoice » : Warranty end le 30 juin 2027 (rappel à J-30).",
+		);
+	});
+
+	test("a reminder due on the day itself drops the lead time", () => {
+		expect(
+			reminderMessage(
+				{ ...fieldDate, dueDate: "2027-06-30", daysBefore: 0 },
+				"en-GB",
+			),
+		).toBe('"Dishwasher invoice": Warranty end on 30 Jun 2027.');
+	});
+
+	test("a missing title or field name still produces a sentence", () => {
+		expect(
+			reminderMessage(
+				{ ...fieldDate, documentTitle: null, fieldName: null },
+				"en-GB",
+			),
+		).toBe(
+			'"Untitled document": Date field on 30 Jun 2027 (reminder at D-30).',
+		);
+	});
+});

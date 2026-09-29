@@ -16,6 +16,7 @@ import type {
 	WebhookDocument,
 } from "@docstore/shared/webhook";
 import { inArray } from "drizzle-orm";
+import { refreshDocumentReminders } from "./document-reminders";
 
 /**
  * Document webhooks emitted by the business services (SPEC §2 "Misc").
@@ -36,6 +37,11 @@ import { inArray } from "drizzle-orm";
  * flushed, with or without a queue. A service that only says `updated(id)`
  * still leaves a generic `document.updated` entry, so no change goes
  * unlogged; one that knows more says it with `changed(id, action, summary)`.
+ *
+ * It also keeps the reminders of those documents current (issue #33): the
+ * expiry and date field reminders of every document of the batch are
+ * recomputed when it is flushed, so a field set or cleared, a trash, a
+ * restore or a merge moves them without the service having to say so.
  */
 
 const bindings = new WeakMap<Db, IngestionContext>();
@@ -211,9 +217,31 @@ export async function withDocumentEvents<T>(
 
 	const batch = new DocumentEventBatch();
 	const result = await scope.run(batch, () => run(batch));
+	await flushReminders(db, batch);
 	await flushActivity(db, batch);
 	await flushDocumentEvents(db, batch);
 	return result;
+}
+
+/**
+ * Recomputes the document reminders of the batch (D33-04). A failure is
+ * logged and swallowed like the other flushes: the change is committed, and
+ * the daily `reminders.generate` run catches up.
+ */
+async function flushReminders(
+	db: Db,
+	batch: DocumentEventBatch,
+): Promise<void> {
+	const ids = batch
+		.entries()
+		.filter(([, entry]) => entry.event !== "document.deleted")
+		.map(([documentId]) => documentId);
+	if (ids.length === 0) return;
+	try {
+		await refreshDocumentReminders(db, ids);
+	} catch (error) {
+		console.error("[reminders] unable to refresh the reminders", error);
+	}
 }
 
 /**

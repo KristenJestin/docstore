@@ -25,11 +25,13 @@ export const reminderRouter = {
 			method: "GET",
 			path: "/reminders",
 			tags: TAGS,
-			summary: "List reminders (expiry, missing periods)",
+			summary: "List reminders (expiry, date fields, missing periods)",
 		})
 		.input(listRemindersInput)
 		.output(z.array(reminderItemSchema))
-		.handler(({ input, context }) => listReminders(context.db, input)),
+		.handler(({ input, context }) =>
+			listReminders(context.db, input, context.apiKey),
+		),
 
 	count: protectedProcedure
 		.route({
@@ -40,7 +42,7 @@ export const reminderRouter = {
 		})
 		.input(z.object({}))
 		.output(reminderCountSchema)
-		.handler(({ context }) => countReminders(context.db)),
+		.handler(({ context }) => countReminders(context.db, context.apiKey)),
 
 	generate: writeProcedure
 		.route({
@@ -62,7 +64,9 @@ export const reminderRouter = {
 		})
 		.input(snoozeReminderInput)
 		.output(reminderItemSchema)
-		.handler(({ input, context }) => snoozeReminder(context.db, input)),
+		.handler(({ input, context }) =>
+			snoozeReminder(context.db, input, context.apiKey),
+		),
 
 	dismiss: writeProcedure
 		.route({
@@ -73,7 +77,9 @@ export const reminderRouter = {
 		})
 		.input(reminderIdInput)
 		.output(reminderItemSchema)
-		.handler(({ input, context }) => dismissReminder(context.db, input.id)),
+		.handler(({ input, context }) =>
+			dismissReminder(context.db, input.id, context.apiKey),
+		),
 
 	done: writeProcedure
 		.route({
@@ -84,5 +90,7 @@ export const reminderRouter = {
 		})
 		.input(reminderIdInput)
 		.output(reminderItemSchema)
-		.handler(({ input, context }) => completeReminder(context.db, input.id)),
+		.handler(({ input, context }) =>
+			completeReminder(context.db, input.id, context.apiKey),
+		),
 };

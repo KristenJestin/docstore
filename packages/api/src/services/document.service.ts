@@ -122,7 +122,6 @@ import {
 	requireDocumentIds,
 	requireLiveDocumentIds,
 } from "./relation.service";
-import { generateRemindersForDocument } from "./reminder.service";
 import { likePattern } from "./sql-utils";
 import { loadTagsByDocument, requireTags } from "./tag.service";
 
@@ -1250,14 +1249,8 @@ export const updateDocument = emitsDocumentEvents(async function updateDocument(
 	await computeReviewReasons(db, id);
 
 	// A changed (or cleared) `validUntil` makes the expiry reminders stale:
-	// regenerated synchronously rather than waiting for the next
-	// `reminder.generate` run.
-	if (
-		input.validUntil !== undefined &&
-		input.validUntil !== current.validUntil
-	) {
-		await generateRemindersForDocument(db, id);
-	}
+	// the event batch recomputes them when the operation returns
+	// (`document-events.ts`), rather than the next `reminder.generate` run.
 
 	return getDocument(db, id);
 });

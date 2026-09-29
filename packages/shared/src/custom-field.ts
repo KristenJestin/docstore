@@ -36,6 +36,13 @@ export const moneyAmountSchema = z
 		{ message: "Amount cannot have more than two decimals." },
 	);
 
+/** Lead days of a date field reminder: same bounds as the expiry ones. */
+export const reminderLeadDaysSchema = z
+	.array(z.int().min(0).max(3650))
+	.min(1)
+	.max(10)
+	.transform((days) => [...new Set(days)].sort((a, b) => b - a));
+
 export const customFieldOptionsSchema = z.object({
 	/** Allowed values for a `select` field. */
 	choices: z.array(z.string().trim().min(1).max(120)).optional(),
@@ -46,6 +53,16 @@ export const customFieldOptionsSchema = z.object({
 	 * credit note is the exception, not the rule.
 	 */
 	allowNegative: z.boolean().optional(),
+	/**
+	 * `date` fields only (issue #33): a document carrying a value gets
+	 * reminders before that date, like an expiry.
+	 */
+	remind: z.boolean().optional(),
+	/**
+	 * Days of notice of those reminders. Absent = the expiry lead days of the
+	 * settings (`reminders.expiryLeadDays`, D-90 / D-30 / D-7 by default).
+	 */
+	reminderLeadDays: reminderLeadDaysSchema.optional(),
 });
 export type CustomFieldOptions = z.infer<typeof customFieldOptionsSchema>;
 

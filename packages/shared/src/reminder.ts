@@ -4,8 +4,9 @@ import { dateOnlySchema, formatContentDate } from "./common";
 import { addDays } from "./recurrence";
 
 /**
- * Reminders (SPEC §2 "Misc"): generated from `valid_until` and from the
- * recurring document types.
+ * Reminders (SPEC §2 "Misc"): generated from `valid_until`, from the date
+ * custom fields marked "remind me" (issue #33) and from the recurring
+ * document types.
  *
  * They are never entered by hand: `reminder.generate` recomputes all of them,
  * while preserving the decisions of the user (`done`, `dismissed`,
@@ -14,6 +15,8 @@ import { addDays } from "./recurrence";
 
 export const REMINDER_KINDS = [
 	"expiry",
+	/** A date custom field marked "remind me" (issue #33). */
+	"field_date",
 	"period_gap",
 	"review_pending",
 ] as const;
@@ -22,6 +25,7 @@ export type ReminderKind = z.infer<typeof reminderKindSchema>;
 
 export const REMINDER_KIND_LABELS: Record<ReminderKind, string> = {
 	expiry: "expiry",
+	field_date: "date field",
 	period_gap: "missing document",
 	review_pending: "review pending",
 };
@@ -58,10 +62,20 @@ export const reminderSchema = z.object({
 	/** First day of the period concerned (`period_gap` only). */
 	period: z.string().nullable(),
 	/**
-	 * Days of notice this `expiry` reminder stands for (90, 30, 7…): the
-	 * document expires on `dueDate` + `daysBefore`. `null` on the other kinds.
+	 * Days of notice this `expiry` or `field_date` reminder stands for (90,
+	 * 30, 7…): the date it announces is `dueDate` + `daysBefore`. `null` on
+	 * the other kinds.
 	 */
 	daysBefore: z.int().nullable(),
+	/** The date custom field a `field_date` reminder comes from. */
+	fieldId: z.string().nullable(),
+	/** Current name of that field, read at list time like the title. */
+	fieldName: z.string().nullable(),
+	/**
+	 * Derived, never stored: the value of the field the reminder announces
+	 * (`dueDate` + `daysBefore`), `field_date` only.
+	 */
+	fieldDate: z.string().nullable(),
 	status: reminderStatusSchema,
 	snoozedUntil: z.string().nullable(),
 	/**
@@ -94,14 +108,24 @@ export interface ReminderMessageContext {
 	periodKey?: string | null;
 	period?: string | null;
 	daysBefore?: number | null;
+	/** Name of the date custom field (`field_date`). */
+	fieldName?: string | null;
 }
 
 interface ReminderPhrases {
 	expiry: (title: string, expiresOn: string) => string;
 	expiryAhead: (title: string, expiresOn: string, daysBefore: number) => string;
+	fieldDate: (title: string, fieldName: string, date: string) => string;
+	fieldDateAhead: (
+		title: string,
+		fieldName: string,
+		date: string,
+		daysBefore: number,
+	) => string;
 	periodGap: (typeName: string, period: string) => string;
 	reviewPending: () => string;
 	untitledDocument: string;
+	unnamedField: string;
 	unnamedType: string;
 	unknownPeriod: string;
 }
@@ -115,10 +139,15 @@ const REMINDER_PHRASES: Record<ContentLocale, ReminderPhrases> = {
 		expiry: (title, expiresOn) => `"${title}" expires on ${expiresOn}.`,
 		expiryAhead: (title, expiresOn, daysBefore) =>
 			`"${title}" expires on ${expiresOn} (reminder at D-${daysBefore}).`,
+		fieldDate: (title, fieldName, date) =>
+			`"${title}": ${fieldName} on ${date}.`,
+		fieldDateAhead: (title, fieldName, date, daysBefore) =>
+			`"${title}": ${fieldName} on ${date} (reminder at D-${daysBefore}).`,
 		periodGap: (typeName, period) =>
 			`Document type "${typeName}": no document for the period ${period}.`,
 		reviewPending: () => "A document is waiting for review.",
 		untitledDocument: "Untitled document",
+		unnamedField: "Date field",
 		unnamedType: "Unnamed type",
 		unknownPeriod: "unknown period",
 	},
@@ -126,10 +155,15 @@ const REMINDER_PHRASES: Record<ContentLocale, ReminderPhrases> = {
 		expiry: (title, expiresOn) => `« ${title} » expire le ${expiresOn}.`,
 		expiryAhead: (title, expiresOn, daysBefore) =>
 			`« ${title} » expire le ${expiresOn} (rappel à J-${daysBefore}).`,
+		fieldDate: (title, fieldName, date) =>
+			`« ${title} » : ${fieldName} le ${date}.`,
+		fieldDateAhead: (title, fieldName, date, daysBefore) =>
+			`« ${title} » : ${fieldName} le ${date} (rappel à J-${daysBefore}).`,
 		periodGap: (typeName, period) =>
 			`Type de document « ${typeName} » : aucun document pour la période ${period}.`,
 		reviewPending: () => "Un document attend d'être vérifié.",
 		untitledDocument: "Document sans titre",
+		unnamedField: "Champ date",
 		unnamedType: "Type sans nom",
 		unknownPeriod: "période inconnue",
 	},
@@ -163,6 +197,20 @@ export function reminderMessage(
 			return daysBefore > 0
 				? phrases.expiryAhead(title, expiresOn, daysBefore)
 				: phrases.expiry(title, expiresOn);
+		}
+		case "field_date": {
+			const title = reminder.documentTitle ?? phrases.untitledDocument;
+			const fieldName = reminder.fieldName ?? phrases.unnamedField;
+			const daysBefore = reminder.daysBefore ?? 0;
+			// Same derivation as the expiry: the field value is never stored on
+			// the reminder, it is the due date pushed back by the lead time.
+			const date = formatContentDate(
+				addDays(reminder.dueDate, daysBefore),
+				locale,
+			);
+			return daysBefore > 0
+				? phrases.fieldDateAhead(title, fieldName, date, daysBefore)
+				: phrases.fieldDate(title, fieldName, date);
 		}
 		case "period_gap": {
 			const typeName = reminder.documentTypeName ?? phrases.unnamedType;

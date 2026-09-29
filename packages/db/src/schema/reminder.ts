@@ -11,6 +11,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createId } from "../id";
+import { customField } from "./custom-field";
 import { document } from "./document";
 import { documentType } from "./document-type";
 
@@ -19,7 +20,8 @@ export const reminderStatusEnum = pgEnum("reminder_status", REMINDER_STATUSES);
 
 /**
  * Reminder (SPEC §2 "Misc"), always recomputed by `reminder.generate`:
- * expiry of a document (`valid_until`) or a gap in a recurring document type.
+ * expiry of a document (`valid_until`), a date custom field marked "remind
+ * me" (`field_date`, issue #33) or a gap in a recurring document type.
  *
  * The unique index is built on `coalesce` — since `null` is never equal to
  * itself, a plain index would let duplicates through. `due_date` is part of the
@@ -43,12 +45,20 @@ export const reminder = pgTable(
 		documentTypeId: text("document_type_id").references(() => documentType.id, {
 			onDelete: "cascade",
 		}),
+		/**
+		 * Date custom field a `field_date` reminder comes from. Deleting the
+		 * field deletes its reminders, like deleting the document does.
+		 */
+		fieldId: text("field_id").references(() => customField.id, {
+			onDelete: "cascade",
+		}),
 		dueDate: date("due_date").notNull(),
 		/** First day of the period concerned (`period_gap`). */
 		period: date("period"),
 		/**
-		 * Days of notice an `expiry` reminder stands for (90, 30, 7…): the
-		 * document expires on `due_date` + `days_before`. Null on other kinds.
+		 * Days of notice an `expiry` or `field_date` reminder stands for (90,
+		 * 30, 7…): the date it announces is `due_date` + `days_before`. Null on
+		 * other kinds.
 		 */
 		daysBefore: integer("days_before"),
 		status: reminderStatusEnum("status").notNull().default("pending"),
@@ -66,12 +76,14 @@ export const reminder = pgTable(
 			table.kind,
 			sql`coalesce(${table.documentId}, '')`,
 			sql`coalesce(${table.documentTypeId}, '')`,
+			sql`coalesce(${table.fieldId}, '')`,
 			sql`coalesce(${table.period}, '1970-01-01'::date)`,
 			table.dueDate,
 		),
 		index("reminder_status_due_date_idx").on(table.status, table.dueDate),
 		index("reminder_document_id_idx").on(table.documentId),
 		index("reminder_document_type_id_idx").on(table.documentTypeId),
+		index("reminder_field_id_idx").on(table.fieldId),
 	],
 );
 
@@ -83,6 +95,10 @@ export const reminderRelations = relations(reminder, ({ one }) => ({
 	documentType: one(documentType, {
 		fields: [reminder.documentTypeId],
 		references: [documentType.id],
+	}),
+	field: one(customField, {
+		fields: [reminder.fieldId],
+		references: [customField.id],
 	}),
 }));
 
