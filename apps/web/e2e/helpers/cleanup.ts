@@ -15,7 +15,7 @@ import type { RouterClient } from "@orpc/server";
  * this one.
  *
  * The teardown talks to the API rather than to the browser: an admin API key is
- * minted at setup from a throwaway session, and every call goes to `/rpc` with
+ * minted at setup from the run owner's session, and every call goes to `/rpc` with
  * `Authorization: Bearer`.
  */
 
@@ -116,42 +116,102 @@ export function apiClient(
 export interface AdminKey {
 	id: string;
 	secret: string;
+	/** "Allow sign-up" as the run found it, restored by the teardown. */
+	allowSignUpBefore: boolean;
 }
 
+/** Environment variable carrying `AdminKey.allowSignUpBefore` to the teardown. */
+export const ALLOW_SIGN_UP_BEFORE_ENV = "E2E_ALLOW_SIGN_UP_BEFORE";
+
 /**
- * Creates the account of the run, signs in and mints an `admin` API key from
- * that session — `apiKey.create` requires a real session, never another key.
+ * Account the run signs in with to open sign-up and mint its key. Stable, so
+ * that the second run of a database finds it once sign-up has closed behind
+ * the first one (issue #16). `E2E_OWNER_EMAIL` / `E2E_OWNER_PASSWORD` point it
+ * at an existing account of a database that already had one.
  */
-export async function createAdminKey(baseUrl: string): Promise<AdminKey> {
-	allowLocalCertificate();
-	const origin = baseUrl.replace(/\/+$/, "");
-	const response = await fetch(`${origin}/api/auth/sign-up/email`, {
+function ownerCredentials(): { email: string; password: string } {
+	return {
+		email: process.env.E2E_OWNER_EMAIL ?? "e2e-owner@test.local",
+		password: process.env.E2E_OWNER_PASSWORD ?? E2E_PASSWORD,
+	};
+}
+
+async function postAuth(
+	origin: string,
+	path: string,
+	body: Record<string, string>,
+): Promise<Response> {
+	return fetch(`${origin}/api/auth/${path}`, {
 		method: "POST",
 		// Better Auth refuses a request without an `Origin` it trusts
 		// (`MISSING_OR_NULL_ORIGIN`): a browser always sends one, this call has
 		// to say it too.
 		headers: { "content-type": "application/json", origin },
-		body: JSON.stringify({
-			name: "E2E Cleanup",
-			email: `e2e-cleanup-${runId()}@test.local`,
-			password: E2E_PASSWORD,
-		}),
+		body: JSON.stringify(body),
 	});
-	if (!response.ok) {
-		throw new Error(
-			`E2E setup: sign-up answered ${response.status} ${await response.text()}`,
-		);
-	}
-	const cookie = response.headers
+}
+
+function sessionCookie(response: Response): string {
+	return response.headers
 		.getSetCookie()
 		.map((value) => value.split(";")[0])
 		.join("; ");
-	const session = clientWith(origin, { cookie });
+}
+
+/**
+ * Signs the run's owner in, creating it when the database allows it (first
+ * run, or sign-up already open).
+ */
+async function ownerSession(origin: string): Promise<string> {
+	const { email, password } = ownerCredentials();
+	const signIn = await postAuth(origin, "sign-in/email", { email, password });
+	if (signIn.ok) {
+		return sessionCookie(signIn);
+	}
+	const signUp = await postAuth(origin, "sign-up/email", {
+		name: "E2E Owner",
+		email,
+		password,
+	});
+	if (signUp.ok) {
+		return sessionCookie(signUp);
+	}
+	throw new Error(
+		`E2E setup: cannot sign in as ${email} and sign-up answered ${signUp.status} ${await signUp.text()}. On a database that already has accounts, set E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD to one of them.`,
+	);
+}
+
+/**
+ * Signs the run's owner in, turns "Allow sign-up" on for the specs (every one
+ * of them creates its own account) and mints an `admin` API key from that
+ * session — `apiKey.create` requires a real session, never another key.
+ */
+export async function createAdminKey(baseUrl: string): Promise<AdminKey> {
+	allowLocalCertificate();
+	const origin = baseUrl.replace(/\/+$/, "");
+	const session = clientWith(origin, { cookie: await ownerSession(origin) });
+
+	const settings = await session.settings.get({});
+	const allowSignUpBefore = settings["auth.allowSignUp"];
+	await session.settings.set({ key: "auth.allowSignUp", value: true });
+
 	const created = await session.apiKey.create({
 		name: `${runPrefix()}${CLEANUP_KEY_SUFFIX}`,
 		scopes: ["admin"],
 	});
-	return { id: created.key.id, secret: created.secret };
+	return { id: created.key.id, secret: created.secret, allowSignUpBefore };
+}
+
+/** Puts "Allow sign-up" back the way the run found it. */
+export async function restoreSignUp(
+	baseUrl: string,
+	secret: string,
+	value: boolean,
+): Promise<void> {
+	await apiClient(baseUrl, secret).settings.set({
+		key: "auth.allowSignUp",
+		value,
+	});
 }
 
 /** Runs `remove` on every id, never letting one failure stop the sweep. */

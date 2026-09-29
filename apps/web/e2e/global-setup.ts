@@ -1,4 +1,5 @@
 import {
+	ALLOW_SIGN_UP_BEFORE_ENV,
 	API_KEY_ENV,
 	API_KEY_ID_ENV,
 	allowLocalCertificate,
@@ -13,8 +14,9 @@ import {
  * Opens the run: one identifier shared by every spec (through `E2E_RUN_ID`,
  * which the workers inherit) and one admin API key for the teardown.
  *
- * A failure here is not fatal: the specs still run, they just leave their
- * fixtures behind — exactly as they did before.
+ * It also opens sign-up for the run (issue #16): every spec creates its own
+ * account. A failure here is not fatal, but once the database has an account
+ * the specs cannot sign up without it.
  */
 
 /** The dev server compiles on demand; give it time to answer the first call. */
@@ -52,6 +54,7 @@ export default async function globalSetup(): Promise<void> {
 		const key = await createAdminKey(baseUrl);
 		process.env[API_KEY_ENV] = key.secret;
 		process.env[API_KEY_ID_ENV] = key.id;
+		process.env[ALLOW_SIGN_UP_BEFORE_ENV] = String(key.allowSignUpBefore);
 		console.log(`[e2e] run ${runPrefix()} — cleanup key ready.`);
 	} catch (error) {
 		console.warn(
