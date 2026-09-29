@@ -26,6 +26,14 @@ export type TestDb = NodePgDatabase<typeof schema> & {
 };
 
 /**
+ * Connections per test database pool. Every package runs its tests at the same
+ * time, and several worktrees may run the suite at once against the shared
+ * dev Postgres (100 connections by default, issue #10): the default pool of 10
+ * per package made two parallel runs exhaust it ("too many clients").
+ */
+const TEST_POOL_MAX = 3;
+
+/**
  * Name of the package being tested, read from the nearest `package.json`.
  *
  * `bun test` runs with the package directory as cwd (that is how Turbo invokes
@@ -114,7 +122,7 @@ export async function createTestDb(): Promise<TestDb> {
 	// the whole server environment when it is evaluated, and the `dotenv.config`
 	// call above is what makes those variables available.
 	const { createDb } = await import("./index");
-	const db = createDb(target) as TestDb;
+	const db = createDb(target, { max: TEST_POOL_MAX }) as TestDb;
 	db.connectionString = target;
 	await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 	return db;
