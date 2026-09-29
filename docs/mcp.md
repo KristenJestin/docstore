@@ -40,15 +40,17 @@ therefore cannot mint itself an `admin` key.
 
 | Scope       | What it opens                                                     |
 | ----------- | ----------------------------------------------------------------- |
-| `read`      | Search, reading documents, Party, taxonomy, statistics             |
+| `read`      | Every read tool and resource: search, documents, Party, taxonomy, statistics |
 | `write`     | Every mutation (edit, link, upload, rules)                         |
-| `sensitive` | OCR text of documents marked "sensitive"                           |
+| `sensitive` | Content of documents marked "sensitive": OCR text, and on HTTP the file bytes, thumbnail and OCR layout |
 | `admin`     | API key administration; implies every other scope                  |
 
 A `sensitive` document returns ``[sensitive document: `sensitive` scope required]``
 instead of its text when the key does not carry `sensitive`; `search_documents`
-never returns content snippets, whatever the scopes. Any mutation without
-`write` fails with an MCP result `isError: true` and an English message.
+never returns content snippets, whatever the scopes. `test_rule` on a sensitive
+document and `export_documents` with `includeSensitive` are refused without
+`sensitive`. Any read without `read`, and any mutation without `write`, fails
+with an MCP result `isError: true` and an English message.
 
 Sensitive documents are also encrypted at rest and can never be shared through a
 public link. See `docs/security.md`.
@@ -99,7 +101,7 @@ curl -s -X POST http://127.0.0.1:3000/mcp \
 
 ## 4. Tools
 
-Every mutation requires the `write` scope.
+Every read tool requires the `read` scope, every mutation the `write` scope.
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
