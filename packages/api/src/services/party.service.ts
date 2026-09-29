@@ -2,6 +2,7 @@ import type { Db } from "@docstore/db";
 import { documentParty } from "@docstore/db/schema/document";
 import { party, partyRelation } from "@docstore/db/schema/party";
 import { touchDocuments } from "@docstore/ingestion";
+import { mayReadSensitive, type ScopedCaller } from "@docstore/shared/api-key";
 import type { Paginated } from "@docstore/shared/pagination";
 import { paginationMeta } from "@docstore/shared/pagination";
 import type {
@@ -26,6 +27,12 @@ import {
 	PARTY_IDENTIFIER_FIELDS,
 	SCALAR_PARTY_IDENTIFIER_KINDS,
 } from "@docstore/shared/party";
+import {
+	isPrivateParty,
+	mayFindPartyByIdentifier,
+	PARTY_IDENTIFIER_SCOPE_REQUIRED,
+	PARTY_MASKED_VALUE,
+} from "@docstore/shared/party-masking";
 import { ORPCError } from "@orpc/server";
 import type { SQL } from "drizzle-orm";
 import {
@@ -56,11 +63,18 @@ const partySummaryColumns = {
 	logoKey: party.logoKey,
 };
 
+/** Rows a key without `sensitive` may match on their identifiers (D23-02). */
+const organisationCondition = sql`(${party.type} <> 'person' and not ${party.isHouseholdMember})`;
+
 /**
  * Case-insensitive search on the name, the aliases (`text[]` array) and the
  * JSONB identifiers (scalars + `email` / `domain` / `iban` arrays).
+ *
+ * For a key without `sensitive` (`publicOnly`), only the public identifiers of
+ * organisations are searched: matching a masked value would tell the caller
+ * which Party holds it (D23-03).
  */
-function partySearchCondition(query: string): SQL {
+function partySearchCondition(query: string, publicOnly: boolean): SQL {
 	const pattern = likePattern(query);
 	// Identifiers are stored canonical: "812 345 678" only ever matches the
 	// stored "812345678" through its own normalized form.
@@ -73,11 +87,23 @@ function partySearchCondition(query: string): SQL {
 		where identifier_value ilike ${needle}
 	)`;
 
-	return sql`(
-		${party.name} ilike ${pattern}
+	const byName = sql`${party.name} ilike ${pattern}
 		or exists (
 			select 1 from unnest(${party.aliases}) as alias where alias ilike ${pattern}
-		)
+		)`;
+	if (publicOnly) {
+		return sql`(
+			${byName}
+			or (${organisationCondition} and (
+				${party.identifiers} ->> 'siren' ilike ${idPattern}
+				or ${party.identifiers} ->> 'siret' ilike ${idPattern}
+				or ${party.identifiers} ->> 'vat' ilike ${idPattern}
+				or ${arrayMatch("domain")}
+			))
+		)`;
+	}
+	return sql`(
+		${byName}
 		or ${party.identifiers} ->> 'siren' ilike ${idPattern}
 		or ${party.identifiers} ->> 'siret' ilike ${idPattern}
 		or ${party.identifiers} ->> 'vat' ilike ${idPattern}
@@ -88,9 +114,14 @@ function partySearchCondition(query: string): SQL {
 	)`;
 }
 
+/**
+ * `caller` is the API key of the request (absent for a session): it narrows
+ * the identifier search, the masking of the rows is the router's job.
+ */
 export async function listParties(
 	db: Db,
 	input: ListPartiesInput,
+	caller?: ScopedCaller,
 ): Promise<Paginated<Party>> {
 	const conditions: SQL[] = [];
 	if (!input.includeArchived) {
@@ -100,7 +131,9 @@ export async function listParties(
 		conditions.push(eq(party.type, input.type));
 	}
 	if (input.query) {
-		conditions.push(partySearchCondition(input.query));
+		conditions.push(
+			partySearchCondition(input.query, !mayReadSensitive(caller)),
+		);
 	}
 	const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -531,7 +564,10 @@ function mergeIdentifierUnion(
  * and "Orange" the bank are one company. The pair is ordered oldest first, which
  * is the `targetId` a merge should keep.
  */
-export async function listPartyDuplicates(db: Db): Promise<PartyDuplicate[]> {
+export async function listPartyDuplicates(
+	db: Db,
+	caller?: ScopedCaller,
+): Promise<PartyDuplicate[]> {
 	const rows = await db.execute<{
 		party_id: string;
 		party_name: string;
@@ -588,6 +624,11 @@ export async function listPartyDuplicates(db: Db): Promise<PartyDuplicate[]> {
 		...new Set(rows.rows.flatMap((row) => [row.party_id, row.other_party_id])),
 	];
 	const counts = await documentCounts(db, ids);
+	// A domain shared by a person is one of its masked identifiers (D23-02):
+	// the pair is still reported, without the value.
+	const privateIds = mayReadSensitive(caller)
+		? new Set<string>()
+		: await privatePartyIds(db, ids);
 
 	// A pair caught by both rules is reported once, on the stronger signal.
 	const seen = new Set<string>();
@@ -606,10 +647,31 @@ export async function listPartyDuplicates(db: Db): Promise<PartyDuplicate[]> {
 			otherPartyLogoKey: row.other_party_logo_key,
 			otherPartyDocumentCount: counts.get(row.other_party_id) ?? 0,
 			reason: row.reason,
-			value: row.value,
+			value:
+				row.reason === "sameDomain" &&
+				(privateIds.has(row.party_id) || privateIds.has(row.other_party_id))
+					? PARTY_MASKED_VALUE
+					: row.value,
 		});
 	}
 	return duplicates;
+}
+
+/** The persons (household members included) among the given Parties. */
+async function privatePartyIds(
+	db: Db,
+	partyIds: string[],
+): Promise<Set<string>> {
+	if (partyIds.length === 0) return new Set();
+	const rows = await db
+		.select({
+			id: party.id,
+			type: party.type,
+			isHouseholdMember: party.isHouseholdMember,
+		})
+		.from(party)
+		.where(inArray(party.id, partyIds));
+	return new Set(rows.filter(isPrivateParty).map((row) => row.id));
 }
 
 /** Number of distinct documents linked to each of the given Parties. */
@@ -752,11 +814,22 @@ export async function removePartyRelation(
  * Exact lookup by identifier. Scalar keys use `->>`, array keys use the JSONB
  * existence operator `?`.
  */
+/**
+ * For a key without `sensitive` (`caller`), a lookup by a masked identifier
+ * type is refused (`FORBIDDEN`, D23-03), and a public one only answers with
+ * organisations: a person's identifiers are all masked (D23-02).
+ */
 export async function findPartiesByIdentifier(
 	db: Db,
 	kind: PartyIdentifierKind,
 	value: string,
+	caller?: ScopedCaller,
 ): Promise<Party[]> {
+	if (!mayFindPartyByIdentifier(caller, kind)) {
+		throw new ORPCError("FORBIDDEN", {
+			message: PARTY_IDENTIFIER_SCOPE_REQUIRED,
+		});
+	}
 	const isScalar = (
 		SCALAR_PARTY_IDENTIFIER_KINDS as readonly string[]
 	).includes(kind);
@@ -770,6 +843,10 @@ export async function findPartiesByIdentifier(
 	return db
 		.select()
 		.from(party)
-		.where(condition)
+		.where(
+			mayReadSensitive(caller)
+				? condition
+				: and(condition, organisationCondition),
+		)
 		.orderBy(asc(party.name), asc(party.id));
 }

@@ -42,7 +42,7 @@ therefore cannot mint itself an `admin` key.
 | ----------- | ----------------------------------------------------------------- |
 | `read`      | Every read tool and resource: search, documents, Party, taxonomy, statistics |
 | `write`     | Every mutation (edit, link, upload, rules)                         |
-| `sensitive` | Content of documents marked "sensitive": OCR text, custom field values, notes, and on HTTP the file bytes, thumbnail and OCR layout |
+| `sensitive` | Content of documents marked "sensitive": OCR text, custom field values, notes, and on HTTP the file bytes, thumbnail and OCR layout; personal identifiers and notes of Parties |
 | `admin`     | API key administration, `list_intake_sources`, `run_intake_source`, `create_upload_link`; implies every other scope |
 
 A `sensitive` document returns ``[sensitive document: `sensitive` scope required]``
@@ -58,6 +58,18 @@ the scopes. `test_rule` on a sensitive
 document and `export_documents` with `includeSensitive` are refused without
 `sensitive`. Any read without `read`, and any mutation without `write`, fails
 with an MCP result `isError: true` and an English message.
+
+Party identifiers follow the same scope (issue #23). Without `sensitive`, every
+tool and resource that returns a Party (`get_party`, `list_parties`,
+`find_party_by_identifier`, `create_party`, `update_party`, `merge_parties`,
+`docstore://party/{id}`) withholds every identifier and the notes of a person
+(household member or not), and the `iban`, `email`, `phone` and `customerRef`
+of an organisation; `siren`, `siret`, `vat` and `domain` of companies, public
+bodies and associations stay visible so issuers can still be recognised. The
+Party then carries `masked: true`. `find_party_by_identifier` by `iban` or
+`email` is refused, and by a public kind it only matches organisations;
+`list_parties` searches names, aliases and those public identifiers only;
+`list_activity` shows a change of identifiers as `{ changed: true }`.
 
 Sensitive documents are also encrypted at rest and can never be shared through a
 public link. See `docs/security.md`.
@@ -135,12 +147,12 @@ read tool the `read` scope, every mutation the `write` scope, except:
 | `trash_document`           | Moves the document to the trash (soft delete)                          |
 | `reprocess_document`       | Republishes the ingestion job (OCR, analysis, rules)                   |
 | `list_parties`             | Lists Parties (search by name, alias, identifiers)                     |
-| `get_party`                | Detail of a Party: identifiers, relations, document count              |
+| `get_party`                | Detail of a Party: identifiers, relations, document count; `masked: true` when identifiers or notes were withheld |
 | `create_party`             | Creates a Party                                                        |
 | `update_party`             | Partial patch of a Party; `identifiers` is merged key by key (`null` removes one), `replaceIdentifiers: true` replaces the whole object |
 | `merge_parties`            | Absorbs one Party into another (documents, relations, identifiers, aliases) and archives the source |
 | `list_duplicate_parties`   | Live Parties sharing a domain, or the same name up to case and spacing |
-| `find_party_by_identifier` | Matches an issuer by SIREN, SIRET, VAT, IBAN, email, domain            |
+| `find_party_by_identifier` | Matches an issuer by SIREN, SIRET, VAT, IBAN, email, domain; IBAN and email need `sensitive` |
 | `list_categories`          | Flattened category tree, with path and counters                        |
 | `list_tags`                | Tags and document count                                                |
 | `create_tag`               | Creates a tag (name unique, case-insensitive)                          |

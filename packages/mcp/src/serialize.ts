@@ -8,6 +8,7 @@ import type {
 	DocumentListItem,
 } from "@docstore/shared/document";
 import type { Party, PartyDetail } from "@docstore/shared/party";
+import { maskParty } from "@docstore/shared/party-masking";
 import type { ReviewItem } from "@docstore/shared/review";
 import { z } from "zod";
 
@@ -341,22 +342,33 @@ export const partyJson = z.object({
 	identifiers: z.record(z.string(), z.unknown()),
 	isHouseholdMember: z.boolean(),
 	notes: z.string().nullable(),
+	/**
+	 * True when identifiers or notes were withheld because the key lacks the
+	 * `sensitive` scope (issue #23).
+	 */
+	masked: z.boolean(),
 	archivedAt: z.string().nullable(),
 	createdAt: z.string(),
 });
 export type PartyJson = z.infer<typeof partyJson>;
 
-export function toParty(row: Party): PartyJson {
+/**
+ * `caller` is required so that no tool can serve a Party without going
+ * through `maskParty` (issue #23).
+ */
+export function toParty(row: Party, caller: ScopedCaller): PartyJson {
+	const party = maskParty(row, caller);
 	return {
-		id: row.id,
-		name: row.name,
-		type: row.type,
-		aliases: row.aliases,
-		identifiers: row.identifiers,
-		isHouseholdMember: row.isHouseholdMember,
-		notes: row.notes,
-		archivedAt: iso(row.archivedAt),
-		createdAt: row.createdAt.toISOString(),
+		id: party.id,
+		name: party.name,
+		type: party.type,
+		aliases: party.aliases,
+		identifiers: party.identifiers,
+		isHouseholdMember: party.isHouseholdMember,
+		notes: party.notes,
+		masked: party.masked,
+		archivedAt: iso(party.archivedAt),
+		createdAt: party.createdAt.toISOString(),
 	};
 }
 
@@ -374,9 +386,12 @@ export const partyDetailJson = partyJson.extend({
 });
 export type PartyDetailJson = z.infer<typeof partyDetailJson>;
 
-export function toPartyDetail(detail: PartyDetail): PartyDetailJson {
+export function toPartyDetail(
+	detail: PartyDetail,
+	caller: ScopedCaller,
+): PartyDetailJson {
 	return {
-		...toParty(detail),
+		...toParty(detail, caller),
 		documentCount: detail.documentCount,
 		relations: [
 			...detail.relationsFrom.map((relation) => ({

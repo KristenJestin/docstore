@@ -63,7 +63,7 @@ export function registerPartyTools(
 		{
 			title: "List Parties",
 			description:
-				"People, companies, public bodies and associations. The search covers the name, the aliases and the identifiers.",
+				"People, companies, public bodies and associations. The search covers the name, the aliases and the identifiers; without the `sensitive` scope, only the SIREN, SIRET, VAT and domain of organisations, and identifiers and notes are masked as in `get_party`.",
 			inputSchema: {
 				query: z.string().trim().min(1).optional(),
 				type: partyTypeSchema.optional(),
@@ -87,14 +87,21 @@ export function registerPartyTools(
 		},
 		async (input) => {
 			requireRead(context);
-			const page = await listParties(context.db, {
-				query: input.query,
-				type: input.type,
-				includeArchived: input.includeArchived ?? false,
-				page: input.page ?? 1,
-				pageSize: input.pageSize ?? 25,
-			});
-			return { ...page, items: page.items.map(toParty) };
+			const page = await listParties(
+				context.db,
+				{
+					query: input.query,
+					type: input.type,
+					includeArchived: input.includeArchived ?? false,
+					page: input.page ?? 1,
+					pageSize: input.pageSize ?? 25,
+				},
+				context.principal,
+			);
+			return {
+				...page,
+				items: page.items.map((row) => toParty(row, context.principal)),
+			};
 		},
 	);
 
@@ -104,15 +111,18 @@ export function registerPartyTools(
 		{
 			title: "Party detail",
 			description:
-				"Identifiers, aliases, relations (employment, family, subsidiary, ...) and number of linked documents.",
+				"Identifiers, aliases, relations (employment, family, subsidiary, ...) and number of linked documents. Without the `sensitive` scope, a person's identifiers and notes and the IBAN, email, phone and customer reference of an organisation are withheld (`masked: true`).",
 			inputSchema: { id: z.string().min(1) },
 			outputSchema: partyDetailJson.shape,
 			text: (output) =>
-				`${output.name} (${output.type}) — ${output.documentCount} linked document(s).`,
+				`${output.name} (${output.type}) — ${output.documentCount} linked document(s).${output.masked ? " Identifiers or notes masked: the `sensitive` scope is required." : ""}`,
 		},
 		async (input) => {
 			requireRead(context);
-			return toPartyDetail(await getParty(context.db, input.id));
+			return toPartyDetail(
+				await getParty(context.db, input.id),
+				context.principal,
+			);
 		},
 	);
 
@@ -138,6 +148,7 @@ export function registerPartyTools(
 					isHouseholdMember: input.isHouseholdMember ?? false,
 					notes: input.notes,
 				}),
+				context.principal,
 			);
 		},
 	);
@@ -171,7 +182,10 @@ export function registerPartyTools(
 		async (input) => {
 			requireWrite(context);
 			const { id, ...patch } = input;
-			return toParty(await updateParty(context.db, id, patch));
+			return toParty(
+				await updateParty(context.db, id, patch),
+				context.principal,
+			);
 		},
 	);
 
@@ -202,7 +216,7 @@ export function registerPartyTools(
 				targetId: input.targetId,
 			});
 			return {
-				target: toParty(result.target),
+				target: toParty(result.target, context.principal),
 				archivedId: result.archivedId,
 				movedDocuments: result.movedDocuments,
 				movedRelations: result.movedRelations,
@@ -229,7 +243,9 @@ export function registerPartyTools(
 		},
 		async () => {
 			requireRead(context);
-			return { items: await listPartyDuplicates(context.db) };
+			return {
+				items: await listPartyDuplicates(context.db, context.principal),
+			};
 		},
 	);
 
@@ -239,7 +255,7 @@ export function registerPartyTools(
 		{
 			title: "Find a Party by exact identifier",
 			description:
-				"Reliable matching of an issuer from a SIREN, SIRET, VAT number, IBAN, email or domain found on the document.",
+				"Reliable matching of an issuer from a SIREN, SIRET, VAT number, IBAN, email or domain found on the document. Looking up by IBAN or email needs the `sensitive` scope; without it, only organisations are matched.",
 			inputSchema: {
 				kind: partyIdentifierKindSchema,
 				value: z.string().trim().min(1),
@@ -258,8 +274,9 @@ export function registerPartyTools(
 				context.db,
 				input.kind,
 				input.value,
+				context.principal,
 			);
-			return { items: rows.map(toParty) };
+			return { items: rows.map((row) => toParty(row, context.principal)) };
 		},
 	);
 }
@@ -270,5 +287,9 @@ export async function readPartyResource(
 	id: string,
 ): Promise<string> {
 	requireRead(context);
-	return JSON.stringify(toPartyDetail(await getParty(context.db, id)), null, 2);
+	return JSON.stringify(
+		toPartyDetail(await getParty(context.db, id), context.principal),
+		null,
+		2,
+	);
 }

@@ -5,6 +5,8 @@ import {
 	mayReadSensitive,
 	type ScopedCaller,
 } from "@docstore/shared/api-key";
+import type { PartyIdentifiers } from "@docstore/shared/party";
+import { maskParty } from "@docstore/shared/party-masking";
 import { ORPCError } from "@orpc/server";
 import { eq } from "drizzle-orm";
 
@@ -63,4 +65,20 @@ export function withMaskedDocument<
 	},
 >(context: { apiKey?: ScopedCaller }, document: T): T & { masked: boolean } {
 	return maskSensitiveDocument(document, context.apiKey);
+}
+
+/**
+ * Masks the personal identifiers and notes of a Party for an oRPC caller
+ * without the `sensitive` scope (issue #23, `maskParty`). Applied to every
+ * procedure that returns a Party, reads and writes alike.
+ */
+export function withMaskedParty<
+	T extends {
+		type: string;
+		isHouseholdMember: boolean;
+		identifiers: PartyIdentifiers;
+		notes: string | null;
+	},
+>(context: { apiKey?: ScopedCaller }, party: T): T & { masked: boolean } {
+	return maskParty(party, context.apiKey);
 }

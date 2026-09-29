@@ -1954,6 +1954,158 @@ describe("API key scopes on every surface (issue #1)", () => {
 	});
 });
 
+describe("Party identifiers behind the `sensitive` scope (issue #23)", () => {
+	const IBAN = "FR7630006000011234567890189";
+
+	async function seedParties(): Promise<{
+		memberId: string;
+		companyId: string;
+	}> {
+		const memberId = createId("prt_");
+		const companyId = createId("prt_");
+		await db.insert(party).values([
+			{
+				id: memberId,
+				type: "person",
+				name: "Camille Moreau",
+				isHouseholdMember: true,
+				identifiers: {
+					iban: [IBAN],
+					phone: ["+33600000000"],
+					email: ["camille@example.com"],
+				},
+				notes: "Born in Lyon",
+			},
+			{
+				id: companyId,
+				type: "company",
+				name: "Nordwind",
+				identifiers: {
+					siren: "812345678",
+					domain: ["nordwind.example"],
+					iban: ["FR7610000000000000000000000"],
+				},
+			},
+		]);
+		return { memberId, companyId };
+	}
+
+	test("WHEN a read key calls get_party on a household member THEN it gets no IBAN, phone, email nor notes and masked is true", async () => {
+		const { memberId } = await seedParties();
+		const client = await connect(["read"]);
+		const result = await client.callTool({
+			name: "get_party",
+			arguments: { id: memberId },
+		});
+		const output = structured<{
+			identifiers: Record<string, unknown>;
+			notes: string | null;
+			masked: boolean;
+		}>(result);
+		expect(output.identifiers).toEqual({});
+		expect(output.notes).toBeNull();
+		expect(output.masked).toBe(true);
+		expect(textOf(result)).toContain("masked");
+		expect(JSON.stringify(result)).not.toContain(IBAN);
+	});
+
+	test("WHEN the same key reads a company THEN it sees the SIREN and the domain but not the IBAN", async () => {
+		const { companyId } = await seedParties();
+		const client = await connect(["read"]);
+		const result = await client.callTool({
+			name: "get_party",
+			arguments: { id: companyId },
+		});
+		const output = structured<{ identifiers: Record<string, unknown> }>(result);
+		expect(output.identifiers).toEqual({
+			siren: "812345678",
+			domain: ["nordwind.example"],
+		});
+	});
+
+	test("list_parties and the docstore://party resource are masked the same way", async () => {
+		const { memberId } = await seedParties();
+		const client = await connect(["read"]);
+		const listed = await client.callTool({
+			name: "list_parties",
+			arguments: {},
+		});
+		expect(JSON.stringify(listed)).not.toContain(IBAN);
+		expect(JSON.stringify(listed)).not.toContain("Born in Lyon");
+		const searched = await client.callTool({
+			name: "list_parties",
+			arguments: { query: IBAN },
+		});
+		expect(structured<{ total: number }>(searched).total).toBe(0);
+
+		const read = await client.readResource({
+			uri: `docstore://party/${memberId}`,
+		});
+		const payload = JSON.parse(resourceText(read)) as {
+			identifiers: Record<string, unknown>;
+			notes: string | null;
+			masked: boolean;
+		};
+		expect(payload.identifiers).toEqual({});
+		expect(payload.notes).toBeNull();
+		expect(payload.masked).toBe(true);
+	});
+
+	test("WHEN a read key calls find_party_by_identifier by IBAN THEN the tool refuses", async () => {
+		await seedParties();
+		const client = await connect(["read"]);
+		const refused = await client.callTool({
+			name: "find_party_by_identifier",
+			arguments: { kind: "iban", value: IBAN },
+		});
+		expect(isToolError(refused)).toBe(true);
+		expect(textOf(refused)).toContain('"sensitive" scope');
+	});
+
+	test("WHEN a read key lists a Party update in list_activity THEN the identifier values are withheld", async () => {
+		const { memberId } = await seedParties();
+		const writer = await connect(["read", "write", "sensitive"]);
+		await writer.callTool({
+			name: "update_party",
+			arguments: { id: memberId, identifiers: { phone: ["+33611111111"] } },
+		});
+		const client = await connect(["read"]);
+		const result = await client.callTool({
+			name: "list_activity",
+			arguments: { action: "party.updated" },
+		});
+		expect(isToolError(result)).toBe(false);
+		expect(JSON.stringify(result)).not.toContain("+336");
+	});
+
+	test("WHEN a key with sensitive reads the household member THEN it sees everything", async () => {
+		const { memberId } = await seedParties();
+		const client = await connect(["read", "sensitive"]);
+		const result = await client.callTool({
+			name: "get_party",
+			arguments: { id: memberId },
+		});
+		const output = structured<{
+			identifiers: { iban?: string[]; phone?: string[]; email?: string[] };
+			notes: string | null;
+			masked: boolean;
+		}>(result);
+		expect(output.identifiers.iban).toEqual([IBAN]);
+		expect(output.identifiers.phone).toEqual(["+33600000000"]);
+		expect(output.identifiers.email).toEqual(["camille@example.com"]);
+		expect(output.notes).toBe("Born in Lyon");
+		expect(output.masked).toBe(false);
+
+		const found = await client.callTool({
+			name: "find_party_by_identifier",
+			arguments: { kind: "iban", value: IBAN },
+		});
+		expect(structured<{ items: { id: string }[] }>(found).items[0]?.id).toBe(
+			memberId,
+		);
+	});
+});
+
 describe("search_documents and the sync cursor order (issue #14)", () => {
 	test("WHEN updatedSince comes with another sort THEN the tool refuses", async () => {
 		const client = await connect(["read"]);

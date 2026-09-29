@@ -4,6 +4,7 @@ import {
 	maskSensitiveActivity,
 } from "@docstore/shared/activity";
 import { paginatedSchema } from "@docstore/shared/pagination";
+import { maskPartyActivityEntry } from "@docstore/shared/party-masking";
 import { protectedProcedure } from "../index";
 import { listActivity } from "../services/activity.service";
 
@@ -25,8 +26,13 @@ export const activityRouter = {
 			const page = await listActivity(context.db, input);
 			return {
 				...page,
+				// Field values of sensitive documents (#22) and Party identifiers
+				// (#23) are withheld from a key without `sensitive`.
 				items: page.items.map((entry) =>
-					maskSensitiveActivity(entry, context.apiKey),
+					maskPartyActivityEntry(
+						maskSensitiveActivity(entry, context.apiKey),
+						context.apiKey,
+					),
 				),
 			};
 		}),
