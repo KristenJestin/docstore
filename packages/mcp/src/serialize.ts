@@ -52,6 +52,10 @@ export const documentSummaryJson = z.object({
 	datePrecision: z.string().nullable(),
 	sensitive: z.boolean(),
 	createdAt: z.string(),
+	/** Last change of any kind: the cursor of `search_documents.updatedSince`. */
+	updatedAt: z.string(),
+	/** Non-null while the document sits in the trash. */
+	deletedAt: z.string().nullable(),
 	category: categorySummaryJson.nullable(),
 	tags: z.array(tagSummaryJson),
 	parties: z.array(partyLinkJson),
@@ -67,6 +71,8 @@ export function toDocumentSummary(item: DocumentListItem): DocumentSummaryJson {
 		datePrecision: item.datePrecision,
 		sensitive: item.sensitive,
 		createdAt: item.createdAt.toISOString(),
+		updatedAt: item.updatedAt.toISOString(),
+		deletedAt: iso(item.deletedAt),
 		category: item.category,
 		tags: item.tags.map((tag) => ({
 			id: tag.id,
@@ -175,8 +181,6 @@ export const documentDetailJson = documentSummaryJson.extend({
 	manualFields: z.array(z.string()),
 	source: z.string(),
 	processingError: z.string().nullable(),
-	updatedAt: z.string(),
-	deletedAt: z.string().nullable(),
 	hasText: z.boolean(),
 	reviewReasons: z.array(
 		z.object({
@@ -203,6 +207,7 @@ export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 			datePrecision: detail.datePrecision,
 			sensitive: detail.sensitive,
 			createdAt: detail.createdAt,
+			updatedAt: detail.updatedAt,
 			deletedAt: detail.deletedAt,
 			parties: detail.parties,
 			category: detail.category,
@@ -231,8 +236,6 @@ export function toDocumentDetail(detail: DocumentDetail): DocumentDetailJson {
 		manualFields: detail.manualFields,
 		source: detail.source,
 		processingError: detail.processingError,
-		updatedAt: detail.updatedAt.toISOString(),
-		deletedAt: iso(detail.deletedAt),
 		hasText: Boolean(detail.content && detail.content.length > 0),
 		reviewReasons: detail.reviewReasons.map((reason) => ({
 			code: reason.code,
@@ -358,6 +361,7 @@ export function describeDocument(item: DocumentSummaryJson): string {
 		parts.push(`tags ${item.tags.map((tag) => tag.name).join(", ")}`);
 	}
 	parts.push(`status ${item.status}`);
+	if (item.deletedAt) parts.push("in the trash");
 	if (item.sensitive) parts.push("sensitive");
 	return parts.join(" · ");
 }

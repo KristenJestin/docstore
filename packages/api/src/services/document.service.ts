@@ -142,6 +142,7 @@ const documentListColumns = {
 	datePrecision: document.datePrecision,
 	sensitive: document.sensitive,
 	createdAt: document.createdAt,
+	updatedAt: document.updatedAt,
 	deletedAt: document.deletedAt,
 	categoryId: document.categoryId,
 	categorySource: document.categorySource,
@@ -196,6 +197,10 @@ function orderByClause(sort: DocumentSort): SQL[] {
 			return [desc(document.title), asc(document.id)];
 		case "validUntil:asc":
 			return [sql`${document.validUntil} asc nulls last`, asc(document.id)];
+		case "updatedAt:desc":
+			return [desc(document.updatedAt), desc(document.id)];
+		case "updatedAt:asc":
+			return [asc(document.updatedAt), asc(document.id)];
 		default:
 			return [sql`${document.documentDate} desc nulls last`, asc(document.id)];
 	}
@@ -332,13 +337,42 @@ async function fieldFilterConditions(
 	});
 }
 
+/**
+ * Condition of the incremental sync: strictly after the cursor instant, or,
+ * with `afterId`, strictly after the `(updatedAt, id)` pair, which is what the
+ * `updatedAt:asc` order walks through.
+ *
+ * The instant goes through `toISOString()` and a `timestamp` cast, the same
+ * UTC wall-clock value Drizzle writes into the column.
+ */
+function updatedSinceCondition(updatedSince: string, afterId?: string): SQL {
+	const instant = new Date(updatedSince).toISOString();
+	return afterId
+		? sql`(${document.updatedAt}, ${document.id}) > (${instant}::timestamp, ${afterId})`
+		: sql`${document.updatedAt} > ${instant}::timestamp`;
+}
+
 function listConditions(input: ListDocumentsInput): SQL[] {
 	const conditions: SQL[] = [];
 
-	if (input.deleted === "exclude") {
+	if (input.afterId && !input.updatedSince) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "`afterId` only makes sense along with `updatedSince`.",
+		});
+	}
+	// A sync must see the documents leaving for the trash: `exclude`, the
+	// default, reads as `include` there.
+	const deleted =
+		input.updatedSince && input.deleted === "exclude"
+			? "include"
+			: input.deleted;
+	if (deleted === "exclude") {
 		conditions.push(isNull(document.deletedAt));
-	} else if (input.deleted === "only") {
+	} else if (deleted === "only") {
 		conditions.push(isNotNull(document.deletedAt));
+	}
+	if (input.updatedSince) {
+		conditions.push(updatedSinceCondition(input.updatedSince, input.afterId));
 	}
 	if (input.status) {
 		conditions.push(eq(document.status, input.status));
@@ -636,15 +670,19 @@ export async function listDocuments(
 		.where(where);
 	const total = totalRows[0]?.value ?? 0;
 
-	const orderBy = input.query
-		? [
-				desc(
-					sql`ts_rank(${document.searchVector}, ${frenchQuery(input.query)})`,
-				),
-				sql`${document.documentDate} desc nulls last`,
-				asc(document.id),
-			]
-		: orderByClause(input.sort);
+	// The cursor dictates the order: any other one would make "the `updatedAt`
+	// of the last item read" a wrong next cursor.
+	const orderBy = input.updatedSince
+		? orderByClause("updatedAt:asc")
+		: input.query
+			? [
+					desc(
+						sql`ts_rank(${document.searchVector}, ${frenchQuery(input.query)})`,
+					),
+					sql`${document.documentDate} desc nulls last`,
+					asc(document.id),
+				]
+			: orderByClause(input.sort);
 
 	const rows = await db
 		.select(documentListColumns)

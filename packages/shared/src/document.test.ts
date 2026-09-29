@@ -66,6 +66,33 @@ describe("listDocumentsInput", () => {
 			false,
 		);
 	});
+
+	test("updatedSince takes an ISO timestamp, with or without an offset", () => {
+		expect(
+			listDocumentsInput.parse({ updatedSince: "2026-09-29T10:00:00.123Z" })
+				.updatedSince,
+		).toBe("2026-09-29T10:00:00.123Z");
+		expect(
+			listDocumentsInput.safeParse({
+				updatedSince: "2026-09-29T12:00:00+02:00",
+			}).success,
+		).toBe(true);
+		expect(
+			listDocumentsInput.safeParse({ updatedSince: "2026-09-29" }).success,
+		).toBe(false);
+		expect(
+			listDocumentsInput.safeParse({ updatedSince: "yesterday" }).success,
+		).toBe(false);
+	});
+
+	test("the sort on updatedAt is accepted both ways", () => {
+		expect(listDocumentsInput.parse({ sort: "updatedAt:asc" }).sort).toBe(
+			"updatedAt:asc",
+		);
+		expect(listDocumentsInput.parse({ sort: "updatedAt:desc" }).sort).toBe(
+			"updatedAt:desc",
+		);
+	});
 });
 
 describe("ocrLayoutSchema", () => {
