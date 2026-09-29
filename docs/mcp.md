@@ -43,7 +43,7 @@ therefore cannot mint itself an `admin` key.
 | `read`      | Every read tool and resource: search, documents, Party, taxonomy, statistics |
 | `write`     | Every mutation (edit, link, upload, rules)                         |
 | `sensitive` | Content of documents marked "sensitive": OCR text, and on HTTP the file bytes, thumbnail and OCR layout |
-| `admin`     | API key administration, `list_intake_sources`; implies every other scope |
+| `admin`     | API key administration, `list_intake_sources`, `run_intake_source`, `create_upload_link`; implies every other scope |
 
 A `sensitive` document returns ``[sensitive document: `sensitive` scope required]``
 instead of its text when the key does not carry `sensitive`; `search_documents`
@@ -102,10 +102,14 @@ curl -s -X POST http://127.0.0.1:3000/mcp \
 
 ## 4. Tools
 
-Every read tool requires the `read` scope, every mutation the `write` scope.
-Two lists take the scope that manages what they list (issue #11):
-`list_share_links` requires `write` (it returns working public URLs) and
-`list_intake_sources` requires `admin`.
+Every tool requires the same scope as its oRPC procedure (issue #24): every
+read tool the `read` scope, every mutation the `write` scope, except:
+
+- `list_share_links` requires `write`, like `shareLink.list` (it returns
+  working public URLs, issue #11);
+- `list_intake_sources`, `run_intake_source` and `create_upload_link` require
+  `admin`, like `intakeSource.list`, `intakeSource.runNow` and
+  `uploadLink.create`: intake sources and upload links are administration.
 
 | Tool                       | What it does                                                         |
 | -------------------------- | -------------------------------------------------------------------- |
@@ -305,11 +309,11 @@ Prompts:
   issuer, extract dates and amounts, then approve it;
 - `review_queue()`: process the "to review" queue.
 
-`run_intake_source`, `create_upload_link`, `create_share_link`,
-`revoke_share_link`, `apply_document_type`, `regenerate_titles`,
-`create_document_type_from_document`, `create_dossier`, `add_to_dossier`,
-`remove_from_dossier`, `close_dossier` and `assign_asn` require the `write`
-scope.
+`create_share_link`, `revoke_share_link`, `apply_document_type`,
+`regenerate_titles`, `create_document_type_from_document`, `create_dossier`,
+`add_to_dossier`, `remove_from_dossier`, `close_dossier` and `assign_asn`
+require the `write` scope; `run_intake_source` and `create_upload_link` require
+`admin`.
 `apply_document_type` does more than patch metadata: it writes the category, the
 Parties, the tags and the extracted field values in one go (see
 `docs/document-types.md`).

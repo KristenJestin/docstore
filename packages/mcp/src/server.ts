@@ -43,7 +43,8 @@ A doc_ id is a stable reference worth citing: after a merge get_document
 returns the kept document with redirectedFrom, and fileUrl (/d/<id>) serves the
 primary file to the same API key.
 Every read requires the read scope, every write the write scope;
-list_share_links requires write and list_intake_sources admin.
+list_share_links requires write; list_intake_sources, run_intake_source and
+create_upload_link require admin.
 Every change and every read of a document is logged under the API key that
 made it: list_activity with mine: true shows what this key did.
 Search before creating: find_party_by_identifier and list_tags avoid duplicates.`;
