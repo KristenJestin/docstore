@@ -108,3 +108,94 @@ describe("settings.serverInfo", () => {
 		await expectOrpcError(anonymous.settings.serverInfo({}), "UNAUTHORIZED");
 	});
 });
+
+/**
+ * Issue #16, D16-01: sign-up is always open while no account exists, then
+ * follows "Allow sign-up", off by default. Only a session or an `admin` key
+ * may flip it.
+ */
+describe("settings.signUpStatus and the allow sign-up toggle", () => {
+	test("sign-up is allowed while no user exists (first run)", async () => {
+		await truncateAll(db);
+		const anonymous = createTestClient(db, null);
+		expect(await anonymous.settings.signUpStatus({})).toEqual({
+			open: true,
+			state: "first-user",
+		});
+	});
+
+	test("sign-up is off by default once a user exists", async () => {
+		const anonymous = createTestClient(db, null);
+		expect(await anonymous.settings.signUpStatus({})).toEqual({
+			open: false,
+			state: "closed",
+		});
+		expect((await client.settings.get({}))["auth.allowSignUp"]).toBe(false);
+	});
+
+	test("a signed-in member turns sign-up on, then off again", async () => {
+		const anonymous = createTestClient(db, null);
+
+		const opened = await client.settings.set({
+			key: "auth.allowSignUp",
+			value: true,
+		});
+		expect(opened["auth.allowSignUp"]).toBe(true);
+		expect(await anonymous.settings.signUpStatus({})).toEqual({
+			open: true,
+			state: "allowed",
+		});
+
+		await client.settings.set({ key: "auth.allowSignUp", value: false });
+		expect(await anonymous.settings.signUpStatus({})).toEqual({
+			open: false,
+			state: "closed",
+		});
+	});
+
+	test("a signed-out caller cannot change the toggle", async () => {
+		const anonymous = createTestClient(db, null);
+		await expectOrpcError(
+			anonymous.settings.set({ key: "auth.allowSignUp", value: true }),
+			"UNAUTHORIZED",
+		);
+	});
+
+	test("an API key without the admin scope cannot open sign-up", async () => {
+		const writer = createTestClient(db, owner, {
+			id: "key_writer",
+			scopes: ["read", "write"],
+		});
+		await expectOrpcError(
+			writer.settings.set({ key: "auth.allowSignUp", value: true }),
+			"FORBIDDEN",
+		);
+		expect((await client.settings.get({}))["auth.allowSignUp"]).toBe(false);
+
+		// The other settings stay a plain `write`.
+		const updated = await writer.settings.set({
+			key: "review.requireIssuer",
+			value: false,
+		});
+		expect(updated["review.requireIssuer"]).toBe(false);
+	});
+
+	test("an admin API key can open sign-up", async () => {
+		const admin = createTestClient(db, owner, {
+			id: "key_admin",
+			scopes: ["admin"],
+		});
+		const updated = await admin.settings.set({
+			key: "auth.allowSignUp",
+			value: true,
+		});
+		expect(updated["auth.allowSignUp"]).toBe(true);
+	});
+
+	test("the toggle only accepts a boolean", async () => {
+		await expectOrpcError(
+			client.settings.set({ key: "auth.allowSignUp", value: "yes" }),
+			"BAD_REQUEST",
+		);
+	});
+});

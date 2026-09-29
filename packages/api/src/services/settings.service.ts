@@ -1,3 +1,4 @@
+import { getSignUpStatus } from "@docstore/auth/sign-up";
 import type { Db } from "@docstore/db";
 import {
 	getAllSettings,
@@ -30,7 +31,8 @@ export function getSettings(db: Db): Promise<Settings> {
  * The services that produce content read it from here rather than assuming
  * English.
  */
-export { getContentLocale };
+/** Whether an account can be created right now (issue #16). */
+export { getContentLocale, getSignUpStatus };
 
 export async function setSetting(
 	db: Db,

@@ -21,10 +21,14 @@ export const Route = createFileRoute("/_app")({
 	pendingMs: 0,
 	pendingMinMs: 200,
 	pendingComponent: AppLayoutPending,
-	beforeLoad: async () => {
+	beforeLoad: async ({ location }) => {
 		const session = await authClient.getSession();
 		if (!session.data) {
-			throw redirect({ to: "/login" });
+			// Back to the page that was asked for once signed in (issue #16).
+			throw redirect({
+				to: "/login",
+				search: location.href === "/" ? {} : { redirect: location.href },
+			});
 		}
 		return { session };
 	},

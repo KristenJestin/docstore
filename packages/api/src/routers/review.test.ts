@@ -429,6 +429,7 @@ describe("settings", () => {
 			"asn.autoAssign": "never",
 			"content.locale": "en-GB",
 			"intake.archives": "extract",
+			"auth.allowSignUp": false,
 		});
 
 		const updated = await client.settings.set({

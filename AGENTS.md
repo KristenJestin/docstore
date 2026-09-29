@@ -132,6 +132,11 @@ database.
   (documents, dossiers, types, tags, categories, parties, automations, links).
   From a worktree, run them with
   `E2E_BASE_URL=https://<branch>.docstore.localhost`.
+- Sign-up is closed once a database has an account (issue #16): the global
+  setup signs in as `e2e-owner@test.local` (created on the first run of an
+  empty database), turns "Allow sign-up" on for the specs, and the teardown
+  restores it. On a database whose accounts predate the suite, point
+  `E2E_OWNER_EMAIL` / `E2E_OWNER_PASSWORD` at one of them.
 - `bun run check-types` runs `tsc` across every package. It must be green.
 - Visual drives: the `agent-browser` CLI with a named session
   (`agent-browser --session <name> …`), never an embedded browser.

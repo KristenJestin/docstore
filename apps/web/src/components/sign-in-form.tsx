@@ -1,12 +1,13 @@
-import { Button } from "@docstore/ui/components/button";
+import { Button, buttonVariants } from "@docstore/ui/components/button";
 import { Input } from "@docstore/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useId } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
+import { redirectSearch, safeRedirect } from "@/lib/auth-redirect";
 
 import { AuthCard } from "./auth-card";
 import { FormField } from "./form-field";
@@ -17,11 +18,8 @@ const signInSchema = z.object({
 	password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
-export default function SignInForm({
-	onSwitchToSignUp,
-}: {
-	onSwitchToSignUp: () => void;
-}) {
+/** `/login`. `redirect` is where the `_app` guard was going (issue #16). */
+export default function SignInForm({ redirect }: { redirect?: string }) {
 	const navigate = useNavigate();
 	const { isPending } = authClient.useSession();
 	const fieldId = useId();
@@ -34,7 +32,7 @@ export default function SignInForm({
 				{ email: value.email, password: value.password },
 				{
 					onSuccess: () => {
-						navigate({ to: "/" });
+						navigate({ href: safeRedirect(redirect) });
 						toast.success("Signed in.");
 					},
 					onError: () => {
@@ -55,9 +53,13 @@ export default function SignInForm({
 			title="Welcome back"
 			description="Open your household document library."
 			footer={
-				<Button variant="link" onClick={onSwitchToSignUp}>
+				<Link
+					to="/signup"
+					search={redirectSearch(redirect)}
+					className={buttonVariants({ variant: "link" })}
+				>
 					No account yet? Create account
-				</Button>
+				</Link>
 			}
 		>
 			<form

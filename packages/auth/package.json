@@ -13,6 +13,7 @@
 	"dependencies": {
 		"@docstore/db": "workspace:*",
 		"@docstore/env": "workspace:*",
+		"@docstore/shared": "workspace:*",
 		"better-auth": "catalog:",
 		"dotenv": "catalog:",
 		"zod": "catalog:"

@@ -15,35 +15,40 @@ export interface E2eAccount {
 }
 
 /**
- * Creates an account through the sign-up form and leaves the page on the
- * dashboard (`/`).
- */
-/**
- * Opens `/login` and waits for the form.
+ * Opens `path` and waits for `heading`.
  *
  * The development server compiles the route chunk on demand, and a request
  * that lands while it is busy sometimes never resolves: the router then keeps
  * showing its pending spinner. One reload always gets it back, which is
  * cheaper than a whole test retry.
  */
-async function openLoginPage(page: Page): Promise<void> {
-	const heading = page.getByRole("heading", { name: "Create account" });
-	await page.goto("/login");
+export async function openAuthPage(
+	page: Page,
+	path: string,
+	heading: string,
+): Promise<void> {
+	const title = page.getByRole("heading", { name: heading });
+	await page.goto(path);
 	try {
-		await expect(heading).toBeVisible({ timeout: 15_000 });
+		await expect(title).toBeVisible({ timeout: 15_000 });
 	} catch {
 		await page.reload();
-		await expect(heading).toBeVisible({ timeout: 30_000 });
+		await expect(title).toBeVisible({ timeout: 30_000 });
 	}
 }
 
+/**
+ * Creates an account through the `/signup` form and leaves the page on the
+ * dashboard (`/`). Sign-up is open for the whole run: the global setup turns
+ * "Allow sign-up" on and the teardown restores it.
+ */
 export async function signUp(
 	page: Page,
 	name = "E2E Test User",
 ): Promise<E2eAccount> {
 	const email = uniqueEmail();
 
-	await openLoginPage(page);
+	await openAuthPage(page, "/signup", "Create account");
 
 	await page.getByLabel("Name").fill(name);
 	await page.getByLabel("Email address").fill(email);
@@ -57,19 +62,19 @@ export async function signUp(
 	return { email, password: E2E_PASSWORD, name };
 }
 
-/** Signs in with an existing account from the `/login` screen. */
-export async function signIn(page: Page, account: E2eAccount): Promise<void> {
-	await openLoginPage(page);
-	await page
-		.getByRole("button", { name: "Already have an account? Sign in" })
-		.click();
-	await expect(
-		page.getByRole("heading", { name: "Welcome back" }),
-	).toBeVisible();
-
+/** Fills and sends the `/login` form, wherever it leads next. */
+export async function submitSignIn(
+	page: Page,
+	account: E2eAccount,
+): Promise<void> {
 	await page.getByLabel("Email address").fill(account.email);
 	await page.getByLabel("Password").fill(account.password);
 	await page.locator("form").getByRole("button", { name: "Sign in" }).click();
+}
 
+/** Signs in with an existing account from the `/login` screen. */
+export async function signIn(page: Page, account: E2eAccount): Promise<void> {
+	await openAuthPage(page, "/login", "Welcome back");
+	await submitSignIn(page, account);
 	await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 }
