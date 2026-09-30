@@ -3,6 +3,7 @@ import { dateOnlySchema, iconNameSchema } from "./common";
 import { extractionResultSchema } from "./extraction";
 import {
 	hasExpectedMonth,
+	MAX_ARRIVES_AFTER,
 	periodicitySchema,
 	periodLengthInMonths,
 	recurrencePeriodSchema,
@@ -93,6 +94,12 @@ export const documentTypeSchema = z.object({
 	 * (`learnedExpectedMonth`), else the last month of the period.
 	 */
 	expectedMonth: z.int().nullable(),
+	/**
+	 * Number of periods after the one they cover that the documents arrive in:
+	 * 1 = the following period (the 2025 tax notice arrives in 2026). `0` for a
+	 * document received inside its own period, and for a one-off type (D39-01).
+	 */
+	arrivesAfter: z.int().min(0),
 	graceDays: z.int().nullable(),
 	createdAt: z.date(),
 	updatedAt: z.date(),
@@ -237,6 +244,13 @@ export const recurrenceInput = z
 		 * Left empty, it is learned from the documents of the type.
 		 */
 		expectedMonth: z.int().min(1).max(12).nullish(),
+		/**
+		 * Periods after the one they cover that the documents arrive in: `1` for a
+		 * tax notice received the following year. `0` (the default) = inside
+		 * their own period. The expected date moves by as many periods, and a
+		 * document without a period is filed that many periods before its date.
+		 */
+		arrivesAfter: z.int().min(0).max(MAX_ARRIVES_AFTER).optional(),
 		graceDays: z.int().min(0).max(365).optional(),
 	})
 	.superRefine((value, ctx) => {

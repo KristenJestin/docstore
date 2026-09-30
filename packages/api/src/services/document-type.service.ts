@@ -87,6 +87,7 @@ import {
 	enumeratePeriods,
 	hasExpectedMonth,
 	learnExpectedMonth,
+	periodAnchorOf,
 	periodicityFromDayGaps,
 	periodKeyOf,
 	periodStartOf,
@@ -129,6 +130,10 @@ export { SUGGEST_MIN_SAMPLES };
 export interface DocumentTypeMember {
 	documentId: string;
 	title: string;
+	/**
+	 * Date deciding its period: `period_start`, else `document_date` moved back
+	 * `arrivesAfter` periods (D39-02).
+	 */
 	anchor: string;
 	/** `document_date`: when it arrived, what the expected month is learned from. */
 	arrival: string | null;
@@ -238,11 +243,11 @@ async function loadCandidates(
 		if (merged) alternatives.push(merged);
 	}
 
-	return db
+	const rows = await db
 		.select({
 			documentId: document.id,
 			title: document.title,
-			anchor: anchorDate,
+			periodStart: document.periodStart,
 			arrival: document.documentDate,
 		})
 		.from(document)
@@ -253,6 +258,38 @@ async function loadCandidates(
 				sql`(${sql.join(alternatives, sql` or `)})`,
 			),
 		);
+	return rows.flatMap((item) => {
+		const member = memberOf(row, item);
+		return member ? [member] : [];
+	});
+}
+
+/**
+ * A document seen through a type: its period is `period_start`, else its date
+ * moved back the periods the type's documents arrive after (D39-02).
+ */
+function memberOf(
+	row: Pick<DocumentTypeRow, "periodicity" | "arrivesAfter">,
+	item: {
+		documentId: string;
+		title: string;
+		periodStart: string | null;
+		arrival: string | null;
+	},
+): DocumentTypeMember | null {
+	const anchor = periodAnchorOf(
+		row.periodicity,
+		item.periodStart,
+		item.arrival,
+		row.arrivesAfter,
+	);
+	if (!anchor) return null;
+	return {
+		documentId: item.documentId,
+		title: item.title,
+		anchor,
+		arrival: item.arrival,
+	};
 }
 
 /** Effective members of the type, with manual overrides applied. */
@@ -267,7 +304,7 @@ export async function documentTypeMembers(
 				documentId: documentTypeOverride.documentId,
 				included: documentTypeOverride.included,
 				title: document.title,
-				anchor: anchorDate,
+				periodStart: document.periodStart,
 				arrival: document.documentDate,
 				deletedAt: document.deletedAt,
 			})
@@ -279,14 +316,8 @@ export async function documentTypeMembers(
 	const byId = new Map(candidates.map((item) => [item.documentId, item]));
 	for (const override of overrides) {
 		if (override.included) {
-			if (override.anchor && !override.deletedAt) {
-				byId.set(override.documentId, {
-					documentId: override.documentId,
-					title: override.title,
-					anchor: override.anchor,
-					arrival: override.arrival,
-				});
-			}
+			const member = override.deletedAt ? null : memberOf(row, override);
+			if (member) byId.set(override.documentId, member);
 		} else {
 			byId.delete(override.documentId);
 		}
@@ -384,6 +415,8 @@ function buildTimeline(
 	today: string,
 	expectedMonth: number | null,
 ): RecurrencePeriod[] {
+	// A period already begun is enumerated even when its document only arrives
+	// in a later one (D39-03): it stays `pending` until its due date.
 	// A single document per period: the oldest one wins.
 	const byPeriod = new Map<string, DocumentTypeMember>();
 	for (const member of members) {
@@ -409,6 +442,7 @@ function buildTimeline(
 			row.expectedDay,
 			graceDays,
 			expectedMonth,
+			row.arrivesAfter,
 		);
 		const status = member ? "present" : today > dueDate ? "missing" : "pending";
 		return {
@@ -447,7 +481,7 @@ export async function recurrenceViewOf(
 	// which month of the period they arrive in.
 	const learnedExpectedMonth =
 		periodicity && row.expectedMonth === null
-			? learnExpectedMonth(periodicity, members)
+			? learnExpectedMonth(periodicity, members, row.arrivesAfter)
 			: null;
 	return {
 		members,
@@ -829,6 +863,7 @@ function recurrenceColumns(
 	| "endPeriod"
 	| "expectedDay"
 	| "expectedMonth"
+	| "arrivesAfter"
 	| "graceDays"
 > {
 	if (!recurrence) {
@@ -838,6 +873,7 @@ function recurrenceColumns(
 			endPeriod: null,
 			expectedDay: null,
 			expectedMonth: null,
+			arrivesAfter: 0,
 			graceDays: null,
 		};
 	}
@@ -861,6 +897,7 @@ function recurrenceColumns(
 		expectedMonth: hasExpectedMonth(recurrence.periodicity)
 			? (recurrence.expectedMonth ?? null)
 			: null,
+		arrivesAfter: recurrence.arrivesAfter ?? 0,
 		graceDays: recurrence.graceDays ?? DEFAULT_GRACE_DAYS,
 	};
 }
@@ -1449,7 +1486,8 @@ export async function documentTypeForDocument(
 			documentTypeSource: document.documentTypeSource,
 			documentTypeConfidence: document.documentTypeConfidence,
 			layoutId: document.layoutId,
-			anchor: anchorDate,
+			periodStart: document.periodStart,
+			documentDate: document.documentDate,
 			deletedAt: document.deletedAt,
 		})
 		.from(document)
@@ -1516,7 +1554,16 @@ export async function documentTypeForDocument(
 			membership = "forced";
 		}
 	}
-	if (!match && doc.anchor && !doc.deletedAt) {
+	// D39-02: the period of the document depends on the type looking at it.
+	const anchorFor = (row: DocumentTypeRow) =>
+		periodAnchorOf(
+			row.periodicity,
+			doc.periodStart,
+			doc.documentDate,
+			row.arrivesAfter,
+		);
+
+	if (!match && (doc.periodStart || doc.documentDate) && !doc.deletedAt) {
 		match = rows.find((row) => {
 			if (!row.periodicity) return false;
 			if (overrides.get(row.id) === false) return false;
@@ -1526,7 +1573,7 @@ export async function documentTypeForDocument(
 			const matchesCategory =
 				row.categoryId === null || categoryIds.has(row.categoryId);
 			if (!matchesParty || !matchesCategory) return false;
-			const start = periodStartOf(row.periodicity, doc.anchor as string);
+			const start = periodStartOf(row.periodicity, anchorFor(row) as string);
 			// Without a first period the range simply extends down to this
 			// document: only an explicit bound can leave it outside.
 			const first = row.startPeriod
@@ -1566,10 +1613,12 @@ export async function documentTypeForDocument(
 		confidence:
 			doc.documentTypeId === match.id ? doc.documentTypeConfidence : null,
 		layout,
-		period:
-			match.periodicity && doc.anchor
-				? periodKeyOf(match.periodicity, doc.anchor)
-				: null,
+		period: (() => {
+			const anchor = anchorFor(match);
+			return match.periodicity && anchor
+				? periodKeyOf(match.periodicity, anchor)
+				: null;
+		})(),
 		membership,
 	};
 }
@@ -1693,6 +1742,7 @@ export async function previewDocumentType(
 			persisted?.sensitiveDefault ?? draft?.sensitiveDefault ?? false,
 		titleTemplate: persisted?.titleTemplate ?? draft?.titleTemplate ?? null,
 		periodicity: persisted?.periodicity ?? null,
+		arrivesAfter: persisted?.arrivesAfter ?? 0,
 	};
 
 	const [categoryRows, partyRows, tagRows] = await Promise.all([
@@ -1753,8 +1803,12 @@ export async function previewDocumentType(
 	});
 	const extractions = await runExtractionRules(db, input.documentId, rules);
 
-	const anchor =
-		prepared.document.periodStart ?? prepared.document.documentDate;
+	const anchor = periodAnchorOf(
+		spec.periodicity,
+		prepared.document.periodStart,
+		prepared.document.documentDate,
+		spec.arrivesAfter,
+	);
 
 	return {
 		documentTypeId: spec.id,
@@ -1768,7 +1822,11 @@ export async function previewDocumentType(
 			? renderTitleTemplate(
 					spec.titleTemplate,
 					typeTitleContext(
-						{ name: spec.name, periodicity: spec.periodicity },
+						{
+							name: spec.name,
+							periodicity: spec.periodicity,
+							arrivesAfter: spec.arrivesAfter,
+						},
 						prepared.subject,
 					),
 					await getContentLocale(db),
@@ -1803,7 +1861,10 @@ interface TitleOutcome {
 async function titleOutcomeFor(
 	db: Db,
 	documentId: string,
-	type: Pick<DocumentTypeRow, "name" | "periodicity" | "titleTemplate">,
+	type: Pick<
+		DocumentTypeRow,
+		"name" | "periodicity" | "arrivesAfter" | "titleTemplate"
+	>,
 ): Promise<TitleOutcome | null> {
 	if (!type.titleTemplate) return null;
 	const prepared = await buildSubject(db, documentId);
