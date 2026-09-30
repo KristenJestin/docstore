@@ -21,6 +21,10 @@ import {
 	rejectAssignment,
 	requeueDocument,
 } from "@docstore/api/services/review.service";
+import {
+	assertDocumentSensitiveAccess,
+	SENSITIVE_SCOPE_REQUIRED_FOR_EXTERNAL_REFS,
+} from "@docstore/api/services/sensitive-access.service";
 import { setSensitive } from "@docstore/ingestion";
 import { SENSITIVE_PLACEHOLDER } from "@docstore/shared/api-key";
 import { dateOnlySchema } from "@docstore/shared/common";
@@ -417,7 +421,7 @@ export function registerDocumentTools(
 		{
 			title: "Declare the external notes citing a document",
 			description:
-				'Replaces the references one external system declares on a document: the notes that cite it, e.g. `system: "wiki"`, `refs: [{ ref: "10-admin/12-logement/contrat-edf.md", label: "Contrat EDF", url? }]`. `system` is a lowercase slug; each `ref` appears once. The references of other systems are left alone; an empty `refs` clears this system. Sending the same list again changes nothing (no `updatedAt` bump, no webhook). They come back in `get_document` (`externalRefs`) and feed the `referencedBy` / `notReferencedBy` filters of `search_documents`. On a sensitive document they are masked without the `sensitive` scope.',
+				'Replaces the references one external system declares on a document: the notes that cite it, e.g. `system: "wiki"`, `refs: [{ ref: "10-admin/12-logement/contrat-edf.md", label: "Contrat EDF", url? }]`. `system` is a lowercase slug; each `ref` appears once. The references of other systems are left alone; an empty `refs` clears this system. Sending the same list again changes nothing (no `updatedAt` bump, no webhook). They come back in `get_document` (`externalRefs`) and feed the `referencedBy` / `notReferencedBy` filters of `search_documents`. On a sensitive document they are masked without the `sensitive` scope, and setting them requires it.',
 			inputSchema: {
 				documentId: z.string().min(1),
 				system: externalRefSystemSchema,
@@ -433,6 +437,13 @@ export function registerDocumentTools(
 		},
 		async (input) => {
 			requireWrite(context);
+			// Masked without `sensitive` (#34), so not replaceable blindly (#36).
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.principal,
+				input.documentId,
+				SENSITIVE_SCOPE_REQUIRED_FOR_EXTERNAL_REFS,
+			);
 			return toDocumentDetail(
 				await setDocumentExternalRefs(
 					context.db,

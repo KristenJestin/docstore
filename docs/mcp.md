@@ -56,7 +56,8 @@ document on its title only (never on its OCR text or notes), its
 `referencedBy` / `notReferencedBy` filters never return a sensitive document,
 and `list_activity` shows that a field of a sensitive document changed, never
 the value, and how many references a `document.external_refs_set` entry
-changed, never their paths. `search_documents` never returns content snippets, whatever
+changed, never their paths. `set_external_refs` on a sensitive document is
+refused for such a key (issue #36). `search_documents` never returns content snippets, whatever
 the scopes. `test_rule` on a sensitive
 document and `export_documents` with `includeSensitive` are refused without
 `sensitive`. Any read without `read`, and any mutation without `write`, fails
@@ -282,6 +283,10 @@ link back to them and the system can find what it never cites:
   `document.external_refs_set` entries of `list_activity` give the system and
   the number of refs added, removed or updated, not their paths. A wiki path
   such as `10-admin/17-sante/...` says too much about such a document.
+  Such a key cannot set them either: `set_external_refs` on a sensitive
+  document answers a tool error and leaves the stored references unchanged
+  (issue #36), since replacing a list it cannot see would overwrite or clear
+  it blindly.
 
 A call that changes something bumps `updatedAt`, sends `document.updated` and
 leaves a `document.external_refs_set` entry in the activity log. Sending the
@@ -312,6 +317,7 @@ An agent gets an explicit tool error in each of these cases:
 | Situation | Answer |
 | --------- | ------ |
 | A document in the trash (`update_document`, `set_document_category`, `set_document_tags`, `set_external_refs`, `set_field_value`, `link_party`, `unlink_party`, `assign_asn`, `ignore_duplicate`, `approve_review`, `reject_assignment`, `add_to_dossier`, `remove_from_dossier`, `add_document_relation`, `apply_document_type`, `run_rule`, `create_share_link`, `reprocess_document`) | "Document is in the trash; restore it first." — every writer, without exception |
+| `set_external_refs` on a sensitive document, with a key without `sensitive` | "This API key does not have the "sensitive" scope required to set the external references of a sensitive document." (issue #36) |
 | `reject_assignment` on a value entered by a human | "This assignment was set manually; edit it instead." — a manual value is edited, never rejected |
 | `reject_assignment` on an assignment that does not exist | `NOT_FOUND` |
 | `approve_review` on a `processing` or `failed` document | `CONFLICT`: nothing reviewable yet |
