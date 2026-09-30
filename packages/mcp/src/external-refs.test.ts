@@ -204,18 +204,6 @@ describe("Docstore SHALL mask the external references of a sensitive document fo
 		expect(text).not.toContain("17-sante");
 	});
 
-	test("WHEN a write key calls set_external_refs on a sensitive document THEN the document it gets back has no refs", async () => {
-		const id = await seedCitedDiagnosis();
-		const client = await connect(["read", "write"]);
-		const set = await client.callTool({
-			name: "set_external_refs",
-			arguments: { documentId: id, system: "notes", refs: [{ ref: "x.md" }] },
-		});
-		expect(set.isError).toBeFalsy();
-		expect(structured<Detail>(set).externalRefs).toEqual([]);
-		expect(JSON.stringify(set)).not.toContain("17-sante");
-	});
-
 	test("WHEN a read key searches referencedBy or notReferencedBy wiki THEN the sensitive document is never returned", async () => {
 		const id = await seedCitedDiagnosis();
 		const passport = await seedDocument("Passport");
@@ -271,5 +259,86 @@ describe("Docstore SHALL mask the external references of a sensitive document fo
 			}),
 		);
 		expect(cited.items.map((item) => item.id)).toEqual([id]);
+	});
+});
+
+/**
+ * Issue #36, MCP side: `set_external_refs` replaces a system's whole list, so
+ * a `write` key without `sensitive` could overwrite or clear the refs of a
+ * sensitive document it cannot see (#34). The tool refuses; keys with
+ * `sensitive` are unchanged.
+ */
+describe("Docstore SHALL refuse a write key without sensitive to set the external references of a sensitive document (MCP)", () => {
+	const HEALTH = "10-admin/17-sante/diagnostic.md";
+
+	async function seedCitedDiagnosis(): Promise<string> {
+		const id = await seedDocument("Diagnosis", { sensitive: true });
+		await db.insert(documentExternalRef).values({
+			documentId: id,
+			system: "wiki",
+			ref: HEALTH,
+			label: "Diagnostic",
+		});
+		return id;
+	}
+
+	async function storedRefs(documentId: string) {
+		const rows = await db.query.documentExternalRef.findMany();
+		return rows
+			.filter((row) => row.documentId === documentId)
+			.map((row) => ({ system: row.system, ref: row.ref, label: row.label }));
+	}
+
+	test("WHEN a write key without sensitive calls set_external_refs on a sensitive document THEN it gets a scope error and the stored refs are unchanged", async () => {
+		const id = await seedCitedDiagnosis();
+		const client = await connect(["read", "write"]);
+
+		for (const call of [
+			{ system: "wiki", refs: [{ ref: "10-admin/other.md" }] },
+			{ system: "wiki", refs: [] },
+			{ system: "notes", refs: [{ ref: "x.md" }] },
+		]) {
+			const result = await client.callTool({
+				name: "set_external_refs",
+				arguments: { documentId: id, ...call },
+			});
+			expect(result.isError).toBe(true);
+			expect(JSON.stringify(result)).toContain("sensitive");
+			expect(JSON.stringify(result)).not.toContain("17-sante");
+		}
+
+		expect(await storedRefs(id)).toEqual([
+			{ system: "wiki", ref: HEALTH, label: "Diagnostic" },
+		]);
+	});
+
+	test("WHEN a write key without sensitive calls set_external_refs on a non-sensitive document THEN it still works", async () => {
+		const contract = await seedDocument("EDF contract");
+		const client = await connect(["read", "write"]);
+		const set = await client.callTool({
+			name: "set_external_refs",
+			arguments: { documentId: contract, system: "wiki", refs: [{ ref: EDF }] },
+		});
+		expect(set.isError).toBeFalsy();
+		expect(await storedRefs(contract)).toEqual([
+			{ system: "wiki", ref: EDF, label: null },
+		]);
+	});
+
+	test("WHEN a write key with sensitive calls set_external_refs on a sensitive document THEN it works as before", async () => {
+		const id = await seedCitedDiagnosis();
+		const next = "10-admin/17-sante/diagnostic-2026.md";
+		const client = await connect(["read", "write", "sensitive"]);
+		const set = await client.callTool({
+			name: "set_external_refs",
+			arguments: { documentId: id, system: "wiki", refs: [{ ref: next }] },
+		});
+		expect(set.isError).toBeFalsy();
+		expect(
+			structured<Detail>(set).externalRefs.map((item) => item.ref),
+		).toEqual([next]);
+		expect(await storedRefs(id)).toEqual([
+			{ system: "wiki", ref: next, label: null },
+		]);
 	});
 });

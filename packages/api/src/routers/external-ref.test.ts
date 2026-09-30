@@ -153,13 +153,10 @@ describe("Docstore SHALL mask the external references of a sensitive document fo
 		expect(JSON.stringify(detail)).not.toContain("17-sante");
 	});
 
-	test("WHEN a write key sets refs on a sensitive document THEN the document it gets back has no refs", async () => {
+	// Writing the refs of a sensitive document without `sensitive` is refused
+	// since #36 (see below); another write still returns them masked.
+	test("WHEN a write key updates a sensitive document THEN the document it gets back has no refs", async () => {
 		const { diagnosis } = await seedCitedDiagnosis();
-		const updated = await keyClient(["read", "write"]).document.setExternalRefs(
-			{ id: diagnosis, system: "notes", refs: [{ ref: "health/visit.md" }] },
-		);
-		expect(updated.externalRefs).toEqual([]);
-		expect(updated.masked).toBe(true);
 		const renamed = await keyClient(["read", "write"]).document.update({
 			id: diagnosis,
 			title: "Diagnosis 2026",
@@ -238,5 +235,89 @@ describe("Docstore SHALL mask the external references of a sensitive document fo
 			action: "document.external_refs_set",
 		});
 		expect(JSON.stringify(full.items)).toContain(HEALTH);
+	});
+});
+
+/**
+ * Issue #36: `setExternalRefs` replaces a system's whole list, so a `write`
+ * key without `sensitive`, which cannot see the refs of a sensitive document
+ * (#34), could still overwrite or clear them blindly. It is refused, like
+ * reading them is masked; keys with `sensitive` and sessions are unchanged.
+ */
+describe("Docstore SHALL refuse a write key without sensitive to set the external references of a sensitive document", () => {
+	const HEALTH = "10-admin/17-sante/diagnostic.md";
+
+	function keyClient(scopes: ApiKeyScope[]) {
+		return createTestClient(db, owner, { id: "key_test", scopes });
+	}
+
+	async function seedCitedDiagnosis(): Promise<string> {
+		const id = await seedDocument("Diagnosis", { sensitive: true });
+		await db.insert(documentExternalRef).values({
+			documentId: id,
+			system: "wiki",
+			ref: HEALTH,
+			label: "Diagnostic",
+		});
+		return id;
+	}
+
+	async function storedRefs(documentId: string) {
+		const rows = await db.query.documentExternalRef.findMany();
+		return rows
+			.filter((row) => row.documentId === documentId)
+			.map((row) => ({ system: row.system, ref: row.ref, label: row.label }));
+	}
+
+	test("WHEN a write key without sensitive calls setExternalRefs on a sensitive document THEN it gets a scope error and the stored refs are unchanged", async () => {
+		const diagnosis = await seedCitedDiagnosis();
+		const writer = keyClient(["read", "write"]);
+
+		// Overwriting, clearing, or adding another system: all refused.
+		for (const call of [
+			{ system: "wiki", refs: [{ ref: "10-admin/other.md" }] },
+			{ system: "wiki", refs: [] },
+			{ system: "notes", refs: [{ ref: "health/visit.md" }] },
+		]) {
+			await expectOrpcError(
+				writer.document.setExternalRefs({ id: diagnosis, ...call }),
+				"FORBIDDEN",
+			);
+		}
+
+		expect(await storedRefs(diagnosis)).toEqual([
+			{ system: "wiki", ref: HEALTH, label: "Diagnostic" },
+		]);
+	});
+
+	test("WHEN a write key without sensitive calls setExternalRefs on a non-sensitive document THEN it still works", async () => {
+		const contract = await seedDocument("EDF contract");
+		const updated = await keyClient(["read", "write"]).document.setExternalRefs(
+			{ id: contract, system: "wiki", refs: [{ ref: EDF }] },
+		);
+		expect(updated.externalRefs.map((item) => item.ref)).toEqual([EDF]);
+		expect(await storedRefs(contract)).toEqual([
+			{ system: "wiki", ref: EDF, label: null },
+		]);
+	});
+
+	test("WHEN a write key with sensitive or a session calls setExternalRefs on a sensitive document THEN it works as before", async () => {
+		const diagnosis = await seedCitedDiagnosis();
+		const next = "10-admin/17-sante/diagnostic-2026.md";
+		for (const client of [
+			keyClient(["read", "write", "sensitive"]),
+			createTestClient(db, owner),
+		]) {
+			const updated = await client.document.setExternalRefs({
+				id: diagnosis,
+				system: "wiki",
+				refs: [{ ref: next }],
+			});
+			expect(updated.externalRefs.map((item) => item.ref)).toEqual([next]);
+			expect(updated.masked).toBe(false);
+		}
+		expect(await storedRefs(diagnosis)).toEqual([
+			{ system: "wiki", ref: next, label: null },
+		]);
 	});
 });

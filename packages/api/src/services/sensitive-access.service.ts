@@ -22,25 +22,35 @@ import { eq } from "drizzle-orm";
 export const SENSITIVE_SCOPE_REQUIRED =
 	'This API key does not have the "sensitive" scope required for the content of a sensitive document.';
 
+/**
+ * Refusal of `setExternalRefs` / `set_external_refs` on a sensitive document
+ * (issue #36): the refs are masked for such a key (#34), and replacing a list
+ * it cannot see would overwrite or clear it blindly.
+ */
+export const SENSITIVE_SCOPE_REQUIRED_FOR_EXTERNAL_REFS =
+	'This API key does not have the "sensitive" scope required to set the external references of a sensitive document.';
+
 /** Throws `FORBIDDEN` when `sensitive` is true and the caller may not read it. */
 export function assertSensitiveAccess(
 	caller: ScopedCaller,
 	sensitive: boolean,
+	message = SENSITIVE_SCOPE_REQUIRED,
 ): void {
 	if (sensitive && !mayReadSensitive(caller)) {
-		throw new ORPCError("FORBIDDEN", { message: SENSITIVE_SCOPE_REQUIRED });
+		throw new ORPCError("FORBIDDEN", { message });
 	}
 }
 
 /**
  * Same check for a procedure that only has a document id (dry runs that read
- * the OCR layer). An unknown id passes: the procedure answers its own
+ * the OCR layer, external refs written, issue #36). An unknown id passes: the procedure answers its own
  * `NOT_FOUND`. The lookup is skipped for a caller that may read everything.
  */
 export async function assertDocumentSensitiveAccess(
 	db: Db,
 	caller: ScopedCaller,
 	documentId: string,
+	message = SENSITIVE_SCOPE_REQUIRED,
 ): Promise<void> {
 	if (mayReadSensitive(caller)) return;
 	const [row] = await db
@@ -48,7 +58,7 @@ export async function assertDocumentSensitiveAccess(
 		.from(document)
 		.where(eq(document.id, documentId))
 		.limit(1);
-	assertSensitiveAccess(caller, row?.sensitive ?? false);
+	assertSensitiveAccess(caller, row?.sensitive ?? false, message);
 }
 
 /**

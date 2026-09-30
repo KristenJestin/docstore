@@ -70,7 +70,9 @@ import { deleteStorageObjects } from "../services/file.service";
 import { addRelation, removeRelation } from "../services/relation.service";
 import { requeueDocument } from "../services/review.service";
 import {
+	assertDocumentSensitiveAccess,
 	assertSensitiveAccess,
+	SENSITIVE_SCOPE_REQUIRED_FOR_EXTERNAL_REFS,
 	withMaskedDocument,
 } from "../services/sensitive-access.service";
 
@@ -402,12 +404,20 @@ export const documentRouter = {
 			tags: TAGS,
 			summary: "Replace the references one external system declares",
 			description:
-				"Replaces the notes of `system` (a lowercase slug such as `wiki`) that reference the document: `{ ref, url?, label? }`, `ref` unique per system. The other systems are left alone; an empty list clears this one. A call that changes nothing neither bumps `updatedAt` nor emits `document.updated`.",
+				"Replaces the notes of `system` (a lowercase slug such as `wiki`) that reference the document: `{ ref, url?, label? }`, `ref` unique per system. The other systems are left alone; an empty list clears this one. A call that changes nothing neither bumps `updatedAt` nor emits `document.updated`. On a sensitive document, an API key without the `sensitive` scope is refused (403): it cannot see the references it would replace.",
 		})
 		.input(setExternalRefsInput)
 		.output(documentDetailSchema)
-		.handler(async ({ input, context }) =>
-			withMaskedDocument(
+		.handler(async ({ input, context }) => {
+			// The refs of a sensitive document are masked without `sensitive`
+			// (#34); replacing a list the caller cannot see is refused (#36).
+			await assertDocumentSensitiveAccess(
+				context.db,
+				context.apiKey,
+				input.id,
+				SENSITIVE_SCOPE_REQUIRED_FOR_EXTERNAL_REFS,
+			);
+			return withMaskedDocument(
 				context,
 				await setDocumentExternalRefs(
 					context.db,
@@ -415,8 +425,8 @@ export const documentRouter = {
 					input.system,
 					input.refs,
 				),
-			),
-		),
+			);
+		}),
 
 	addTag: writeProcedure
 		.route({
