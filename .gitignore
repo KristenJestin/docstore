@@ -56,8 +56,13 @@ coverage
 docstore.config.json
 docker/config
 
-# Per-worktree development data (file storage created by `bun run dev`)
+# Per-worktree development data: file storage created by `bun run dev` and
+# `bun run db:demo` (`STORAGE_PATH=./data/storage` gives `data/storage[-<slug>]`
+# at the checkout root, or under `apps/server/` when the server runs alone),
+# and the `.data/storage` fallback of `scripts/lib/workspace.ts`.
 .data
+/data/
+apps/server/data/
 
 # Misc
 *.tgz
