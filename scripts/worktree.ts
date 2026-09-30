@@ -17,11 +17,13 @@ import {
 	slugify,
 	withDatabase,
 } from "./lib/workspace";
+import { worktreeAddArgs } from "./lib/worktree-base";
 
 /**
  * Worktree helper.
  *
- * `bun run wt <branch>` creates `../docstore-v2.worktrees/<slug>`, copies the
+ * `bun run wt <branch>` fetches `origin`, creates `../docstore-v2.worktrees/<slug>`
+ * on `<branch>` (a new branch starts from `origin/main`), copies the
  * server environment into it and installs its dependencies; `bun run dev` there
  * then gets its own URL, database, storage folder and API port.
  *
@@ -75,18 +77,6 @@ function serverEnvFor(root: string, target: string): Record<string, string> {
 	return existsSync(example) ? dotenv.parse(readFileSync(example)) : {};
 }
 
-function branchExists(root: string, branch: string): boolean {
-	return (
-		spawnSync(
-			"git",
-			["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
-			{
-				cwd: root,
-			},
-		).status === 0
-	);
-}
-
 function add(branch: string): void {
 	const root = mainRoot();
 	const slug = slugify(branch);
@@ -101,9 +91,16 @@ function add(branch: string): void {
 	}
 	mkdirSync(dirname(target), { recursive: true });
 
-	const args = branchExists(root, branch)
-		? ["worktree", "add", target, branch]
-		: ["worktree", "add", "-b", branch, target];
+	// A new branch starts from the freshly fetched `origin/main`, never from
+	// the local `main`, which may be stale (issue #37).
+	let args: string[];
+	try {
+		args = worktreeAddArgs(root, branch, target);
+	} catch (error) {
+		console.error(`[wt] ${(error as Error).message}`);
+		process.exit(1);
+	}
+	console.log(`[wt] git ${args.join(" ")}`);
 	runOrDie("git", args, root, `git ${args.join(" ")}`);
 
 	// `.env` is gitignored, so a fresh worktree has none: the secrets, the

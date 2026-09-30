@@ -78,7 +78,9 @@ evidence) is [`docs/METHOD.md`](docs/METHOD.md); this is the summary.
 A worktree is a fully isolated environment: its own URL, database, storage
 folder and API port. `bun run wt <branch>` creates it
 (`../docstore-v2.worktrees/<branch>`, copies `apps/server/.env`, runs
-`bun install`); `bun run wt:remove <branch> --yes` deletes it and drops its
+`bun install`); it fetches `origin` first and starts a new branch from
+`origin/main` (the remote default branch), whatever the state of the local
+`main`; `bun run wt:remove <branch> --yes` deletes it and drops its
 database and test databases.
 
 An agent working in a worktree runs `bun run dev` from that worktree. It gets

@@ -228,8 +228,9 @@ No fixture file is committed. The command prints the login it created
 | `bun run test:e2e` | Playwright, critical paths only |
 | `bun run wt <branch>` | Create an isolated worktree (own URL, database, storage, port) |
 
-Each git worktree is a full environment of its own: `bun run wt fix-ui` creates
-`../docstore-v2.worktrees/fix-ui`, and `bun run dev` inside it serves
+Each git worktree is a full environment of its own: `bun run wt fix-ui` fetches
+`origin`, creates `../docstore-v2.worktrees/fix-ui` on a new `fix-ui` branch
+started from `origin/main` (never the local `main`, which may be stale), and `bun run dev` inside it serves
 `https://fix-ui.docstore.localhost` on the `docstore_wt_fix_ui` database, so
 several branches can run at the same time without colliding.
 
