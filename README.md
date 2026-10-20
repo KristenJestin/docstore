@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Bun-1.3-14151a?logo=bun&logoColor=fdc700" alt="Bun 1.3">
   <img src="https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white" alt="TypeScript 6">
   <img src="https://img.shields.io/badge/PostgreSQL-18-4169e1?logo=postgresql&logoColor=white" alt="PostgreSQL 18">
-  <img src="https://img.shields.io/badge/licence-MIT-fdc700" alt="MIT licence">
+  <img src="https://img.shields.io/badge/licence-AGPL--3.0-fdc700" alt="AGPL-3.0 licence">
 </p>
 
 Self-hosted document management for a personal or family archive. Scan, upload,
@@ -304,4 +304,4 @@ readable by a machine, it also carries a native MCP server.
 
 ## Licence
 
-MIT. See [`LICENSE`](LICENSE).
+Free software under the [AGPL-3.0](LICENSE).
