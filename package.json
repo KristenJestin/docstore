@@ -2,6 +2,7 @@
 	"name": "docstore",
 	"version": "2.1.0",
 	"private": true,
+	"license": "AGPL-3.0-only",
 	"workspaces": {
 		"packages": [
 			"apps/*",
